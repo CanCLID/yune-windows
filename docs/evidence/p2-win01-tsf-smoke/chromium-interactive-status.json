@@ -1,0 +1,21 @@
+{
+    "interactive_child_status":  "completed",
+    "generated_at":  "2026-06-27T14:40:51.5648166-07:00",
+    "script_path":  "C:\\Users\\laubonghaudoi\\Documents\\GitHub\\yune-windows\\tools\\run-chromium-smoke.ps1",
+    "arguments":  [
+                      "-YuneRoot",
+                      "C:\\Users\\laubonghaudoi\\Documents\\GitHub\\yune",
+                      "-InstallDir",
+                      "C:\\Users\\laubonghaudoi\\AppData\\Local\\Yune\\WindowsIme",
+                      "-EvidenceDir",
+                      "C:\\Users\\laubonghaudoi\\Documents\\GitHub\\yune-windows\\docs\\evidence\\p2-win01-tsf-smoke",
+                      "-BrowserPath",
+                      "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+                      "-ApprovedMachineStateChange",
+                      "-ApprovalNote",
+                      "User approved in this session: I approve"
+                  ],
+    "working_directory":  "C:\\Users\\laubonghaudoi\\Documents\\GitHub\\yune-windows",
+    "exit_code":  0,
+    "error":  ""
+}

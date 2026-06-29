@@ -23,6 +23,11 @@ usable TSF shell, shared server, native candidate window, installer scripts,
 diagnostics export, and non-elevated contract tests, but omits old private
 evidence captured before the rename.
 
+Current development dogfood works after install, registration, profile
+activation, and an explicit start of the shared server. The installer does not
+yet own the server lifecycle, so manual dogfood must start
+`YuneWindowsServer.exe` before typing.
+
 Before dogfood or production installer work, regenerate live evidence under the
 Yune Windows names:
 
@@ -63,6 +68,32 @@ Then build the Windows IME shell:
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\build-tsf-shell.ps1 -YuneRoot C:\Users\laubonghaudoi\Documents\GitHub\yune
 ```
+
+## Manual Dogfood
+
+After packaging Yune and installing Yune Windows with explicit approval, start
+the shared server before opening the text field you want to test:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\start-yune-windows-server.ps1 -YuneRoot C:\Users\laubonghaudoi\Documents\GitHub\yune -InstallDir "$env:LOCALAPPDATA\Yune\WindowsIme" -WaitForReady
+```
+
+Then activate the profile:
+
+```powershell
+$tool = "$env:LOCALAPPDATA\Yune\WindowsIme\YuneWindowsProfileTool.exe"
+& $tool --activate
+& $tool --state
+```
+
+Open a fresh normal Notepad or Chromium text field, select **Yune Windows** if
+Windows has not already switched to it, type `ngohaig`, and press `Space` to
+commit the first candidate.
+
+Development cleanup remains approval-gated. Close apps that loaded
+`YuneWindowsTSF.dll`, then use the uninstall/cleanup scripts with explicit
+approval and verify no install directory, TSF DLL, server process, TSF profile,
+or machine residue remains.
 
 ## Safety Rule
 

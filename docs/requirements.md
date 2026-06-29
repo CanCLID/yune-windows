@@ -2,9 +2,10 @@
 
 ## Yune Windows Product Requirements
 
-**Status:** public rename baseline in progress. The source tree is renamed and
-uses the Yune Windows package/profile ABI. Fresh post-rename live evidence is
-required before dogfood or production installer work.
+**Status:** public rename baseline complete enough for development dogfood.
+The source tree is renamed and uses the Yune Windows package/profile ABI.
+Fresh post-rename evidence exists, but repeatable dogfood still requires
+product-owned shared-server lifecycle and cleaner uninstall/unload behavior.
 
 - [x] **WIN-01 - Product identity:** Product name, repo slug, install root,
   TSF DLL, server, profile tool, candidate smoke, named pipe, and TSF
@@ -32,9 +33,16 @@ required before dogfood or production installer work.
 - [ ] **WIN-10 - Post-rename live evidence:** Fresh evidence must prove clean
   install target, TSF registration, profile activation, Notepad input,
   candidate display, candidate commit, Chromium text-field input, diagnostics
-  export, uninstall, and cleanup under the Yune Windows names.
+  export, uninstall, and cleanup under the Yune Windows names. Current evidence
+  covers the core path, but the closeout audit remains open because the manual
+  dogfood path still requires explicit shared-server start and cleanup needed
+  recovery after `YuneWindowsTSF.dll` stayed loaded.
 - [ ] **WIN-11 - Dogfood package:** Dogfood installer/package work starts only
   after WIN-10 passes.
+- [ ] **WIN-12 - Product-owned server lifecycle:** The installed IME must start
+  or connect to `YuneWindowsServer.exe` without requiring the operator to run
+  `tools\start-yune-windows-server.ps1` before typing. Failures must remain
+  bounded and structurally logged.
 
 ## Non-Elevated Verification Gates
 

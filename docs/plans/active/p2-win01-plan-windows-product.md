@@ -61,7 +61,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\build-tsf-shell.ps1 -Y
   `RimeYuneWindowsProfileApi`, and
   `rime_get_yune_windows_profile_api()`.
 - [x] Omit old private evidence from the public initial commit.
-- [ ] Push a clean initial `main` commit to `CanCLID/yune-windows`.
+- [x] Push a clean initial `main` commit to `CanCLID/yune-windows`.
 
 ## Non-Elevated Verification
 
@@ -128,3 +128,36 @@ names and record evidence for:
 - uninstall and cleanup;
 - proof that no install directory, TSF DLL, server process, TSF profile, or
   machine residue remains.
+
+## Current Closeout Status
+
+P2-WIN01 has the core Yune Windows development path working: packaged Yune,
+the TSF shell, native candidate display, Notepad input, Chromium input,
+diagnostics export, and recovered cleanup have post-rename evidence. Manual
+dogfood also works after starting the shared server explicitly and activating
+the profile.
+
+The milestone should not be declared dogfood-ready yet. The current manual path
+exposed two product gaps:
+
+- `YuneWindowsServer.exe` must be started explicitly before typing; otherwise
+  the TSF DLL receives keystrokes but logs `server_query_failed` and cannot
+  show candidates.
+- Cleanup can be blocked while apps keep `YuneWindowsTSF.dll` loaded, so the
+  operator path needs better unload detection, guidance, or cleanup recovery.
+
+## Next Milestone
+
+**P2-WIN02 - Server Lifecycle And Cleanup Hardening**
+
+Deliverables:
+
+- product-owned shared-server startup or a per-user broker/autostart design;
+- bounded first-query retry/readiness behavior from the TSF path;
+- structural logs that distinguish server-not-running, server-timeout, and
+  invalid-response failures;
+- installer/uninstaller cleanup that reports DLL holders and reliably reaches a
+  no-residue state after normal app shutdown;
+- one fresh full live run proving install, registration, activation, Notepad,
+  Chromium, diagnostics export, uninstall, and cleanup without manual server
+  startup.

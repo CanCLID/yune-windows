@@ -94,11 +94,14 @@ M04/M05 typing and control behavior still needs holder-free live app proof.
   lone-Shift Chinese/English toggle, `Ctrl+Shift+2` schema cycle,
   `Ctrl+Shift+3` full/half toggle, ASCII pass-through in English mode,
   focus-scoped native mini language bar, and native `YuneWindowsSettings.exe`.
-  The server state protocol is runtime-verified through a scratch shared
-  server and dev REPL; TSF/language-bar/settings paths are build and contract
-  verified. Holder-free Notepad/Chromium proof for DLL-side hotkeys, bar clicks,
-  settings-driven state reconciliation, and native Windows indicator behavior
-  remains open.
+  The server state protocol is runtime-verified through a scratch shared server
+  and dev REPL, including the review crash blockers for `ascii_mode=true`
+  non-empty input, persisted ascii restart, invalid op/schema/option requests,
+  and settings/schema-cycle fallback. TSF/language-bar/settings paths are build
+  and contract verified, including mid-composition toggle cleanup, lone-Shift
+  false-toggle guards, and non-launching focus refresh. Holder-free
+  Notepad/Chromium proof for DLL-side hotkeys, bar clicks, settings-driven state
+  reconciliation, and native Windows indicator behavior remains open.
 
 ## Non-Elevated Verification Gates
 

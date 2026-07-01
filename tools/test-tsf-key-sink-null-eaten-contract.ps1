@@ -13,19 +13,19 @@ $Source = Get-Content -Raw -LiteralPath $TsfSource
 $Methods = @(
     @{
         Name = "OnTestKeyDown"
-        Pattern = "STDMETHODIMP OnTestKeyDown\(ITfContext\*, WPARAM key, LPARAM, BOOL\* eaten\) override \{(?<prefix>[\s\S]*?)\*eaten"
+        Pattern = "STDMETHODIMP OnTestKeyDown\(ITfContext\*, WPARAM key, LPARAM(?: \w+)?, BOOL\* eaten\) override \{(?<prefix>[\s\S]*?)\*eaten"
     },
     @{
         Name = "OnKeyDown"
-        Pattern = "STDMETHODIMP OnKeyDown\(ITfContext\* context, WPARAM key, LPARAM, BOOL\* eaten\) override \{(?<prefix>[\s\S]*?)\*eaten"
+        Pattern = "STDMETHODIMP OnKeyDown\(ITfContext\* context, WPARAM key, LPARAM(?: \w+)?, BOOL\* eaten\) override \{(?<prefix>[\s\S]*?)\*eaten"
     },
     @{
         Name = "OnTestKeyUp"
-        Pattern = "STDMETHODIMP OnTestKeyUp\(ITfContext\*, WPARAM key, LPARAM, BOOL\* eaten\) override \{(?<prefix>[\s\S]*?)\*eaten"
+        Pattern = "STDMETHODIMP OnTestKeyUp\(ITfContext\*, WPARAM key, LPARAM(?: \w+)?, BOOL\* eaten\) override \{(?<prefix>[\s\S]*?)\*eaten"
     },
     @{
         Name = "OnKeyUp"
-        Pattern = "STDMETHODIMP OnKeyUp\(ITfContext\* context, WPARAM key, LPARAM, BOOL\* eaten\) override \{(?<prefix>[\s\S]*?)\*eaten"
+        Pattern = "STDMETHODIMP OnKeyUp\(ITfContext\* context, WPARAM key, LPARAM(?: \w+)?, BOOL\* eaten\) override \{(?<prefix>[\s\S]*?)\*eaten"
     },
     @{
         Name = "OnPreservedKey"

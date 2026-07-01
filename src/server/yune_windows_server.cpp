@@ -30,6 +30,7 @@ struct Request {
     std::string name;
     std::string value;
     std::string schema;
+    std::vector<std::string> unknown_fields;
     bool commit = false;
 };
 
@@ -415,6 +416,9 @@ Request ParseRequest(const std::string& payload) {
     std::istringstream in(payload);
     std::string line;
     while (std::getline(in, line)) {
+        if (!line.empty() && line.back() == '\r') {
+            line.pop_back();
+        }
         if (line == ".") {
             break;
         }
@@ -430,6 +434,10 @@ Request ParseRequest(const std::string& payload) {
             request.schema = line.substr(7);
         } else if (line == "commit=1") {
             request.commit = true;
+        } else if (line == "commit=0") {
+            request.commit = false;
+        } else if (!line.empty()) {
+            request.unknown_fields.push_back(line);
         }
     }
     return request;
@@ -532,10 +540,17 @@ public:
     }
 
     std::string Process(const Request& request) {
-        if (!request.op.empty()) {
-            return ProcessOperation(request);
+        try {
+            if (!request.unknown_fields.empty()) {
+                throw std::runtime_error("unsupported request field");
+            }
+            if (!request.op.empty()) {
+                return ProcessOperation(request);
+            }
+            return ProcessInput(request);
+        } catch (const std::exception& error) {
+            return ErrorResponseJson(error.what());
         }
-        return ProcessInput(request);
     }
 
 private:
@@ -599,6 +614,13 @@ private:
     std::string StateResponseJson() const {
         std::ostringstream out;
         out << "{\"ready\":true,\"state\":" << StateJson() << "}\n";
+        return out.str();
+    }
+
+    std::string ErrorResponseJson(std::string_view error) const {
+        std::ostringstream out;
+        out << "{\"ready\":false,\"error\":\"" << JsonEscape(error)
+            << "\",\"state\":" << StateJson() << "}\n";
         return out.str();
     }
 
@@ -726,48 +748,58 @@ private:
         bool context_active = false;
         try {
             ApplyState(session);
+            bool all_keys_consumed = true;
             for (const unsigned char ch : request.input) {
-                Require(api_->process_key(session, static_cast<int>(ch), 0) == True,
-                        "failed to process key");
+                if (api_->process_key(session, static_cast<int>(ch), 0) != True) {
+                    all_keys_consumed = false;
+                    break;
+                }
             }
 
             std::string commit_text;
-            RimeCommit commit = {};
-            RIME_STRUCT_INIT(RimeCommit, commit);
-            if (api_->get_commit(session, &commit) == True) {
-                commit_text = CStringOrEmpty(commit.text);
-                api_->free_commit(&commit);
+            if (all_keys_consumed) {
+                RimeCommit commit = {};
+                RIME_STRUCT_INIT(RimeCommit, commit);
+                if (api_->get_commit(session, &commit) == True) {
+                    commit_text = CStringOrEmpty(commit.text);
+                    api_->free_commit(&commit);
+                }
             }
 
             RIME_STRUCT_INIT(RimeStatus, status);
-            Require(api_->get_status(session, &status) == True,
-                    "failed to get status");
-            status_active = true;
-            const std::string schema_id = CStringOrEmpty(status.schema_id);
-            api_->free_status(&status);
-            status_active = false;
+            std::string schema_id = state_.schema_id;
+            if (api_->get_status(session, &status) == True) {
+                status_active = true;
+                schema_id = CStringOrEmpty(status.schema_id);
+                api_->free_status(&status);
+                status_active = false;
+            }
 
-            RIME_STRUCT_INIT(RimeContext, context);
-            Require(api_->get_context(session, &context) == True,
-                    "failed to get context");
-            context_active = true;
             std::vector<Candidate> candidates;
-            RimeCandidateListIterator iterator = {};
-            if (api_->candidate_list_begin(session, &iterator) == True) {
-                while (static_cast<int>(candidates.size()) < kMaxReturnedCandidates &&
-                       api_->candidate_list_next(&iterator) == True) {
-                    candidates.push_back(CandidateFromRimeCandidate(iterator.candidate));
+            if (all_keys_consumed) {
+                RIME_STRUCT_INIT(RimeContext, context);
+                if (api_->get_context(session, &context) == True) {
+                    context_active = true;
+                    RimeCandidateListIterator iterator = {};
+                    if (api_->candidate_list_begin(session, &iterator) == True) {
+                        while (static_cast<int>(candidates.size()) <
+                                   kMaxReturnedCandidates &&
+                               api_->candidate_list_next(&iterator) == True) {
+                            candidates.push_back(
+                                CandidateFromRimeCandidate(iterator.candidate));
+                        }
+                        api_->candidate_list_end(&iterator);
+                    }
+                    if (candidates.empty()) {
+                        for (int i = 0; i < context.menu.num_candidates; ++i) {
+                            candidates.push_back(CandidateFromRimeCandidate(
+                                context.menu.candidates[i]));
+                        }
+                    }
+                    api_->free_context(&context);
+                    context_active = false;
                 }
-                api_->candidate_list_end(&iterator);
             }
-            if (candidates.empty()) {
-                for (int i = 0; i < context.menu.num_candidates; ++i) {
-                    candidates.push_back(
-                        CandidateFromRimeCandidate(context.menu.candidates[i]));
-                }
-            }
-            api_->free_context(&context);
-            context_active = false;
             Require(api_->destroy_session(session) == True,
                     "failed to destroy session");
             session_active = false;

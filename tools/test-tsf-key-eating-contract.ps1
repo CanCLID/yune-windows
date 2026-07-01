@@ -11,7 +11,7 @@ if (-not (Test-Path -LiteralPath $TsfSource)) {
 $Source = Get-Content -Raw -LiteralPath $TsfSource
 
 $LetterBranchPattern = @'
-if \(\(key >= L'A' && key <= L'Z'\) \|\| \(key >= L'a' && key <= L'z'\)\) \{(?s:.*?)ServerResponse response = QueryServer\(buffer_, false\);
+if \(\(key >= L'A' && key <= L'Z'\) \|\| \(key >= L'a' && key <= L'z'\)\) \{(?s:.*?)ServerResponse response = QueryInput\(buffer_, false\);
 \s+\*eaten = TRUE;
 (?s:.*?)if \(ShowCandidates\(context, last_candidates_\)\) \{
 \s+WriteStructuralEvent\("candidate_update", buffer_length,
@@ -44,11 +44,12 @@ if ($Source -notmatch $TestKeyDownPattern) {
 }
 
 $KeyDownGuardPattern = @'
-STDMETHODIMP OnKeyDown\(ITfContext\* context, WPARAM key, LPARAM, BOOL\* eaten\) override \{
+STDMETHODIMP OnKeyDown\(ITfContext\* context, WPARAM key, LPARAM(?: \w+)?, BOOL\* eaten\) override \{
 \s+if \(!eaten\) \{
 \s+return E_INVALIDARG;
 \s+\}
 \s+\*eaten = FALSE;
+(?s:.*?)
 \s+if \(!ShouldHandleKeyDown\(key\)\) \{
 \s+return S_OK;
 \s+\}
@@ -61,7 +62,7 @@ if ($Source -notmatch $KeyDownGuardPattern) {
 $CompositionControlPattern = @'
 if \(key == VK_SPACE \|\| key == VK_RETURN \|\|
 \s+\(key >= L'1' && key <= L'9'\) \|\| key == VK_BACK \|\|
-\s+key == VK_ESCAPE\) \{
+\s+key == VK_ESCAPE \|\| key == VK_NEXT \|\| key == VK_PRIOR\) \{
 \s+return !buffer_\.empty\(\);
 \s+\}
 '@
@@ -83,7 +84,7 @@ if ($Source -notmatch $NumberSelectionPattern) {
 $CommitKeyPattern = @'
 if \(\(key == VK_SPACE \|\| key == VK_RETURN\) && !buffer_\.empty\(\)\) \{
 \s+\*eaten = TRUE;
-\s+ServerResponse response = QueryServer\(buffer_, true\);
+\s+ServerResponse response = QueryInput\(buffer_, true\);
 '@
 
 if ($Source -notmatch $CommitKeyPattern) {

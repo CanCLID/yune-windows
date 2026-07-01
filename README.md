@@ -36,11 +36,13 @@ The server-side pieces are runtime-verified through the dev REPL and installed
 server reload; DLL-side live app verification still requires a holder-free
 desktop session because non-dev apps held `YuneWindowsTSF.dll` during closeout.
 M05 adds server-owned persistent IME state, `op=` IPC verbs, toggle hotkeys,
-a focus-scoped native mini language bar, and `YuneWindowsSettings.exe`; these
-paths are build/contract verified, while live app proof remains gated on the
-same holder-free TSF DLL session. The next gate is holder-free M04/M05 live
-verification or dogfood package hardening if packaging is explicitly
-prioritized first.
+a focus-scoped native mini language bar, and `YuneWindowsSettings.exe`. The
+post-review crash blockers for ascii pass-through, persisted ascii restart,
+invalid op/schema/option requests, settings/schema-cycle fallback, and
+mid-composition state changes are covered by non-elevated runtime or source
+contracts. Live app proof remains gated on the same holder-free TSF DLL session.
+The next gate is holder-free M04/M05 live verification or dogfood package
+hardening if packaging is explicitly prioritized first.
 
 For dogfood package or production installer work, refresh live evidence under
 the Yune Windows names whenever package inputs or installer behavior change:

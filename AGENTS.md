@@ -19,7 +19,9 @@ engine and is consumed through a packaged Windows ABI surface.
   app proof for the DLL-side behavior remains open.
 - M05 IME Toggles, Language Bar, and Settings has non-elevated implementation
   coverage for server-owned state, toggle hotkeys, focus-scoped mini language
-  bar, and native settings entrypoint; holder-free live app proof remains open.
+  bar, native settings entrypoint, and post-review crash blockers for ascii
+  pass-through, invalid requests, and mid-composition toggles; holder-free live
+  app proof remains open.
 - The legacy Weasel-derived implementation remains useful reference material
   for TSF, server, IPC, installer, candidate-window positioning, and smoke
   harness behavior.

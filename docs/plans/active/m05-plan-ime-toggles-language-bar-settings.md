@@ -12,9 +12,12 @@ floating language bar, and a settings config UI.
 
 **Status update (2026-07-01):** implementation and non-elevated verification
 are complete for the server-owned state protocol, TSF hotkeys, focus-scoped
-native language bar, and native settings entrypoint. Holder-free live Notepad
-and Chromium proof for M04/M05 DLL-side behavior remains open, so this plan
-stays active and must not move to history yet.
+native language bar, and native settings entrypoint. Post-review crash blockers
+are fixed for `ascii_mode=true` non-empty input, persisted ascii restart,
+invalid op/schema/option requests, settings/schema-cycle fallback, and
+mid-composition state changes at the strongest available non-elevated coverage
+level. Holder-free live Notepad and Chromium proof for M04/M05 DLL-side behavior
+remains open, so this plan stays active and must not move to history yet.
 
 **Architecture:** the shared server becomes the single source of truth for
 persistent IME state (schema + options), applied to every per-keystroke session
@@ -238,44 +241,53 @@ DLL swaps (holder-free). D is the largest (new build target).
   (the holder-free `dev-reload-tsf` swap plus confirmed caret positioning,
   no-orphan panel, PageUp/PageDown paging, clean comments, punctuation) and update the
   roadmap so the "holder-free M04 live verification" gate is closed before
-  WIN05 B/C/D add more DLL swaps.
-- [ ] Fix `tools\dev\dev-reload-server.ps1 -RefreshSchema` ordering: it currently
+  M05 DLL-side live gates add more DLL swaps.
+- [x] Fix `tools\dev\dev-reload-server.ps1 -RefreshSchema` ordering: it currently
   runs `prepare-yune-product-data` (schema/user-data refresh) BEFORE stopping the
   running server (`dev-reload-server.ps1:67-72`, ahead of the stop at ~85), so the
   server holds those files mapped and the refresh can fail. Move the refresh to
   AFTER the server is stopped (before restart).
 
 ### Task 1: Slice A — server state + protocol
-- [ ] Add `YuneState` + per-user state file (load in ctor, persist on mutate).
-- [ ] Apply state in `Process`; implement the per-schema output-standard mapping;
+- [x] Add `YuneState` + per-user state file (load in ctor, persist on mutate).
+- [x] Apply state in `Process`; implement the per-schema output-standard mapping;
   keep `disable_learning` forced; add `soft_cursor`/`traditionalization`
   constants.
-- [ ] Add `op=set-option`/`select-schema`/`get-state`/`list-schemas`; add
+- [x] Add `op=set-option`/`select-schema`/`get-state`/`list-schemas`; add
   `get_schema_list`/`get_current_schema` to `Require()`.
-- [ ] Extend `dev-repl` to exercise `op=` verbs; add a server contract test.
-- [ ] Verify via `dev-reload-server` (fast loop). Commit directly to `main`.
+- [x] Extend `dev-repl` to exercise `op=` verbs; add a server contract test.
+- [x] Harden protocol behavior so ascii pass-through and invalid requests return
+  responses without killing the shared server.
+- [x] Verify via scratch server/dev REPL/build checks. Commit directly to `main`.
 
 ### Task 2: Slice B — hotkeys + pass-through + indicator
-- [ ] Lone-Shift key-up state machine for the 中/英 toggle (`WH_KEYBOARD_LL`
-  fallback if key-up is unreliable); `PreserveKey` + `OnPreservedKey` chord for
-  `full_shape` + schema-cycle; generalize `QueryServer` for `op=` requests;
-  ascii-mode English pass-through; input-mode compartment.
-- [ ] Contract tests for the new key path; build.
+- [x] Lone-Shift key-up state machine for the 中/英 toggle; `PreserveKey` +
+  `OnPreservedKey` chord for `full_shape` + schema-cycle; generalize
+  `QueryServer` for `op=` requests; ascii-mode English pass-through; input-mode
+  compartment. The `WH_KEYBOARD_LL` fallback is explicitly deferred until
+  holder-free live proof shows it is needed.
+- [x] Guard lone-Shift against preserved-key chords, modifier chords,
+  autorepeat, mouse-selection false toggles, focus loss, and deactivation.
+- [x] Commit or clear live composition before mode/schema/output-standard
+  changes.
+- [x] Avoid launch-and-wait focus sync by making activation/focus refresh a
+  short existing-server-only query.
+- [x] Contract tests for the new key path; build.
 - [ ] Live-verify via holder-free `dev-reload-tsf`. Commit directly to `main`.
 
 ### Task 3: Slice C — language bar
-- [ ] `LanguageBarWindow` (clickable clone of the candidate window); wire clicks
+- [x] `LanguageBarWindow` (clickable clone of the candidate window); wire clicks
   to `op=` verbs; reflect `get-state`.
-- [ ] Build; live-verify clicks change state across apps. Commit directly to
+- [ ] Holder-free live-verify clicks change state across apps. Commit directly to
   `main`.
 
 ### Task 4: Slice D — settings exe (core)
-- [ ] New `YuneWindowsSettings.exe` build target; native core settings (schema +
+- [x] New `YuneWindowsSettings.exe` build target; native core settings (schema +
   3 toggles) over the state file + `op=` verbs.
 - [ ] Live-verify settings changes apply to typing. Commit directly to `main`.
 
 ### Task 5: Docs
-- [ ] Update `README.md`, `docs/roadmap.md`, `docs/requirements.md`,
+- [x] Update `README.md`, `docs/roadmap.md`, `docs/requirements.md`,
   `docs/decisions.md` (record: server is the state authority; toolbar native;
   WebView2 reserved for the richer settings; deploy-time prefs deferred).
 
@@ -296,11 +308,15 @@ DLL swaps (holder-free). D is the largest (new build target).
 Resolved in this revision (from the plan reviews): the server is the **single
 writer** of state (clients use `op=` verbs only); state lives in a dedicated
 `state\ime-state.json` (outside `user-data`/`schema`); cross-app drift is
-prevented by the state block on **every** response plus `op=get-state` on focus;
-the language bar is a **focus-scoped** mini bar this milestone; the 中/英 toggle
-is a **lone-Shift** key-up state machine (with a `WH_KEYBOARD_LL` fallback), and
-`full_shape`/schema stay on `PreserveKey` chords; Task 0 closes the M04 live
-proof and fixes the `-RefreshSchema` ordering.
+prevented by the state block on **every** response plus a short
+existing-server-only `op=get-state` on focus; the language bar is a
+**focus-scoped** mini bar this milestone; the 中/英 toggle is a **lone-Shift**
+key-up state machine with guard rails for preserved chords, modifiers,
+autorepeat, mouse-selection false toggles, focus loss, and deactivation;
+`full_shape`/schema stay on `PreserveKey` chords. The `WH_KEYBOARD_LL` fallback
+is deferred unless holder-free live proof shows TSF key-up delivery is
+unreliable. Task 0 fixes the `-RefreshSchema` ordering, but the M04 live proof
+remains open until the holder-free session is captured.
 
 ## Completion Gates
 

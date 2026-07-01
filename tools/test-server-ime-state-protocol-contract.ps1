@@ -103,6 +103,33 @@ function Assert-State {
     Assert-Equal ([string]$Response.state.output_standard) $OutputStandard "state.output_standard mismatch."
 }
 
+function Assert-ServerAlive {
+    param(
+        [Parameter(Mandatory = $true)][System.Diagnostics.Process]$Process,
+        [Parameter(Mandatory = $true)][string]$Context
+    )
+
+    $Process.Refresh()
+    if ($Process.HasExited) {
+        throw "$Context killed the server with exit code $($Process.ExitCode)"
+    }
+}
+
+function Assert-ErrorResponse {
+    param(
+        [Parameter(Mandatory = $true)]$Response,
+        [Parameter(Mandatory = $true)][string]$Context
+    )
+
+    Assert-Equal ([bool]$Response.ready) $false "$Context readiness mismatch."
+    if ([string]::IsNullOrWhiteSpace([string]$Response.error)) {
+        throw "$Context response is missing a structured error message."
+    }
+    if ($null -eq $Response.state) {
+        throw "$Context response is missing state for client reconciliation."
+    }
+}
+
 $BuildScript = Join-Path $RepoRoot "tools\build-tsf-shell.ps1"
 & $BuildScript -OutputDir $OutputDir -YuneRoot $YuneRoot
 if ($LASTEXITCODE -ne 0) {
@@ -123,12 +150,16 @@ $PipeName = "\\.\pipe\$PipeLeaf"
     -DestinationSchemaDir $SharedDataDir `
     -UserDataDir $UserDataDir
 
-$Process = Start-Process -FilePath $Server -ArgumentList @(
-    "--rime-dll", $RimeDll,
-    "--shared-dir", $SharedDataDir,
-    "--user-dir", $UserDataDir,
-    "--pipe", $PipeName
-) -WindowStyle Hidden -PassThru
+function Start-TestServer {
+    return Start-Process -FilePath $Server -ArgumentList @(
+        "--rime-dll", $RimeDll,
+        "--shared-dir", $SharedDataDir,
+        "--user-dir", $UserDataDir,
+        "--pipe", $PipeName
+    ) -WindowStyle Hidden -PassThru
+}
+
+$Process = Start-TestServer
 
 try {
     $Initial = Invoke-RawYuneWindowsServerRequest `
@@ -138,6 +169,14 @@ try {
         -TimeoutMs $TimeoutMs
     Assert-Equal ([bool]$Initial.ready) $true "get-state response readiness mismatch."
     Assert-State $Initial "jyut6ping3" $false $false "hong_kong_traditional"
+
+    $NormalInput = Invoke-RawYuneWindowsServerRequest `
+        -PipeLeaf $PipeLeaf `
+        -Payload "input=nihao`ncommit=0`n.`n" `
+        -Process $Process `
+        -TimeoutMs $TimeoutMs
+    Assert-Equal ([bool]$NormalInput.ready) $true "ascii-off non-empty input readiness mismatch."
+    Assert-State $NormalInput "jyut6ping3" $false $false "hong_kong_traditional"
 
     $Schemas = Invoke-RawYuneWindowsServerRequest `
         -PipeLeaf $PipeLeaf `
@@ -157,6 +196,70 @@ try {
         -Process $Process `
         -TimeoutMs $TimeoutMs
     Assert-State $Ascii "jyut6ping3" $true $false "hong_kong_traditional"
+
+    $AsciiInput = Invoke-RawYuneWindowsServerRequest `
+        -PipeLeaf $PipeLeaf `
+        -Payload "input=nihao`ncommit=0`n.`n" `
+        -Process $Process `
+        -TimeoutMs $TimeoutMs
+    Assert-Equal ([bool]$AsciiInput.ready) $true "ascii-on non-empty input readiness mismatch."
+    Assert-State $AsciiInput "jyut6ping3" $true $false "hong_kong_traditional"
+    Assert-ServerAlive $Process "ascii_mode=true non-empty input"
+
+    Stop-Process -Id $Process.Id -Force
+    $Process.WaitForExit(10000) | Out-Null
+    $Process = Start-TestServer
+
+    $PersistedAsciiInput = Invoke-RawYuneWindowsServerRequest `
+        -PipeLeaf $PipeLeaf `
+        -Payload "input=nihao`ncommit=0`n.`n" `
+        -Process $Process `
+        -TimeoutMs $TimeoutMs
+    Assert-Equal ([bool]$PersistedAsciiInput.ready) $true "persisted ascii-on non-empty input readiness mismatch."
+    Assert-State $PersistedAsciiInput "jyut6ping3" $true $false "hong_kong_traditional"
+    Assert-ServerAlive $Process "persisted ascii_mode=true non-empty input"
+
+    foreach ($InvalidCase in @(
+            @{
+                name = "unknown op"
+                payload = "op=does-not-exist`n.`n"
+            },
+            @{
+                name = "unknown option"
+                payload = "op=set-option`nname=unknown_option`nvalue=1`n.`n"
+            },
+            @{
+                name = "bad boolean option value"
+                payload = "op=set-option`nname=ascii_mode`nvalue=not-a-bool`n.`n"
+            },
+            @{
+                name = "bad output standard"
+                payload = "op=set-option`nname=output_standard`nvalue=not-a-standard`n.`n"
+            },
+            @{
+                name = "invalid schema"
+                payload = "op=select-schema`nschema=missing_schema`n.`n"
+            },
+            @{
+                name = "version-skewed request"
+                payload = "op=set-option`nname=ascii_mode`nvalue=1`nclient_version=future`nunknown_field=kept`n.`n"
+            }
+        )) {
+        $Invalid = Invoke-RawYuneWindowsServerRequest `
+            -PipeLeaf $PipeLeaf `
+            -Payload ([string]$InvalidCase.payload) `
+            -Process $Process `
+            -TimeoutMs $TimeoutMs
+        Assert-ErrorResponse $Invalid ([string]$InvalidCase.name)
+        Assert-ServerAlive $Process ([string]$InvalidCase.name)
+
+        $AfterInvalid = Invoke-RawYuneWindowsServerRequest `
+            -PipeLeaf $PipeLeaf `
+            -Payload "op=get-state`n.`n" `
+            -Process $Process `
+            -TimeoutMs $TimeoutMs
+        Assert-Equal ([bool]$AfterInvalid.ready) $true "server did not answer get-state after $($InvalidCase.name)."
+    }
 
     $FullShape = Invoke-RawYuneWindowsServerRequest `
         -PipeLeaf $PipeLeaf `
@@ -181,7 +284,7 @@ try {
 
     $Input = Invoke-RawYuneWindowsServerRequest `
         -PipeLeaf $PipeLeaf `
-        -Payload "input=`ncommit=0`n.`n" `
+        -Payload "input=nihao`ncommit=0`n.`n" `
         -Process $Process `
         -TimeoutMs $TimeoutMs
     Assert-Equal ([bool]$Input.ready) $true "input response readiness mismatch."

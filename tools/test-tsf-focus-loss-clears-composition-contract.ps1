@@ -13,6 +13,7 @@ $Source = Get-Content -Raw -LiteralPath $TsfSource
 foreach ($Required in @(
         'STDMETHODIMP OnSetFocus\(BOOL focused\) override',
         'WriteStructuralEvent\("focus_lost"',
+        'ClearShiftState\(\)',
         'candidate_window_\.Hide\(\)'
     )) {
     if ($Source -notmatch $Required) {
@@ -27,6 +28,7 @@ if \(!focused\) \{
 \s+buffer_\.clear\(\);
 \s+candidate_\.clear\(\);
 \s+last_candidates_\.clear\(\);
+(?s:.*?)
 \s+candidate_window_\.Hide\(\);
 \s+\}
 '@

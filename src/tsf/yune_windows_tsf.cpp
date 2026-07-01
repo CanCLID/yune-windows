@@ -55,12 +55,19 @@ constexpr const wchar_t* kTextServiceDesc = L"Yune Windows";
 constexpr const wchar_t* kThreadingModel = L"Apartment";
 constexpr const wchar_t* kPipeName = L"\\\\.\\pipe\\yune-windows-ime";
 constexpr DWORD kServerQueryTimeoutMs = 5000;
+constexpr DWORD kServerFocusRefreshTimeoutMs = 100;
 constexpr DWORD kServerPipeReconnectWaitMs = 250;
 constexpr DWORD kServerLaunchReadyWaitMs = 15000;
 constexpr DWORD kServerLaunchMutexWaitMs = 250;
 constexpr DWORD kServerPipeMissingRetrySleepMs = 15;
 constexpr ULONGLONG kServerLaunchCooldownMs = 1500;
 constexpr int kCandidatePageSize = 5;
+constexpr LPARAM kKeyWasDownMask = 0x40000000;
+
+enum class RefreshStateMode {
+    AllowLaunch,
+    ExistingServerOnly,
+};
 
 HINSTANCE g_instance = nullptr;
 std::atomic<long> g_dll_refs = 0;
@@ -92,6 +99,12 @@ bool IsShortcutModifierDown() {
            (GetKeyState(VK_MENU) & 0x8000) != 0 ||
            (GetKeyState(VK_LWIN) & 0x8000) != 0 ||
            (GetKeyState(VK_RWIN) & 0x8000) != 0;
+}
+
+bool IsMouseButtonDown() {
+    return (GetAsyncKeyState(VK_LBUTTON) & 0x8001) != 0 ||
+           (GetAsyncKeyState(VK_RBUTTON) & 0x8001) != 0 ||
+           (GetAsyncKeyState(VK_MBUTTON) & 0x8001) != 0;
 }
 
 wchar_t LowerAscii(WPARAM key) {
@@ -687,13 +700,20 @@ ServerResponse QueryServer(const std::wstring& input, bool commit) {
     return result;
 }
 
-ServerResponse QueryServerOperation(const std::string& request) {
+ServerResponse QueryServerOperation(
+    const std::string& request,
+    RefreshStateMode mode = RefreshStateMode::AllowLaunch,
+    DWORD timeout_ms = kServerQueryTimeoutMs) {
     char response[65536] = {};
     DWORD read = 0;
-    for (int attempt = 0; attempt < 3; ++attempt) {
+    const int max_attempts = mode == RefreshStateMode::AllowLaunch ? 3 : 1;
+    const DWORD reconnect_wait_ms =
+        timeout_ms < kServerPipeReconnectWaitMs ? timeout_ms
+                                                : kServerPipeReconnectWaitMs;
+    for (int attempt = 0; attempt < max_attempts; ++attempt) {
         if (CallNamedPipeW(kPipeName, const_cast<char*>(request.data()),
                            static_cast<DWORD>(request.size()), response,
-                           sizeof(response) - 1, &read, kServerQueryTimeoutMs)) {
+                           sizeof(response) - 1, &read, timeout_ms)) {
             const std::string json(response, read);
             if (!JsonBoolTrueValue(json, "ready")) {
                 WriteStructuralEvent("server_query_invalid_response");
@@ -708,7 +728,10 @@ ServerResponse QueryServerOperation(const std::string& request) {
 
         const DWORD error = GetLastError();
         if (error == ERROR_FILE_NOT_FOUND) {
-            if (!WaitForSharedServerPipe(kServerPipeReconnectWaitMs) &&
+            if (mode == RefreshStateMode::ExistingServerOnly) {
+                break;
+            }
+            if (!WaitForSharedServerPipe(reconnect_wait_ms) &&
                 !RequestSharedServerLaunch()) {
                 break;
             }
@@ -716,7 +739,7 @@ ServerResponse QueryServerOperation(const std::string& request) {
         }
         if (error == ERROR_PIPE_BUSY) {
             WriteStructuralEvent("server_query_pipe_busy");
-            if (WaitForSharedServerPipe(kServerPipeReconnectWaitMs)) {
+            if (WaitForSharedServerPipe(reconnect_wait_ms)) {
                 continue;
             }
         }
@@ -1025,7 +1048,7 @@ public:
         thread_mgr_ = thread_mgr;
         thread_mgr_->AddRef();
         client_id_ = client_id;
-        RefreshStateFromServer(nullptr);
+        RefreshStateFromServer(nullptr, RefreshStateMode::ExistingServerOnly);
         WriteStructuralEvent("profile_activate");
         return S_OK;
     }
@@ -1052,6 +1075,7 @@ public:
         }
         client_id_ = TF_CLIENTID_NULL;
         focused_ = false;
+        ClearShiftState();
         if (was_active) {
             WriteStructuralEvent("profile_deactivate",
                                  static_cast<int>(buffer_.size()),
@@ -1069,6 +1093,7 @@ public:
     STDMETHODIMP OnSetFocus(BOOL focused) override {
         if (!focused) {
             focused_ = false;
+            ClearShiftState();
             WriteStructuralEvent("focus_lost", static_cast<int>(buffer_.size()),
                                  static_cast<int>(last_candidates_.size()));
             buffer_.clear();
@@ -1079,7 +1104,7 @@ public:
             language_bar_.Hide();
         } else {
             focused_ = true;
-            RefreshStateFromServer(nullptr);
+            RefreshStateFromServer(nullptr, RefreshStateMode::ExistingServerOnly);
         }
         return S_OK;
     }
@@ -1092,14 +1117,16 @@ public:
         return S_OK;
     }
 
-    STDMETHODIMP OnKeyDown(ITfContext* context, WPARAM key, LPARAM, BOOL* eaten) override {
+    STDMETHODIMP OnKeyDown(ITfContext* context, WPARAM key, LPARAM lparam, BOOL* eaten) override {
         if (!eaten) {
             return E_INVALIDARG;
         }
         *eaten = FALSE;
         if (IsShiftKey(key)) {
-            shift_down_ = true;
-            shift_consumed_ = false;
+            if ((lparam & kKeyWasDownMask) == 0) {
+                shift_down_ = true;
+                shift_consumed_ = IsShortcutModifierDown() || IsMouseButtonDown();
+            }
             return S_OK;
         }
         if (shift_down_) {
@@ -1263,11 +1290,11 @@ public:
         }
         *eaten = FALSE;
         if (IsShiftKey(key)) {
-            if (shift_down_ && !shift_consumed_) {
+            if (shift_down_ && !shift_consumed_ &&
+                !IsShortcutModifierDown() && !IsMouseButtonDown()) {
                 ToggleBoolState("ascii_mode", context);
             }
-            shift_down_ = false;
-            shift_consumed_ = false;
+            ClearShiftState();
         }
         return S_OK;
     }
@@ -1278,11 +1305,13 @@ public:
         }
         if (IsEqualGUID(guid, kFullShapePreservedKeyGuid)) {
             *eaten = TRUE;
+            CancelLoneShiftToggle();
             ToggleBoolState("full_shape", context);
             return S_OK;
         }
         if (IsEqualGUID(guid, kSchemaCyclePreservedKeyGuid)) {
             *eaten = TRUE;
+            CancelLoneShiftToggle();
             CycleSchema(context);
             return S_OK;
         }
@@ -1305,8 +1334,12 @@ private:
         return response;
     }
 
-    ServerResponse QueryOperation(const std::string& payload, ITfContext* context) {
-        ServerResponse response = QueryServerOperation(payload);
+    ServerResponse QueryOperation(
+        const std::string& payload,
+        ITfContext* context,
+        RefreshStateMode mode = RefreshStateMode::AllowLaunch,
+        DWORD timeout_ms = kServerQueryTimeoutMs) {
+        ServerResponse response = QueryServerOperation(payload, mode, timeout_ms);
         ReconcileState(response, context);
         return response;
     }
@@ -1320,8 +1353,13 @@ private:
         UpdateLanguageBar(context);
     }
 
-    void RefreshStateFromServer(ITfContext* context) {
-        (void)QueryOperation("op=get-state\n.\n", context);
+    void RefreshStateFromServer(
+        ITfContext* context,
+        RefreshStateMode mode = RefreshStateMode::AllowLaunch) {
+        const DWORD timeout_ms = mode == RefreshStateMode::ExistingServerOnly
+                                     ? kServerFocusRefreshTimeoutMs
+                                     : kServerQueryTimeoutMs;
+        (void)QueryOperation("op=get-state\n.\n", context, mode, timeout_ms);
     }
 
     void UpdateInputModeCompartment() {
@@ -1395,7 +1433,55 @@ private:
         (void)language_bar_.Update(bar_state, true);
     }
 
+    void ClearCompositionState() {
+        buffer_.clear();
+        candidate_.clear();
+        last_candidates_.clear();
+        candidate_page_index_ = 0;
+        candidate_window_.Hide();
+    }
+
+    void ClearShiftState() {
+        shift_down_ = false;
+        shift_consumed_ = false;
+    }
+
+    void CancelLoneShiftToggle() {
+        shift_consumed_ = true;
+    }
+
+    bool CommitOrClearCompositionBeforeStateChange(ITfContext* context) {
+        if (buffer_.empty()) {
+            return true;
+        }
+
+        const int buffer_length = static_cast<int>(buffer_.size());
+        const int candidate_count = static_cast<int>(last_candidates_.size());
+        bool committed = false;
+        if (context) {
+            ServerResponse response = QueryInput(buffer_, true);
+            if (response.ok) {
+                std::wstring commit = response.commit_text;
+                if (commit.empty()) {
+                    commit = candidate_;
+                }
+                if (!commit.empty()) {
+                    WriteStructuralEvent("commit_request", buffer_length,
+                                         candidate_count);
+                    committed = CommitText(context, commit);
+                }
+            }
+        }
+
+        WriteStructuralEvent(committed ? "composition_flush_commit"
+                                       : "composition_flush_clear",
+                             buffer_length, candidate_count);
+        ClearCompositionState();
+        return committed;
+    }
+
     void ToggleBoolState(const char* name, ITfContext* context) {
+        CommitOrClearCompositionBeforeStateChange(context);
         const bool current =
             std::string_view(name) == "full_shape" ? state_.full_shape
                                                    : state_.ascii_mode;
@@ -1437,6 +1523,7 @@ private:
     }
 
     void SelectSchema(const std::wstring& schema_id, ITfContext* context) {
+        CommitOrClearCompositionBeforeStateChange(context);
         std::string payload = "op=select-schema\nschema=";
         payload += Narrow(schema_id);
         payload += "\n.\n";
@@ -1444,6 +1531,7 @@ private:
     }
 
     void SetOutputStandard(const std::wstring& standard, ITfContext* context) {
+        CommitOrClearCompositionBeforeStateChange(context);
         std::string payload =
             "op=set-option\nname=output_standard\nvalue=" + Narrow(standard) +
             "\n.\n";

@@ -98,14 +98,21 @@ M05 makes the shared server the only writer for live IME state: schema,
 the focus-scoped native language bar, dev tooling, and `YuneWindowsSettings.exe`,
 must use `op=` pipe verbs instead of reading or writing the private
 `state\ime-state.json` file directly. The TSF DLL treats state as a short-lived
-cache, refreshes it from server responses and focus/activation, and keeps the
-inline candidate window native. WebView2 remains reserved for a richer future
-settings/dictionary panel, not the latency-critical inline candidate surface.
+cache, refreshes it from server responses, and uses a short existing-server-only
+state query on focus/activation so host input threads do not launch-and-wait for
+the shared server during focus changes. The first key cold-start path remains a
+separate product-owned server lifecycle follow-up. WebView2 remains reserved for
+a richer future settings/dictionary panel, not the latency-critical inline
+candidate surface.
 
 ## Last Updated
 
 2026-07-01 - M05 IME Toggles, Language Bar, and Settings implementation added
 server-owned state, `op=` verbs, TSF hotkeys, focus-scoped native mini language
 bar, and native settings entrypoint with non-elevated build/contract/runtime
-evidence. Live app proof for M04/M05 DLL-side behavior remains blocked until
-`YuneWindowsTSF.dll` is not held by non-dev desktop processes.
+evidence. Review crash blockers for ascii pass-through, persisted ascii restart,
+invalid requests, settings/schema-cycle fallback, mid-composition toggles,
+lone-Shift guards, and focus-time sync are fixed or explicitly deferred in
+`docs/evidence/m05/summary.md`. Live app proof for M04/M05 DLL-side behavior
+remains blocked until `YuneWindowsTSF.dll` is not held by non-dev desktop
+processes.

@@ -1,52 +1,96 @@
 # M05 Evidence Summary
 
-M05 adds everyday IME controls without changing the Yune engine ABI: server-owned
-state, `op=` IPC verbs, TSF toggle hotkeys, a focus-scoped native mini language
-bar, and `YuneWindowsSettings.exe`.
+M05 adds everyday IME controls without changing the Yune engine ABI:
+server-owned state, `op=` IPC verbs, TSF toggle hotkeys, a focus-scoped native
+mini language bar, and `YuneWindowsSettings.exe`.
 
 ## Final Status
 
-- Status: implementation complete for non-elevated build, contract, and scratch
-  server/dev-loop coverage.
+- Status: implementation and review crash blockers are fixed for non-elevated
+  build, contract, scratch-server, and dev-loop coverage.
 - Evidence retained here: compact summary only.
 - Raw retained artifacts: none.
-- Remaining gate: holder-free live app proof for DLL-side hotkeys, language-bar
-  clicks, settings-driven reconciliation, and native Windows input-mode
-  indicator behavior.
+- Remaining gate: holder-free live app proof for DLL-side hotkeys,
+  language-bar clicks, settings-driven reconciliation, and native Windows
+  input-mode indicator behavior.
 
-## Proven Behaviors
+## Executed Proof
 
-- The shared server owns persistent IME state in `state\ime-state.json` and is
-  the only writer.
-- `op=get-state`, `op=list-schemas`, `op=set-option`, and `op=select-schema`
-  work through the named-pipe protocol.
-- Every normal `input=` response includes the current state block.
-- The scratch runtime can list `jyut6ping3`, `cangjie5`, and `luna_pinyin`,
-  mutate `ascii_mode`, `full_shape`, output standard, and schema, and persist
-  those mutations.
-- `dev-repl.ps1 -Once -InputText ':state'` exercises the same `op=` path.
-- The TSF DLL has contract/build coverage for activation/focus state refresh,
-  lone-Shift `ascii_mode` toggle, `Ctrl+Shift+2` schema cycle,
-  `Ctrl+Shift+3` full/half toggle, ASCII pass-through in English mode, and
-  input-mode compartment updates.
-- The native language bar is a focus-scoped, no-activate, clickable popup wired
-  to server verbs.
-- `YuneWindowsSettings.exe` builds as a native settings entrypoint and uses only
-  server verbs, not the private state file.
-- The full `tools\test-*.ps1` non-elevated sweep was run after implementation;
-  the only failures were the four pre-existing caveat tests named in the goal
-  objective.
+- `tools\test-server-ime-state-protocol-contract.ps1` runs a scratch
+  `YuneWindowsServer.exe` and proves `ascii_mode=true non-empty input` returns
+  a normal ready response instead of killing the server.
+- The same scratch-server test proves `persisted ascii_mode=true restart` does
+  not create a crash loop: state is persisted, the server is restarted, and
+  `input=nihao` still returns without process exit.
+- The same scratch-server test proves `invalid op returns ready:false/error`
+  for unknown op names, unknown option names, bad boolean values, bad output
+  standards, invalid schema IDs, and version-skewed unknown request fields.
+- The same scratch-server test proves the `server remains alive after invalid
+  op` by sending `op=get-state` after every invalid request.
+- The same scratch-server test proves `settings/schema-cycle fallback cannot
+  kill server` by surviving invalid schema selection and then continuing
+  through valid schema and state mutations.
+- The scratch runtime lists `jyut6ping3`, `cangjie5`, and `luna_pinyin`, mutates
+  `ascii_mode`, `full_shape`, output standard, and schema, and persists those
+  mutations in `state\ime-state.json`.
+- `dev-repl.ps1 -Once` exercises normal input plus the `:state` and toggle
+  command paths through the same `op=` IPC protocol.
+- `build-tsf-shell.ps1` builds `YuneWindowsTSF.dll`, `YuneWindowsServer.exe`,
+  `YuneWindowsProfileTool.exe`, `YuneWindowsSettings.exe`, and the candidate
+  window smoke executable.
+
+## Source Contracts
+
+- `tools\test-tsf-ime-state-hotkey-contract.ps1` verifies the TSF source has
+  mid-composition toggle commit-or-clear coverage before `ascii_mode`,
+  `full_shape`, output-standard, or schema changes.
+- The same TSF source contract verifies lone-Shift chord/autorepeat/mouse/focus
+  guards, including `Ctrl+Shift+2` and `Ctrl+Shift+3` not also toggling
+  `ascii_mode`, stale Shift state clearing on focus loss/deactivation, and
+  autorepeat not re-arming the lone-Shift state.
+- The same TSF source contract verifies focus refresh existing-server-only
+  behavior: `ActivateEx` and `OnSetFocus(TRUE)` use a short bounded query and
+  do not launch-and-wait for the shared server.
+- `tools\test-language-bar-window-contract.ps1` verifies the native language
+  bar is focus-scoped, no-activate, clickable, and wired to server verbs.
+- `tools\test-settings-ime-state-contract.ps1` verifies
+  `YuneWindowsSettings.exe` uses shared server verbs rather than direct writes
+  to `ime-state.json`.
+- `tools\test-m05-evidence-summary-contract.ps1` verifies this summary keeps
+  executed proof, source contracts, deferred work, and live-only gaps separate.
+
+## Live-only Gaps
+
+- Holder-free Notepad proof for lone Shift and preserved-key toggles.
+- Holder-free Chromium proof for state reconciliation across apps.
+- Holder-free language-bar click proof.
+- Holder-free settings-to-typing proof.
+- Native Windows input-mode indicator live proof.
+
+## Deferred
+
+- `WH_KEYBOARD_LL` fallback for lone-Shift delivery is not implemented in M05.
+  Current code uses TSF key-sink delivery with non-elevated source contracts;
+  if holder-free live proof shows Shift key-up is unreliable, the fallback must
+  be scoped as a follow-up.
+- Non-blocking first cold keystroke remains a separate product-owned server
+  lifecycle follow-up. M05 bounds activation/focus refresh to an
+  existing-server-only query, but the first key path can still launch the
+  shared server.
 
 ## Regeneration Commands
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-server-ime-state-protocol-contract.ps1 -YuneRoot C:\Users\laubonghaudoi\Documents\GitHub\yune
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\dev\dev-repl.ps1 -YuneRoot C:\Users\laubonghaudoi\Documents\GitHub\yune -Once -InputText 'ngohaig'
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\dev\dev-repl.ps1 -YuneRoot C:\Users\laubonghaudoi\Documents\GitHub\yune -Once -InputText ':state'
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\dev\dev-repl.ps1 -YuneRoot C:\Users\laubonghaudoi\Documents\GitHub\yune -Once -InputText ':ascii 1'
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-dev-repl-ime-state-contract.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-tsf-ime-state-hotkey-contract.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-language-bar-window-contract.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-settings-ime-state-contract.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-tsf-key-up-pass-through-contract.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-m05-evidence-summary-contract.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\build-tsf-shell.ps1 -YuneRoot C:\Users\laubonghaudoi\Documents\GitHub\yune
 ```
 

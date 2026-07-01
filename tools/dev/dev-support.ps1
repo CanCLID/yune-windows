@@ -225,20 +225,17 @@ function Start-YuneWindowsDevScratchServer {
     ) -WindowStyle Hidden -PassThru
 }
 
-function Invoke-YuneWindowsDevServerRequest {
+function Invoke-YuneWindowsDevServerRawRequest {
     param(
         [Parameter(Mandatory = $true)][string]$PipeName,
-        [Parameter(Mandatory = $true)][string]$InputText,
-        [bool]$Commit = $false,
+        [Parameter(Mandatory = $true)][string]$Payload,
         [System.Diagnostics.Process]$Process = $null,
         [int]$TimeoutMs = 180000
     )
 
     $PipeClientName = ConvertTo-YuneWindowsDevPipeClientName -PipeName $PipeName
     $Deadline = [DateTime]::UtcNow.AddMilliseconds($TimeoutMs)
-    $CommitFlag = if ($Commit) { "1" } else { "0" }
-    $Request = "input=$InputText`ncommit=$CommitFlag`n.`n"
-    $RequestBytes = [System.Text.Encoding]::UTF8.GetBytes($Request)
+    $RequestBytes = [System.Text.Encoding]::UTF8.GetBytes($Payload)
     $LastError = ""
 
     while ([DateTime]::UtcNow -lt $Deadline) {
@@ -286,6 +283,23 @@ function Invoke-YuneWindowsDevServerRequest {
     }
 
     throw "timed out waiting for dev server response on $PipeName. Last error: $LastError"
+}
+
+function Invoke-YuneWindowsDevServerRequest {
+    param(
+        [Parameter(Mandatory = $true)][string]$PipeName,
+        [Parameter(Mandatory = $true)][string]$InputText,
+        [bool]$Commit = $false,
+        [System.Diagnostics.Process]$Process = $null,
+        [int]$TimeoutMs = 180000
+    )
+
+    $CommitFlag = if ($Commit) { "1" } else { "0" }
+    return Invoke-YuneWindowsDevServerRawRequest `
+        -PipeName $PipeName `
+        -Payload "input=$InputText`ncommit=$CommitFlag`n.`n" `
+        -Process $Process `
+        -TimeoutMs $TimeoutMs
 }
 
 function Test-YuneWindowsDevServerReady {

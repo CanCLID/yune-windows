@@ -74,14 +74,26 @@ if (-not [string]::IsNullOrWhiteSpace($UserDataDir)) {
     $UserBuildDir = Join-Path $UserDataDir "build"
     New-Item -ItemType Directory -Force $UserBuildDir | Out-Null
 
+    Copy-RequiredFile (Join-Path $DestinationSchemaDir "default.custom.yaml") `
+        (Join-Path $UserDataDir "default.custom.yaml") `
+        "default schema-list customization"
     Copy-RequiredFile (Join-Path $DestinationBuildDir "default.yaml") `
         (Join-Path $UserBuildDir "default.yaml") `
         "prebuilt default config"
     Copy-RequiredFile (Join-Path $DestinationBuildDir "jyut6ping3.schema.yaml") `
         (Join-Path $UserBuildDir "jyut6ping3.schema.yaml") `
         "prebuilt jyut6ping3 schema"
+    Copy-RequiredFile (Join-Path $DestinationSchemaDir "cangjie5.schema.yaml") `
+        (Join-Path $UserBuildDir "cangjie5.schema.yaml") `
+        "prebuilt cangjie5 schema"
+    Copy-RequiredFile (Join-Path $DestinationSchemaDir "luna_pinyin.schema.yaml") `
+        (Join-Path $UserBuildDir "luna_pinyin.schema.yaml") `
+        "prebuilt luna_pinyin schema"
 
     foreach ($FileName in @(
+            "cangjie5.table.bin",
+            "cangjie5.reverse.bin",
+            "cangjie5.prism.bin",
             "jyut6ping3.table.bin",
             "jyut6ping3.reverse.bin",
             "jyut6ping3_scolar.table.bin",

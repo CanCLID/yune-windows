@@ -10,7 +10,7 @@ if (-not (Test-Path -LiteralPath $TsfSource)) {
 
 $Source = Get-Content -Raw -LiteralPath $TsfSource
 
-foreach ($Method in @("OnTestKeyUp", "OnKeyUp")) {
+foreach ($Method in @("OnTestKeyUp")) {
     $Pattern = '(?s)STDMETHODIMP ' + $Method + '\(ITfContext\*, WPARAM key, LPARAM, BOOL\* eaten\) override \{(?<body>.*?)\r?\n    \}'
     $Match = [regex]::Match($Source, $Pattern)
     if (-not $Match.Success) {
@@ -45,4 +45,41 @@ foreach ($Method in @("OnTestKeyUp", "OnKeyUp")) {
     }
 }
 
-Write-Host "TSF key-up handlers pass through without composition or evidence side effects."
+$OnKeyUpPattern = '(?s)STDMETHODIMP OnKeyUp\(ITfContext\* context, WPARAM key, LPARAM, BOOL\* eaten\) override \{(?<body>.*?)\r?\n    \}'
+$OnKeyUpMatch = [regex]::Match($Source, $OnKeyUpPattern)
+if (-not $OnKeyUpMatch.Success) {
+    throw "could not locate TSF OnKeyUp body"
+}
+$OnKeyUpBody = $OnKeyUpMatch.Groups["body"].Value
+if ($OnKeyUpBody -notmatch 'if \(!eaten\) \{\s+return E_INVALIDARG;\s+\}') {
+    throw "OnKeyUp must reject null BOOL* eaten pointers before writing results."
+}
+if ($OnKeyUpBody -match 'ShouldHandleKeyDown\(key\)') {
+    throw "OnKeyUp must not reuse key-down composition handling for key-up events."
+}
+foreach ($Forbidden in @(
+        'buffer_',
+        'candidate_',
+        'last_candidates_',
+        'candidate_window_',
+        'WriteStructuralEvent',
+        'QueryServer',
+        'CommitText'
+    )) {
+    if ($OnKeyUpBody -match $Forbidden) {
+        throw "OnKeyUp must not mutate composition, candidate, server, or structural-log state on key-up: $Forbidden."
+    }
+}
+foreach ($Required in @(
+        '\*eaten = FALSE;',
+        'IsShiftKey\(key\)',
+        'shift_down_',
+        'shift_consumed_',
+        'ToggleBoolState\("ascii_mode", context\)'
+    )) {
+    if ($OnKeyUpBody -notmatch $Required) {
+        throw "OnKeyUp must implement only the lone-Shift ascii_mode state machine: $Required"
+    }
+}
+
+Write-Host "TSF key-up handlers pass through except for the M05 lone-Shift toggle."

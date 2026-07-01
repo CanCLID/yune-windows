@@ -25,11 +25,11 @@ $Methods = @(
     },
     @{
         Name = "OnKeyUp"
-        Pattern = "STDMETHODIMP OnKeyUp\(ITfContext\*, WPARAM key, LPARAM, BOOL\* eaten\) override \{(?<prefix>[\s\S]*?)\*eaten"
+        Pattern = "STDMETHODIMP OnKeyUp\(ITfContext\* context, WPARAM key, LPARAM, BOOL\* eaten\) override \{(?<prefix>[\s\S]*?)\*eaten"
     },
     @{
         Name = "OnPreservedKey"
-        Pattern = "STDMETHODIMP OnPreservedKey\(ITfContext\*, REFGUID, BOOL\* eaten\) override \{(?<prefix>[\s\S]*?)\*eaten"
+        Pattern = "STDMETHODIMP OnPreservedKey\(ITfContext\* context, REFGUID guid, BOOL\* eaten\) override \{(?<prefix>[\s\S]*?)\*eaten"
     }
 )
 

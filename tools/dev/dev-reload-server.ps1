@@ -71,21 +71,29 @@ $BackupPath = ""
 $SchemaBackup = $null
 $UserDataBackup = $null
 
-if ($RefreshSchema) {
-    $SchemaBackup = Backup-YuneWindowsDevPath -Path $Paths.schema_dir -Label "schema" -Timestamp $Timestamp
-    $UserDataBackup = Backup-YuneWindowsDevPath -Path $Paths.user_data_dir -Label "user-data" -Timestamp $Timestamp
-    & (Join-Path $RepoRoot "tools\prepare-yune-product-data.ps1") `
-        -SourceSchemaDir $Package.schema_source_dir `
-        -DestinationSchemaDir $Paths.schema_dir `
-        -UserDataDir $Paths.user_data_dir
-}
-
 $StartedProcess = $null
 
 try {
     $Backup = Backup-YuneWindowsDevPath -Path $Paths.server_exe -Label "server" -Timestamp $Timestamp
     $BackupPath = [string]$Backup.backup_path
     Write-Host "Backed up installed server: $BackupPath"
+
+    if ($RefreshSchema) {
+        $StoppedForRefresh = @(Stop-YuneWindowsDevProcessesByPath `
+                -Path $Paths.server_exe `
+                -ProcessName "YuneWindowsServer" `
+                -TimeoutMs 10000)
+        if ($StoppedForRefresh.Count -gt 0) {
+            Write-Host "Stopped installed server before schema refresh: $(Format-YuneWindowsDevProcessSummary -Processes $StoppedForRefresh)"
+        }
+
+        $SchemaBackup = Backup-YuneWindowsDevPath -Path $Paths.schema_dir -Label "schema" -Timestamp $Timestamp
+        $UserDataBackup = Backup-YuneWindowsDevPath -Path $Paths.user_data_dir -Label "user-data" -Timestamp $Timestamp
+        & (Join-Path $RepoRoot "tools\prepare-yune-product-data.ps1") `
+            -SourceSchemaDir $Package.schema_source_dir `
+            -DestinationSchemaDir $Paths.schema_dir `
+            -UserDataDir $Paths.user_data_dir
+    }
 
     $LastCopyError = ""
     for ($Attempt = 1; $Attempt -le $MaxCopyAttempts; $Attempt += 1) {

@@ -10,10 +10,13 @@ function Require-Text([string]$Source, [string]$Pattern, [string]$Description) {
     }
 }
 
-foreach ($Source in @($HostSource, $ServerSource)) {
-    Require-Text $Source 'set_option\([^;]+ascii_mode[^;]+False' "ascii_mode is disabled before smoke input"
-    Require-Text $Source 'get_option\([^;]+ascii_mode[^;]+\)\s*==\s*False' "ascii_mode disablement is verified"
-    Require-Text $Source 'failed to disable Yune ascii_mode' "ascii_mode failure is explicit"
-}
+Require-Text $HostSource 'set_option\([^;]+ascii_mode[^;]+False' "host ascii_mode is disabled before smoke input"
+Require-Text $HostSource 'get_option\([^;]+ascii_mode[^;]+\)\s*==\s*False' "host ascii_mode disablement is verified"
+Require-Text $HostSource 'failed to disable Yune ascii_mode' "host ascii_mode failure is explicit"
+
+Require-Text $ServerSource 'struct YuneState(?s:.*?)bool ascii_mode = false;' "server default state starts in composition mode"
+Require-Text $ServerSource 'api_->set_option\(session, "ascii_mode", ToRimeBool\(state_\.ascii_mode\)\)' "server applies state-owned ascii_mode"
+Require-Text $ServerSource 'api_->get_option\(session, "ascii_mode"\) ==\s+ToRimeBool\(state_\.ascii_mode\)' "server verifies state-owned ascii_mode"
+Require-Text $ServerSource 'failed to apply Yune ascii_mode' "server ascii_mode failure is explicit"
 
 Write-Host "Yune host/server force composition mode before processing smoke input."

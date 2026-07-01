@@ -1,0 +1,54 @@
+{
+  "milestone": "M05",
+  "title": "IME Toggles, Language Bar, and Settings",
+  "status": "implementation-complete-live-dll-proof-pending",
+  "evidence_policy": "compact-summary-only",
+  "raw_artifacts_pruned": [],
+  "proven": [
+    "server-owned persistent IME state",
+    "op=get-state protocol",
+    "op=list-schemas protocol",
+    "op=set-option protocol",
+    "op=select-schema protocol",
+    "state block on input responses",
+    "dev REPL op command support",
+    "TSF activation and focus state reconciliation contracts",
+    "lone Shift ascii_mode toggle contract",
+    "Ctrl+Shift+2 schema cycle contract",
+    "Ctrl+Shift+3 full_shape toggle contract",
+    "focus-scoped native language bar contract",
+    "native settings executable contract",
+    "TSF shell build including YuneWindowsSettings.exe"
+  ],
+  "remaining": [
+    "holder-free Notepad proof for lone Shift and preserved-key toggles",
+    "holder-free Chromium proof for state reconciliation across apps",
+    "holder-free language-bar click proof",
+    "holder-free settings-to-typing proof",
+    "native Windows input-mode indicator live proof"
+  ],
+  "full_test_sweep": {
+    "command": "tools\\test-*.ps1 collect-all loop",
+    "total_scripts": 220,
+    "failed_scripts": [
+      "tools\\test-live-smoke-pass-evidence-contract.ps1",
+      "tools\\test-tsf-edit-session-commit-contract.ps1",
+      "tools\\test-tsf-focus-loss-clears-composition-contract.ps1",
+      "tools\\test-tsf-key-eating-contract.ps1"
+    ],
+    "failure_classification": "pre-existing caveats from goal objective"
+  },
+  "regeneration_commands": [
+    "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\test-server-ime-state-protocol-contract.ps1 -YuneRoot C:\\Users\\laubonghaudoi\\Documents\\GitHub\\yune",
+    "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\dev\\dev-repl.ps1 -YuneRoot C:\\Users\\laubonghaudoi\\Documents\\GitHub\\yune -Once -InputText ':state'",
+    "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\test-dev-repl-ime-state-contract.ps1",
+    "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\test-tsf-ime-state-hotkey-contract.ps1",
+    "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\test-language-bar-window-contract.ps1",
+    "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\test-settings-ime-state-contract.ps1",
+    "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\test-tsf-key-up-pass-through-contract.ps1",
+    "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\build-tsf-shell.ps1 -YuneRoot C:\\Users\\laubonghaudoi\\Documents\\GitHub\\yune"
+  ],
+  "live_machine_state_required": true,
+  "live_machine_state_approval_in_current_session": false,
+  "plan_archived": false
+}

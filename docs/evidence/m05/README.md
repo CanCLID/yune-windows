@@ -1,5 +1,13 @@
 # M05 Evidence
 
-M05 evidence will be captured here after the IME toggles, language bar, and
-settings work starts. Keep this root compact: prefer summaries, manifests, and
-regeneration commands over raw transcripts or bulky diagnostics.
+M05 implementation evidence is retained as compact summaries:
+
+- `summary.md`
+- `summary.json`
+
+The retained evidence covers non-elevated build, contract, scratch server, and
+dev REPL verification for server-owned IME state, `op=` verbs, TSF hotkeys, the
+focus-scoped native language bar, and `YuneWindowsSettings.exe`.
+
+Holder-free live Notepad/Chromium proof remains open and must be captured fresh
+before this milestone is closed or the active plan moves to history.

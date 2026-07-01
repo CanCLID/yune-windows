@@ -1,6 +1,7 @@
 #include <windows.h>
 
 #include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <sstream>
 #include <stdexcept>
@@ -24,8 +25,24 @@ struct Args {
 };
 
 struct Request {
+    std::string op;
     std::string input;
+    std::string name;
+    std::string value;
+    std::string schema;
     bool commit = false;
+};
+
+struct YuneState {
+    std::string schema_id = "jyut6ping3";
+    bool ascii_mode = false;
+    bool full_shape = false;
+    std::string output_standard = "hong_kong_traditional";
+};
+
+struct SchemaInfo {
+    std::string schema_id;
+    std::string name;
 };
 
 struct Candidate {
@@ -298,6 +315,101 @@ std::string JsonEscape(std::string_view value) {
     return out.str();
 }
 
+Bool ToRimeBool(bool value) {
+    return value ? True : False;
+}
+
+bool IsKnownOutputStandard(std::string_view value) {
+    return value == "opencc_traditional" ||
+           value == "hong_kong_traditional" ||
+           value == "taiwan_traditional" ||
+           value == "mainland_simplified";
+}
+
+bool ParseProtocolBool(std::string_view value) {
+    if (value == "1" || value == "true" || value == "True") {
+        return true;
+    }
+    if (value == "0" || value == "false" || value == "False") {
+        return false;
+    }
+    throw std::runtime_error("expected boolean protocol value");
+}
+
+std::filesystem::path StateFilePathForArgs(const Args& args) {
+    const std::filesystem::path shared_parent =
+        std::filesystem::path(args.shared_dir).parent_path();
+    const std::filesystem::path user_parent =
+        std::filesystem::path(args.user_dir).parent_path();
+    std::filesystem::path install_root;
+    if (!shared_parent.empty() && shared_parent == user_parent) {
+        install_root = shared_parent;
+    } else if (!user_parent.empty()) {
+        install_root = user_parent;
+    } else {
+        install_root = std::filesystem::current_path();
+    }
+    return install_root / L"state" / L"ime-state.json";
+}
+
+bool ExtractJsonString(const std::string& json, std::string_view key,
+                       std::string* value) {
+    const std::string needle = "\"" + std::string(key) + "\"";
+    const size_t key_pos = json.find(needle);
+    if (key_pos == std::string::npos) {
+        return false;
+    }
+    const size_t colon_pos = json.find(':', key_pos + needle.size());
+    if (colon_pos == std::string::npos) {
+        return false;
+    }
+    const size_t quote_pos = json.find('"', colon_pos + 1);
+    if (quote_pos == std::string::npos) {
+        return false;
+    }
+    std::string output;
+    for (size_t i = quote_pos + 1; i < json.size(); ++i) {
+        const char ch = json[i];
+        if (ch == '"') {
+            *value = output;
+            return true;
+        }
+        if (ch == '\\' && i + 1 < json.size()) {
+            ++i;
+            output.push_back(json[i]);
+            continue;
+        }
+        output.push_back(ch);
+    }
+    return false;
+}
+
+bool ExtractJsonBool(const std::string& json, std::string_view key, bool* value) {
+    const std::string needle = "\"" + std::string(key) + "\"";
+    const size_t key_pos = json.find(needle);
+    if (key_pos == std::string::npos) {
+        return false;
+    }
+    const size_t colon_pos = json.find(':', key_pos + needle.size());
+    if (colon_pos == std::string::npos) {
+        return false;
+    }
+    size_t value_pos = colon_pos + 1;
+    while (value_pos < json.size() &&
+           static_cast<unsigned char>(json[value_pos]) <= 0x20) {
+        ++value_pos;
+    }
+    if (json.compare(value_pos, 4, "true") == 0) {
+        *value = true;
+        return true;
+    }
+    if (json.compare(value_pos, 5, "false") == 0) {
+        *value = false;
+        return true;
+    }
+    return false;
+}
+
 Request ParseRequest(const std::string& payload) {
     Request request;
     std::istringstream in(payload);
@@ -306,8 +418,16 @@ Request ParseRequest(const std::string& payload) {
         if (line == ".") {
             break;
         }
-        if (line.rfind("input=", 0) == 0) {
+        if (line.rfind("op=", 0) == 0) {
+            request.op = line.substr(3);
+        } else if (line.rfind("input=", 0) == 0) {
             request.input = line.substr(6);
+        } else if (line.rfind("name=", 0) == 0) {
+            request.name = line.substr(5);
+        } else if (line.rfind("value=", 0) == 0) {
+            request.value = line.substr(6);
+        } else if (line.rfind("schema=", 0) == 0) {
+            request.schema = line.substr(7);
         } else if (line == "commit=1") {
             request.commit = true;
         }
@@ -336,6 +456,7 @@ public:
             Narrow((std::filesystem::path(args.shared_dir) / L"build").wstring());
         staging_dir_ =
             Narrow((std::filesystem::path(args.user_dir) / L"build").wstring());
+        state_file_ = StateFilePathForArgs(args);
 
         RIME_STRUCT_INIT(RimeTraits, traits_);
         traits_.shared_data_dir = shared_dir_.c_str();
@@ -358,6 +479,8 @@ public:
                     api_->get_option && api_->process_key && api_->get_status &&
                     api_->free_status && api_->get_commit &&
                     api_->free_commit && api_->get_context &&
+                    api_->get_schema_list && api_->free_schema_list &&
+                    api_->get_current_schema &&
                     api_->free_context && api_->candidate_list_begin &&
                     api_->candidate_list_next && api_->candidate_list_end &&
                     api_->destroy_session &&
@@ -393,6 +516,7 @@ public:
                     "Yune deploy failed and selected schema artifacts are missing");
         }
         (void)deploy_diagnostics;
+        LoadState();
     }
 
     ~YuneRuntime() {
@@ -408,6 +532,191 @@ public:
     }
 
     std::string Process(const Request& request) {
+        if (!request.op.empty()) {
+            return ProcessOperation(request);
+        }
+        return ProcessInput(request);
+    }
+
+private:
+    void LoadState() {
+        state_ = YuneState{};
+        if (!std::filesystem::is_regular_file(state_file_)) {
+            return;
+        }
+
+        std::ifstream in(state_file_, std::ios::binary);
+        if (!in) {
+            return;
+        }
+        std::ostringstream buffer;
+        buffer << in.rdbuf();
+        const std::string json = buffer.str();
+
+        std::string text_value;
+        bool bool_value = false;
+        if (ExtractJsonString(json, "schema_id", &text_value) && !text_value.empty()) {
+            state_.schema_id = text_value;
+        }
+        if (ExtractJsonBool(json, "ascii_mode", &bool_value)) {
+            state_.ascii_mode = bool_value;
+        }
+        if (ExtractJsonBool(json, "full_shape", &bool_value)) {
+            state_.full_shape = bool_value;
+        }
+        if (ExtractJsonString(json, "output_standard", &text_value) &&
+            IsKnownOutputStandard(text_value)) {
+            state_.output_standard = text_value;
+        }
+    }
+
+    void PersistState() const {
+        std::filesystem::create_directories(state_file_.parent_path());
+        std::ofstream out(state_file_, std::ios::binary | std::ios::trunc);
+        Require(static_cast<bool>(out), "failed to open IME state file");
+        out << "{\n"
+            << "  \"schema_id\": \"" << JsonEscape(state_.schema_id) << "\",\n"
+            << "  \"ascii_mode\": " << (state_.ascii_mode ? "true" : "false")
+            << ",\n"
+            << "  \"full_shape\": " << (state_.full_shape ? "true" : "false")
+            << ",\n"
+            << "  \"output_standard\": \"" << JsonEscape(state_.output_standard)
+            << "\"\n"
+            << "}\n";
+        Require(static_cast<bool>(out), "failed to write IME state file");
+    }
+
+    std::string StateJson() const {
+        std::ostringstream out;
+        out << "{\"schema_id\":\"" << JsonEscape(state_.schema_id)
+            << "\",\"ascii_mode\":" << (state_.ascii_mode ? "true" : "false")
+            << ",\"full_shape\":" << (state_.full_shape ? "true" : "false")
+            << ",\"output_standard\":\"" << JsonEscape(state_.output_standard)
+            << "\"}";
+        return out.str();
+    }
+
+    std::string StateResponseJson() const {
+        std::ostringstream out;
+        out << "{\"ready\":true,\"state\":" << StateJson() << "}\n";
+        return out.str();
+    }
+
+    std::vector<SchemaInfo> ListSchemas() {
+        RimeSchemaList schema_list = {};
+        bool schema_list_active = false;
+        try {
+            Require(api_->get_schema_list(&schema_list) == True,
+                    "failed to get schema list");
+            schema_list_active = true;
+            std::vector<SchemaInfo> schemas;
+            for (size_t i = 0; i < schema_list.size; ++i) {
+                schemas.push_back(SchemaInfo{
+                    CStringOrEmpty(schema_list.list[i].schema_id),
+                    CStringOrEmpty(schema_list.list[i].name),
+                });
+            }
+            api_->free_schema_list(&schema_list);
+            schema_list_active = false;
+            return schemas;
+        } catch (...) {
+            if (schema_list_active) {
+                api_->free_schema_list(&schema_list);
+            }
+            throw;
+        }
+    }
+
+    bool SchemaExists(std::string_view schema_id) {
+        const std::vector<SchemaInfo> schemas = ListSchemas();
+        for (const SchemaInfo& schema : schemas) {
+            if (schema.schema_id == schema_id) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    std::string ListSchemasResponseJson() {
+        const std::vector<SchemaInfo> schemas = ListSchemas();
+        std::ostringstream out;
+        out << "{\"ready\":true,\"state\":" << StateJson() << ",\"schemas\":[";
+        for (size_t i = 0; i < schemas.size(); ++i) {
+            out << "{\"schema_id\":\"" << JsonEscape(schemas[i].schema_id)
+                << "\",\"name\":\"" << JsonEscape(schemas[i].name) << "\"}";
+            if (i + 1 < schemas.size()) {
+                out << ",";
+            }
+        }
+        out << "]}\n";
+        return out.str();
+    }
+
+    void ApplyOutputStandard(RimeSessionId session) const {
+        const bool use_luna_group = state_.schema_id == "luna_pinyin";
+        const char* hk_option = use_luna_group ? "zh_hant_hk" : "variants_hk";
+        const char* tw_option = use_luna_group ? "zh_hant_tw" : "trad_tw";
+        const char* simplified_option =
+            use_luna_group ? "zh_hans" : "simplification";
+
+        api_->set_option(session, hk_option,
+                         ToRimeBool(state_.output_standard ==
+                                    "hong_kong_traditional"));
+        api_->set_option(session, tw_option,
+                         ToRimeBool(state_.output_standard ==
+                                    "taiwan_traditional"));
+        api_->set_option(session, simplified_option,
+                         ToRimeBool(state_.output_standard ==
+                                    "mainland_simplified"));
+    }
+
+    void ApplyState(RimeSessionId session) const {
+        Require(api_->select_schema(session, state_.schema_id.c_str()) == True,
+                "failed to select configured schema");
+        api_->set_option(session, "ascii_mode", ToRimeBool(state_.ascii_mode));
+        Require(api_->get_option(session, "ascii_mode") ==
+                    ToRimeBool(state_.ascii_mode),
+                "failed to apply Yune ascii_mode");
+        api_->set_option(session, "full_shape", ToRimeBool(state_.full_shape));
+        api_->set_option(session, "soft_cursor", True);
+        api_->set_option(session, "traditionalization", False);
+        ApplyOutputStandard(session);
+        api_->set_option(session, "disable_learning", True);
+    }
+
+    std::string ProcessOperation(const Request& request) {
+        if (request.op == "get-state") {
+            return StateResponseJson();
+        }
+        if (request.op == "list-schemas") {
+            return ListSchemasResponseJson();
+        }
+        if (request.op == "set-option") {
+            if (request.name == "ascii_mode") {
+                state_.ascii_mode = ParseProtocolBool(request.value);
+            } else if (request.name == "full_shape") {
+                state_.full_shape = ParseProtocolBool(request.value);
+            } else if (request.name == "output_standard") {
+                Require(IsKnownOutputStandard(request.value),
+                        "unknown output standard");
+                state_.output_standard = request.value;
+            } else {
+                throw std::runtime_error("unknown option name");
+            }
+            PersistState();
+            return StateResponseJson();
+        }
+        if (request.op == "select-schema") {
+            Require(!request.schema.empty(), "missing schema id");
+            Require(SchemaExists(request.schema), "unknown schema id");
+            state_.schema_id = request.schema;
+            PersistState();
+            return StateResponseJson();
+        }
+        throw std::runtime_error("unknown op verb");
+    }
+
+    std::string ProcessInput(const Request& request) {
         const RimeSessionId session = api_->create_session();
         Require(session != 0, "failed to create session");
         bool session_active = true;
@@ -416,12 +725,7 @@ public:
         RimeContext context = {};
         bool context_active = false;
         try {
-            Require(api_->select_schema(session, "jyut6ping3") == True,
-                    "failed to select jyut6ping3");
-            api_->set_option(session, "ascii_mode", False);
-            Require(api_->get_option(session, "ascii_mode") == False,
-                    "failed to disable Yune ascii_mode");
-            api_->set_option(session, "disable_learning", True);
+            ApplyState(session);
             for (const unsigned char ch : request.input) {
                 Require(api_->process_key(session, static_cast<int>(ch), 0) == True,
                         "failed to process key");
@@ -473,7 +777,8 @@ public:
             }
             std::ostringstream out;
             out << "{\"ready\":true,\"schema_id\":\"" << JsonEscape(schema_id)
-                << "\",\"candidate_count\":" << candidates.size()
+                << "\",\"state\":" << StateJson()
+                << ",\"candidate_count\":" << candidates.size()
                 << ",\"commit_text\":\"" << JsonEscape(commit_text)
                 << "\",\"candidates\":[";
             for (size_t i = 0; i < candidates.size(); ++i) {
@@ -500,7 +805,6 @@ public:
         }
     }
 
-private:
     HMODULE library_ = nullptr;
     RimeYuneWindowsProfileApi* profile_api_ = nullptr;
     RimeApi* api_ = nullptr;
@@ -509,6 +813,8 @@ private:
     std::string user_dir_;
     std::string prebuilt_dir_;
     std::string staging_dir_;
+    std::filesystem::path state_file_;
+    YuneState state_;
     bool initialized_ = false;
 };
 

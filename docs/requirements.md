@@ -3,12 +3,13 @@
 ## Yune Windows Product Requirements
 
 **Status:** public rename baseline, M02 product-owned server lifecycle,
-structured cleanup hardening, M03 development inner-loop tooling, and
-M04 candidate typing-quality implementation are complete. Fresh
+structured cleanup hardening, M03 development inner-loop tooling, M04
+candidate typing-quality implementation, and M05 IME controls implementation
+are complete for non-elevated build/contract/runtime coverage. Fresh
 post-rename live evidence proves install/register, product-owned Notepad and
 Chromium typing, diagnostics, uninstall, and post-reboot no-residue cleanup on
 the installed IME. M04 server-side behavior is runtime-verified; DLL-side
-typing behavior still needs holder-free live app proof.
+M04/M05 typing and control behavior still needs holder-free live app proof.
 
 - [x] **WIN-01 - Product identity:** Product name, repo slug, install root,
   TSF DLL, server, profile tool, candidate smoke, named pipe, and TSF
@@ -87,6 +88,17 @@ typing behavior still needs holder-free live app proof.
   DLL-side caret, no-orphan, paging-key, and full-sentence punctuation behavior
   still needs holder-free Notepad/Chromium proof. Mouse selection and
   learning/userdb remain later daily-typing work.
+- [ ] **WIN-15 - IME controls and settings:** M05 implements server-owned
+  persistent schema/options state under `state\ime-state.json`, `op=` IPC
+  verbs, state blocks on every server response, focus/activation state refresh,
+  lone-Shift Chinese/English toggle, `Ctrl+Shift+2` schema cycle,
+  `Ctrl+Shift+3` full/half toggle, ASCII pass-through in English mode,
+  focus-scoped native mini language bar, and native `YuneWindowsSettings.exe`.
+  The server state protocol is runtime-verified through a scratch shared
+  server and dev REPL; TSF/language-bar/settings paths are build and contract
+  verified. Holder-free Notepad/Chromium proof for DLL-side hotkeys, bar clicks,
+  settings-driven state reconciliation, and native Windows indicator behavior
+  remains open.
 
 ## Non-Elevated Verification Gates
 
@@ -114,6 +126,11 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-tsf-caret-anchor-
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-candidate-window-owner-lifecycle-contract.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-candidate-paging-contract.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-punctuation-commit-contract.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-server-ime-state-protocol-contract.ps1 -YuneRoot C:\Users\laubonghaudoi\Documents\GitHub\yune
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-dev-repl-ime-state-contract.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-tsf-ime-state-hotkey-contract.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-language-bar-window-contract.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-settings-ime-state-contract.ps1
 ```
 
 Add broader non-elevated contract tests as needed for touched behavior.

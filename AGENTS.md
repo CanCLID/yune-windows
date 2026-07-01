@@ -17,8 +17,9 @@ engine and is consumed through a packaged Windows ABI surface.
   window, and dry-run watch tooling.
 - M04 Candidate Window and Typing Quality is implemented; holder-free live
   app proof for the DLL-side behavior remains open.
-- M05 IME Toggles, Language Bar, and Settings is the active plan unless
-  dogfood package hardening is explicitly prioritized first.
+- M05 IME Toggles, Language Bar, and Settings has non-elevated implementation
+  coverage for server-owned state, toggle hotkeys, focus-scoped mini language
+  bar, and native settings entrypoint; holder-free live app proof remains open.
 - The legacy Weasel-derived implementation remains useful reference material
   for TSF, server, IPC, installer, candidate-window positioning, and smoke
   harness behavior.

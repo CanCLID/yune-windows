@@ -11,7 +11,7 @@ if (-not (Test-Path -LiteralPath $TsfSource)) {
 $Source = Get-Content -Raw -LiteralPath $TsfSource
 
 $CandidateQueryGuardPattern = @'
-ServerResponse response = QueryServer\(buffer_, false\);
+ServerResponse response = QueryInput\(buffer_, false\);
 (?s:.*?)if \(!response\.ok\) \{
 (?s:.*?)candidate_\.clear\(\);
 (?s:.*?)last_candidates_\.clear\(\);
@@ -27,7 +27,7 @@ if ($CandidateQueryGuards.Count -lt 2) {
 }
 
 $CandidateQueryFailureConsumesPattern = @'
-ServerResponse response = QueryServer\(buffer_, false\);
+ServerResponse response = QueryInput\(buffer_, false\);
 (?s:.*?)\*eaten = TRUE;
 (?s:.*?)if \(!response\.ok\) \{
 (?s:.*?)candidate_window_\.Hide\(\);
@@ -41,7 +41,7 @@ if ($Source -notmatch $CandidateQueryFailureConsumesPattern) {
 }
 
 $CommitQueryGuardPattern = @'
-ServerResponse response = QueryServer\(buffer_, true\);
+ServerResponse response = QueryInput\(buffer_, true\);
 \s+if \(!response\.ok\) \{
 \s+\*eaten = TRUE;
 \s+return S_OK;

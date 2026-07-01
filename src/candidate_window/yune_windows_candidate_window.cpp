@@ -1,11 +1,14 @@
 #include "yune_windows_candidate_window.h"
 
+#include <windowsx.h>
+
 #include <algorithm>
 
 namespace yune_windows {
 namespace {
 
 constexpr const wchar_t* kClassName = L"YuneWindowsCandidateWindow";
+constexpr const wchar_t* kLanguageBarClassName = L"YuneWindowsLanguageBar";
 constexpr COLORREF kBorderColor = RGB(87, 93, 101);
 constexpr COLORREF kBackgroundColor = RGB(255, 255, 255);
 constexpr COLORREF kHighlightColor = RGB(229, 241, 255);
@@ -37,6 +40,23 @@ bool RegisterCandidateWindowClass() {
     return registered != 0 || GetLastError() == ERROR_CLASS_ALREADY_EXISTS;
 }
 
+bool RegisterLanguageBarWindowClass() {
+    static ATOM registered = 0;
+    if (registered != 0) {
+        return true;
+    }
+
+    WNDCLASSEXW wc = {};
+    wc.cbSize = sizeof(wc);
+    wc.hCursor = LoadCursorW(nullptr, IDC_ARROW);
+    wc.hInstance = GetModuleHandleW(nullptr);
+    wc.lpfnWndProc = LanguageBarWindow::WindowProc;
+    wc.lpszClassName = kLanguageBarClassName;
+    wc.style = CS_HREDRAW | CS_VREDRAW;
+    registered = RegisterClassExW(&wc);
+    return registered != 0 || GetLastError() == ERROR_CLASS_ALREADY_EXISTS;
+}
+
 SIZE DesiredSize(const CandidateWindowState& state) {
     const int start =
         CandidatePageStartIndex(state.page_index, std::max(1, state.page_size));
@@ -62,6 +82,88 @@ std::wstring RowLabel(size_t index, const CandidateWindowCandidate& candidate) {
     output += L". ";
     output += candidate.text;
     return output;
+}
+
+SIZE LanguageBarDesiredSize(UINT dpi) {
+    return {Scale(360, dpi), Scale(34, dpi)};
+}
+
+RECT ComputeLanguageBarRect(const RECT& anchor, SIZE desired_size, UINT dpi) {
+    RECT target = {
+        anchor.left,
+        anchor.top,
+        anchor.left + desired_size.cx,
+        anchor.top + desired_size.cy,
+    };
+    if (target.left == 0 && target.top == 0 && target.right == desired_size.cx &&
+        target.bottom == desired_size.cy) {
+        RECT work = {};
+        SystemParametersInfoW(SPI_GETWORKAREA, 0, &work, 0);
+        target.right = work.right - Scale(12, dpi);
+        target.left = target.right - desired_size.cx;
+        target.top = work.top + Scale(12, dpi);
+        target.bottom = target.top + desired_size.cy;
+        return target;
+    }
+
+    HMONITOR monitor = MonitorFromRect(&anchor, MONITOR_DEFAULTTONEAREST);
+    MONITORINFO info = {};
+    info.cbSize = sizeof(info);
+    if (monitor && GetMonitorInfoW(monitor, &info)) {
+        const RECT work = info.rcWork;
+        if (target.right > work.right) {
+            const int width = target.right - target.left;
+            target.left = work.right - width;
+            target.right = work.right;
+        }
+        if (target.bottom > work.bottom) {
+            const int height = target.bottom - target.top;
+            target.top = work.bottom - height;
+            target.bottom = work.bottom;
+        }
+        if (target.left < work.left) {
+            const int width = target.right - target.left;
+            target.left = work.left;
+            target.right = target.left + width;
+        }
+        if (target.top < work.top) {
+            const int height = target.bottom - target.top;
+            target.top = work.top;
+            target.bottom = target.top + height;
+        }
+    }
+    return target;
+}
+
+std::wstring OutputStandardLabel(std::wstring_view value) {
+    if (value == L"opencc_traditional") {
+        return L"OpenCC";
+    }
+    if (value == L"hong_kong_traditional") {
+        return L"HK";
+    }
+    if (value == L"taiwan_traditional") {
+        return L"TW";
+    }
+    if (value == L"mainland_simplified") {
+        return L"Sim";
+    }
+    return L"Std";
+}
+
+std::wstring LanguageBarLabel(LanguageBarSegment segment,
+                              const LanguageBarState& state) {
+    switch (segment) {
+        case LanguageBarSegment::AsciiMode:
+            return state.ascii_mode ? L"EN" : L"CN";
+        case LanguageBarSegment::FullShape:
+            return state.full_shape ? L"Full" : L"Half";
+        case LanguageBarSegment::OutputStandard:
+            return OutputStandardLabel(state.output_standard);
+        case LanguageBarSegment::Schema:
+            return state.schema_id.empty() ? L"Schema" : state.schema_id;
+    }
+    return L"";
 }
 
 }  // namespace
@@ -362,6 +464,200 @@ void NativeCandidateWindow::Paint() {
         DrawTextW(dc, page_label.c_str(), static_cast<int>(page_label.size()),
                   &page_rect,
                   DT_RIGHT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+    }
+
+    SelectObject(dc, old_font);
+    DeleteObject(font);
+    EndPaint(hwnd_, &ps);
+}
+
+LanguageBarWindow::~LanguageBarWindow() {
+    if (hwnd_) {
+        DestroyWindow(hwnd_);
+        hwnd_ = nullptr;
+    }
+}
+
+void LanguageBarWindow::SetClickHandler(LanguageBarClickHandler handler,
+                                        void* context) {
+    click_handler_ = handler;
+    click_context_ = context;
+}
+
+bool LanguageBarWindow::EnsureCreated(HWND owner) {
+    if (hwnd_) {
+        if (owner_ != owner) {
+            SetWindowLongPtrW(hwnd_, GWLP_HWNDPARENT,
+                              reinterpret_cast<LONG_PTR>(owner));
+            owner_ = owner;
+        }
+        return true;
+    }
+    if (!RegisterLanguageBarWindowClass()) {
+        return false;
+    }
+
+    hwnd_ = CreateWindowExW(WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW | WS_EX_TOPMOST,
+                            kLanguageBarClassName, L"YuneWindowsLanguageBar",
+                            WS_POPUP, 0, 0, 1, 1, owner, nullptr,
+                            GetModuleHandleW(nullptr), this);
+    owner_ = owner;
+    return hwnd_ != nullptr;
+}
+
+bool LanguageBarWindow::Update(const LanguageBarState& state, bool show) {
+    if (!EnsureCreated(state.owner)) {
+        return false;
+    }
+    state_ = state;
+    if (show && !ForegroundMatchesOwner()) {
+        Hide();
+        return true;
+    }
+
+    const SIZE desired = LanguageBarDesiredSize(state_.dpi);
+    const RECT rect = ComputeLanguageBarRect(state_.anchor, desired, state_.dpi);
+    SetWindowPos(hwnd_, HWND_TOPMOST, rect.left, rect.top, rect.right - rect.left,
+                 rect.bottom - rect.top,
+                 SWP_NOACTIVATE | (show ? SWP_SHOWWINDOW : SWP_NOZORDER));
+    InvalidateRect(hwnd_, nullptr, TRUE);
+    if (show) {
+        UpdateWindow(hwnd_);
+    }
+    return true;
+}
+
+void LanguageBarWindow::Hide() {
+    if (hwnd_) {
+        ShowWindow(hwnd_, SW_HIDE);
+    }
+}
+
+bool LanguageBarWindow::ForegroundMatchesOwner() const {
+    if (!owner_ || !IsWindow(owner_)) {
+        return true;
+    }
+    HWND foreground = GetForegroundWindow();
+    if (!foreground || foreground == hwnd_ || foreground == owner_ ||
+        IsChild(owner_, foreground)) {
+        return true;
+    }
+    HWND owner_root = GetAncestor(owner_, GA_ROOTOWNER);
+    HWND foreground_root = GetAncestor(foreground, GA_ROOTOWNER);
+    return owner_root && foreground_root && owner_root == foreground_root;
+}
+
+LRESULT CALLBACK LanguageBarWindow::WindowProc(HWND hwnd, UINT message,
+                                               WPARAM wparam, LPARAM lparam) {
+    LanguageBarWindow* window =
+        reinterpret_cast<LanguageBarWindow*>(GetWindowLongPtrW(hwnd, GWLP_USERDATA));
+    if (message == WM_NCCREATE) {
+        auto* create = reinterpret_cast<CREATESTRUCTW*>(lparam);
+        window = reinterpret_cast<LanguageBarWindow*>(create->lpCreateParams);
+        SetWindowLongPtrW(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(window));
+        if (window) {
+            window->hwnd_ = hwnd;
+            return TRUE;
+        }
+    }
+    if (window) {
+        if (!window->hwnd_) {
+            window->hwnd_ = hwnd;
+        }
+        return window->HandleMessage(message, wparam, lparam);
+    }
+    return DefWindowProcW(hwnd, message, wparam, lparam);
+}
+
+LRESULT LanguageBarWindow::HandleMessage(UINT message, WPARAM wparam,
+                                         LPARAM lparam) {
+    switch (message) {
+        case WM_PAINT:
+            Paint();
+            return 0;
+        case WM_MOUSEACTIVATE:
+            return MA_NOACTIVATE;
+        case WM_NCHITTEST:
+            return HTCLIENT;
+        case WM_LBUTTONUP:
+            if (click_handler_) {
+                POINT point = {GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)};
+                click_handler_(SegmentFromPoint(point), click_context_);
+            }
+            return 0;
+        default:
+            return DefWindowProcW(hwnd_, message, wparam, lparam);
+    }
+}
+
+LanguageBarSegment LanguageBarWindow::SegmentFromPoint(POINT point) const {
+    RECT client = {};
+    GetClientRect(hwnd_, &client);
+    const int width =
+        std::max(1, static_cast<int>(client.right - client.left));
+    const int segment_width = std::max(1, width / 4);
+    const int point_x = static_cast<int>(point.x);
+    const int index = std::max(0, std::min(3, point_x / segment_width));
+    switch (index) {
+        case 0:
+            return LanguageBarSegment::AsciiMode;
+        case 1:
+            return LanguageBarSegment::FullShape;
+        case 2:
+            return LanguageBarSegment::OutputStandard;
+        default:
+            return LanguageBarSegment::Schema;
+    }
+}
+
+void LanguageBarWindow::Paint() {
+    PAINTSTRUCT ps = {};
+    HDC dc = BeginPaint(hwnd_, &ps);
+    RECT client = {};
+    GetClientRect(hwnd_, &client);
+
+    FillSolid(dc, client, kBackgroundColor);
+    HPEN border_pen = CreatePen(PS_SOLID, Scale(1, state_.dpi), kBorderColor);
+    HGDIOBJ old_pen = SelectObject(dc, border_pen);
+    HGDIOBJ old_brush = SelectObject(dc, GetStockObject(NULL_BRUSH));
+    Rectangle(dc, client.left, client.top, client.right, client.bottom);
+    SelectObject(dc, old_brush);
+    SelectObject(dc, old_pen);
+    DeleteObject(border_pen);
+
+    HFONT font = CreateFontW(-Scale(15, state_.dpi), 0, 0, 0, FW_NORMAL, FALSE,
+                             FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS,
+                             CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
+                             DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
+    HGDIOBJ old_font = SelectObject(dc, font);
+    SetBkMode(dc, TRANSPARENT);
+    SetTextColor(dc, kTextColor);
+
+    const LanguageBarSegment segments[] = {
+        LanguageBarSegment::AsciiMode,
+        LanguageBarSegment::FullShape,
+        LanguageBarSegment::OutputStandard,
+        LanguageBarSegment::Schema,
+    };
+    const int segment_width =
+        std::max(1, static_cast<int>(client.right - client.left) / 4);
+    for (int i = 0; i < 4; ++i) {
+        RECT segment_rect = {client.left + i * segment_width, client.top,
+                             i == 3 ? client.right
+                                    : client.left + (i + 1) * segment_width,
+                             client.bottom};
+        if (i > 0) {
+            MoveToEx(dc, segment_rect.left, segment_rect.top + Scale(6, state_.dpi),
+                     nullptr);
+            LineTo(dc, segment_rect.left,
+                   segment_rect.bottom - Scale(6, state_.dpi));
+        }
+        segment_rect.left += Scale(6, state_.dpi);
+        segment_rect.right -= Scale(6, state_.dpi);
+        const std::wstring label = LanguageBarLabel(segments[i], state_);
+        DrawTextW(dc, label.c_str(), static_cast<int>(label.size()),
+                  &segment_rect,
+                  DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
     }
 
     SelectObject(dc, old_font);

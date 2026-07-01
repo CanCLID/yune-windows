@@ -3,6 +3,7 @@
 #include <msctf.h>
 #include <strsafe.h>
 
+#include <algorithm>
 #include <atomic>
 #include <filesystem>
 #include <fstream>
@@ -29,6 +30,25 @@ const GUID kProfileGuid = {
     0x19b4,
     0x4267,
     {0x8f, 0x21, 0xe2, 0x39, 0x66, 0x6d, 0x66, 0x32}};
+
+// Ctrl+Shift+2
+const GUID kSchemaCyclePreservedKeyGuid = {
+    0xd1d56b79,
+    0x2f1f,
+    0x4e0d,
+    {0xb0, 0x74, 0xe4, 0x72, 0x0e, 0x72, 0x43, 0x12}};
+
+// Ctrl+Shift+3
+const GUID kFullShapePreservedKeyGuid = {
+    0x88b8152f,
+    0xde9c,
+    0x4c45,
+    {0x8c, 0xe6, 0x5a, 0x2c, 0xaf, 0x3e, 0x62, 0x97}};
+
+const TF_PRESERVEDKEY kSchemaCyclePreservedKey = {L'2',
+                                                  TF_MOD_CONTROL | TF_MOD_SHIFT};
+const TF_PRESERVEDKEY kFullShapePreservedKey = {L'3',
+                                                TF_MOD_CONTROL | TF_MOD_SHIFT};
 
 constexpr LANGID kTextServiceLangId = 0x0c04;
 constexpr const wchar_t* kTextServiceDesc = L"Yune Windows";
@@ -61,6 +81,10 @@ bool IsHandledKey(WPARAM key) {
            key == VK_SPACE || key == VK_RETURN ||
            (key >= L'1' && key <= L'9') || key == VK_BACK ||
            key == VK_ESCAPE || key == VK_NEXT || key == VK_PRIOR;
+}
+
+bool IsShiftKey(WPARAM key) {
+    return key == VK_SHIFT || key == VK_LSHIFT || key == VK_RSHIFT;
 }
 
 bool IsShortcutModifierDown() {
@@ -422,14 +446,38 @@ bool JsonBoolTrueValue(std::string_view json, std::string_view key) {
     return json.find(needle) != std::string::npos;
 }
 
+bool JsonBoolValue(std::string_view json, std::string_view key, bool* value) {
+    const std::string true_needle = "\"" + std::string(key) + "\":true";
+    if (json.find(true_needle) != std::string::npos) {
+        *value = true;
+        return true;
+    }
+    const std::string false_needle = "\"" + std::string(key) + "\":false";
+    if (json.find(false_needle) != std::string::npos) {
+        *value = false;
+        return true;
+    }
+    return false;
+}
+
 bool JsonHasArrayValue(std::string_view json, std::string_view key) {
     const std::string needle = "\"" + std::string(key) + "\":[";
     return json.find(needle) != std::string::npos;
 }
 
+struct ImeState {
+    bool present = false;
+    std::wstring schema_id;
+    bool ascii_mode = false;
+    bool full_shape = false;
+    std::wstring output_standard = L"hong_kong_traditional";
+};
+
 struct ServerResponse {
     bool ok = false;
+    ImeState state;
     std::wstring commit_text;
+    std::vector<std::wstring> schemas;
     std::vector<yune_windows::CandidateWindowCandidate> candidates;
 };
 
@@ -466,6 +514,52 @@ std::vector<yune_windows::CandidateWindowCandidate> JsonCandidates(std::string_v
         pos = json.find('{', end + 1);
     }
     return candidates;
+}
+
+ImeState JsonImeState(std::string_view json) {
+    ImeState state;
+    const std::string schema_id = JsonStringValue(json, "schema_id");
+    const std::string output_standard = JsonStringValue(json, "output_standard");
+    bool ascii_mode = false;
+    bool full_shape = false;
+    if (schema_id.empty() || output_standard.empty() ||
+        !JsonBoolValue(json, "ascii_mode", &ascii_mode) ||
+        !JsonBoolValue(json, "full_shape", &full_shape)) {
+        return state;
+    }
+    state.present = true;
+    state.schema_id = Widen(schema_id);
+    state.ascii_mode = ascii_mode;
+    state.full_shape = full_shape;
+    state.output_standard = Widen(output_standard);
+    return state;
+}
+
+std::vector<std::wstring> JsonSchemaIds(std::string_view json) {
+    std::vector<std::wstring> schemas;
+    const size_t array_start = json.find("\"schemas\":[");
+    if (array_start == std::string::npos) {
+        return schemas;
+    }
+
+    size_t pos = json.find('{', array_start);
+    while (pos != std::string::npos) {
+        const size_t end = json.find('}', pos);
+        if (end == std::string::npos) {
+            break;
+        }
+        const size_t array_end = json.find(']', array_start);
+        if (array_end != std::string::npos && end > array_end) {
+            break;
+        }
+        const std::string_view object = json.substr(pos, end - pos + 1);
+        const std::string schema_id = JsonStringValue(object, "schema_id");
+        if (!schema_id.empty()) {
+            schemas.push_back(Widen(schema_id));
+        }
+        pos = json.find('{', end + 1);
+    }
+    return schemas;
 }
 
 ServerResponse QueryServer(const std::wstring& input, bool commit) {
@@ -584,12 +678,52 @@ ServerResponse QueryServer(const std::wstring& input, bool commit) {
 
     ServerResponse result;
     result.ok = true;
+    result.state = JsonImeState(json);
     result.commit_text = Widen(JsonStringValue(json, "commit_text"));
     result.candidates = JsonCandidates(json);
     if (!commit && result.commit_text.empty() && !result.candidates.empty()) {
         result.commit_text = result.candidates.front().text;
     }
     return result;
+}
+
+ServerResponse QueryServerOperation(const std::string& request) {
+    char response[65536] = {};
+    DWORD read = 0;
+    for (int attempt = 0; attempt < 3; ++attempt) {
+        if (CallNamedPipeW(kPipeName, const_cast<char*>(request.data()),
+                           static_cast<DWORD>(request.size()), response,
+                           sizeof(response) - 1, &read, kServerQueryTimeoutMs)) {
+            const std::string json(response, read);
+            if (!JsonBoolTrueValue(json, "ready")) {
+                WriteStructuralEvent("server_query_invalid_response");
+                return {};
+            }
+            ServerResponse result;
+            result.ok = true;
+            result.state = JsonImeState(json);
+            result.schemas = JsonSchemaIds(json);
+            return result;
+        }
+
+        const DWORD error = GetLastError();
+        if (error == ERROR_FILE_NOT_FOUND) {
+            if (!WaitForSharedServerPipe(kServerPipeReconnectWaitMs) &&
+                !RequestSharedServerLaunch()) {
+                break;
+            }
+            continue;
+        }
+        if (error == ERROR_PIPE_BUSY) {
+            WriteStructuralEvent("server_query_pipe_busy");
+            if (WaitForSharedServerPipe(kServerPipeReconnectWaitMs)) {
+                continue;
+            }
+        }
+        break;
+    }
+    WriteStructuralEvent("server_query_failed");
+    return {};
 }
 
 class InsertTextEditSession final : public ITfEditSession {
@@ -810,6 +944,7 @@ private:
 class TextService final : public ITfTextInputProcessorEx, public ITfKeyEventSink {
 public:
     TextService() : ref_(1) {
+        language_bar_.SetClickHandler(&TextService::LanguageBarClickThunk, this);
         DllAddRef();
     }
 
@@ -872,6 +1007,16 @@ public:
         }
         const HRESULT hr =
             keystroke_mgr->AdviseKeyEventSink(client_id, this, TRUE);
+        if (SUCCEEDED(hr)) {
+            (void)keystroke_mgr->PreserveKey(
+                client_id, kSchemaCyclePreservedKeyGuid,
+                &kSchemaCyclePreservedKey, L"Yune Windows schema cycle",
+                static_cast<ULONG>(wcslen(L"Yune Windows schema cycle")));
+            (void)keystroke_mgr->PreserveKey(
+                client_id, kFullShapePreservedKeyGuid,
+                &kFullShapePreservedKey, L"Yune Windows full shape",
+                static_cast<ULONG>(wcslen(L"Yune Windows full shape")));
+        }
         keystroke_mgr->Release();
         if (FAILED(hr)) {
             return hr;
@@ -880,6 +1025,7 @@ public:
         thread_mgr_ = thread_mgr;
         thread_mgr_->AddRef();
         client_id_ = client_id;
+        RefreshStateFromServer(nullptr);
         WriteStructuralEvent("profile_activate");
         return S_OK;
     }
@@ -894,6 +1040,10 @@ public:
             ITfKeystrokeMgr* keystroke_mgr = nullptr;
             if (SUCCEEDED(thread_mgr_->QueryInterface(
                     IID_ITfKeystrokeMgr, reinterpret_cast<void**>(&keystroke_mgr)))) {
+                (void)keystroke_mgr->UnpreserveKey(kSchemaCyclePreservedKeyGuid,
+                                                   &kSchemaCyclePreservedKey);
+                (void)keystroke_mgr->UnpreserveKey(kFullShapePreservedKeyGuid,
+                                                   &kFullShapePreservedKey);
                 keystroke_mgr->UnadviseKeyEventSink(client_id_);
                 keystroke_mgr->Release();
             }
@@ -901,6 +1051,7 @@ public:
             thread_mgr_ = nullptr;
         }
         client_id_ = TF_CLIENTID_NULL;
+        focused_ = false;
         if (was_active) {
             WriteStructuralEvent("profile_deactivate",
                                  static_cast<int>(buffer_.size()),
@@ -911,11 +1062,13 @@ public:
         last_candidates_.clear();
         candidate_page_index_ = 0;
         candidate_window_.Hide();
+        language_bar_.Hide();
         return S_OK;
     }
 
     STDMETHODIMP OnSetFocus(BOOL focused) override {
         if (!focused) {
+            focused_ = false;
             WriteStructuralEvent("focus_lost", static_cast<int>(buffer_.size()),
                                  static_cast<int>(last_candidates_.size()));
             buffer_.clear();
@@ -923,6 +1076,10 @@ public:
             last_candidates_.clear();
             candidate_page_index_ = 0;
             candidate_window_.Hide();
+            language_bar_.Hide();
+        } else {
+            focused_ = true;
+            RefreshStateFromServer(nullptr);
         }
         return S_OK;
     }
@@ -940,12 +1097,20 @@ public:
             return E_INVALIDARG;
         }
         *eaten = FALSE;
+        if (IsShiftKey(key)) {
+            shift_down_ = true;
+            shift_consumed_ = false;
+            return S_OK;
+        }
+        if (shift_down_) {
+            shift_consumed_ = true;
+        }
         if (!ShouldHandleKeyDown(key)) {
             return S_OK;
         }
         if ((key >= L'A' && key <= L'Z') || (key >= L'a' && key <= L'z')) {
             buffer_.push_back(LowerAscii(key));
-            ServerResponse response = QueryServer(buffer_, false);
+            ServerResponse response = QueryInput(buffer_, false);
             *eaten = TRUE;
             if (!response.ok) {
                 candidate_.clear();
@@ -979,7 +1144,7 @@ public:
                     *eaten = TRUE;
                     return S_OK;
                 }
-                ServerResponse response = QueryServer(buffer_, false);
+                ServerResponse response = QueryInput(buffer_, false);
                 if (!response.ok) {
                     candidate_.clear();
                     last_candidates_.clear();
@@ -1058,7 +1223,7 @@ public:
         }
         if ((key == VK_SPACE || key == VK_RETURN) && !buffer_.empty()) {
             *eaten = TRUE;
-            ServerResponse response = QueryServer(buffer_, true);
+            ServerResponse response = QueryInput(buffer_, true);
             if (!response.ok) {
                 *eaten = TRUE;
                 return S_OK;
@@ -1092,27 +1257,234 @@ public:
         return S_OK;
     }
 
-    STDMETHODIMP OnKeyUp(ITfContext*, WPARAM key, LPARAM, BOOL* eaten) override {
+    STDMETHODIMP OnKeyUp(ITfContext* context, WPARAM key, LPARAM, BOOL* eaten) override {
         if (!eaten) {
             return E_INVALIDARG;
         }
-        (void)key;
         *eaten = FALSE;
+        if (IsShiftKey(key)) {
+            if (shift_down_ && !shift_consumed_) {
+                ToggleBoolState("ascii_mode", context);
+            }
+            shift_down_ = false;
+            shift_consumed_ = false;
+        }
         return S_OK;
     }
 
-    STDMETHODIMP OnPreservedKey(ITfContext*, REFGUID, BOOL* eaten) override {
+    STDMETHODIMP OnPreservedKey(ITfContext* context, REFGUID guid, BOOL* eaten) override {
         if (!eaten) {
             return E_INVALIDARG;
+        }
+        if (IsEqualGUID(guid, kFullShapePreservedKeyGuid)) {
+            *eaten = TRUE;
+            ToggleBoolState("full_shape", context);
+            return S_OK;
+        }
+        if (IsEqualGUID(guid, kSchemaCyclePreservedKeyGuid)) {
+            *eaten = TRUE;
+            CycleSchema(context);
+            return S_OK;
         }
         *eaten = FALSE;
         return S_OK;
     }
 
 private:
+    static void LanguageBarClickThunk(yune_windows::LanguageBarSegment segment,
+                                      void* context) {
+        auto* service = static_cast<TextService*>(context);
+        if (service) {
+            service->HandleLanguageBarClick(segment);
+        }
+    }
+
+    ServerResponse QueryInput(const std::wstring& input, bool commit) {
+        ServerResponse response = QueryServer(input, commit);
+        ReconcileState(response, nullptr);
+        return response;
+    }
+
+    ServerResponse QueryOperation(const std::string& payload, ITfContext* context) {
+        ServerResponse response = QueryServerOperation(payload);
+        ReconcileState(response, context);
+        return response;
+    }
+
+    void ReconcileState(const ServerResponse& response, ITfContext* context) {
+        if (!response.ok || !response.state.present) {
+            return;
+        }
+        state_ = response.state;
+        UpdateInputModeCompartment();
+        UpdateLanguageBar(context);
+    }
+
+    void RefreshStateFromServer(ITfContext* context) {
+        (void)QueryOperation("op=get-state\n.\n", context);
+    }
+
+    void UpdateInputModeCompartment() {
+        if (!state_.present || !thread_mgr_ || client_id_ == TF_CLIENTID_NULL) {
+            return;
+        }
+
+        ITfCompartmentMgr* compartment_mgr = nullptr;
+        if (FAILED(thread_mgr_->QueryInterface(
+                IID_ITfCompartmentMgr,
+                reinterpret_cast<void**>(&compartment_mgr))) ||
+            !compartment_mgr) {
+            return;
+        }
+        ITfCompartment* compartment = nullptr;
+        if (SUCCEEDED(compartment_mgr->GetCompartment(
+                GUID_COMPARTMENT_KEYBOARD_OPENCLOSE, &compartment)) &&
+            compartment) {
+            VARIANT value = {};
+            value.vt = VT_I4;
+            value.lVal = state_.ascii_mode ? 0 : 1;
+            (void)compartment->SetValue(client_id_, &value);
+            compartment->Release();
+        }
+        compartment_mgr->Release();
+    }
+
+    void UpdateLanguageBar(ITfContext* context) {
+        if (!focused_) {
+            language_bar_.Hide();
+            return;
+        }
+        if (!state_.present) {
+            language_bar_.Hide();
+            return;
+        }
+
+        CandidateAnchorResult anchor_result;
+        if (context && client_id_ != TF_CLIENTID_NULL) {
+            CandidateAnchorEditSession* session = nullptr;
+            try {
+                session = new (std::nothrow)
+                    CandidateAnchorEditSession(context, &anchor_result);
+            } catch (...) {
+            }
+            if (session) {
+                HRESULT edit_hr = E_FAIL;
+                const HRESULT request_hr =
+                    context->RequestEditSession(client_id_, session,
+                                                TF_ES_SYNC | TF_ES_READ,
+                                                &edit_hr);
+                session->Release();
+                (void)request_hr;
+                (void)edit_hr;
+            }
+        }
+
+        yune_windows::LanguageBarState bar_state;
+        bar_state.ascii_mode = state_.ascii_mode;
+        bar_state.full_shape = state_.full_shape;
+        bar_state.output_standard = state_.output_standard;
+        bar_state.schema_id = state_.schema_id;
+        bar_state.owner = anchor_result.owner;
+        bar_state.dpi = anchor_result.dpi;
+        if (anchor_result.has_anchor) {
+            bar_state.anchor = anchor_result.anchor;
+            bar_state.anchor.top =
+                bar_state.anchor.top > 40 ? bar_state.anchor.top - 40 : 0;
+            bar_state.anchor.bottom = bar_state.anchor.top + 34;
+        }
+        (void)language_bar_.Update(bar_state, true);
+    }
+
+    void ToggleBoolState(const char* name, ITfContext* context) {
+        const bool current =
+            std::string_view(name) == "full_shape" ? state_.full_shape
+                                                   : state_.ascii_mode;
+        std::string payload = "op=set-option\nname=";
+        payload += name;
+        payload += "\nvalue=";
+        payload += current ? "0" : "1";
+        payload += "\n.\n";
+        (void)QueryOperation(payload, context);
+    }
+
+    std::wstring NextSchemaId() const {
+        const std::wstring schemas[] = {L"jyut6ping3", L"cangjie5",
+                                        L"luna_pinyin"};
+        constexpr size_t schema_count = sizeof(schemas) / sizeof(schemas[0]);
+        for (size_t i = 0; i < schema_count; ++i) {
+            if (state_.schema_id == schemas[i]) {
+                return schemas[(i + 1) % schema_count];
+            }
+        }
+        return schemas[0];
+    }
+
+    std::wstring NextOutputStandard() const {
+        const std::wstring standards[] = {
+            L"opencc_traditional",
+            L"hong_kong_traditional",
+            L"taiwan_traditional",
+            L"mainland_simplified",
+        };
+        constexpr size_t standard_count =
+            sizeof(standards) / sizeof(standards[0]);
+        for (size_t i = 0; i < standard_count; ++i) {
+            if (state_.output_standard == standards[i]) {
+                return standards[(i + 1) % standard_count];
+            }
+        }
+        return L"hong_kong_traditional";
+    }
+
+    void SelectSchema(const std::wstring& schema_id, ITfContext* context) {
+        std::string payload = "op=select-schema\nschema=";
+        payload += Narrow(schema_id);
+        payload += "\n.\n";
+        (void)QueryOperation(payload, context);
+    }
+
+    void SetOutputStandard(const std::wstring& standard, ITfContext* context) {
+        std::string payload =
+            "op=set-option\nname=output_standard\nvalue=" + Narrow(standard) +
+            "\n.\n";
+        (void)QueryOperation(payload, context);
+    }
+
+    void CycleSchema(ITfContext* context) {
+        SelectSchema(NextSchemaId(), context);
+    }
+
+    void CycleOutputStandard(ITfContext* context) {
+        SetOutputStandard(NextOutputStandard(), context);
+    }
+
+    void HandleLanguageBarClick(yune_windows::LanguageBarSegment segment) {
+        switch (segment) {
+            case yune_windows::LanguageBarSegment::AsciiMode:
+                ToggleBoolState("ascii_mode", nullptr);
+                break;
+            case yune_windows::LanguageBarSegment::FullShape:
+                ToggleBoolState("full_shape", nullptr);
+                break;
+            case yune_windows::LanguageBarSegment::OutputStandard:
+                CycleOutputStandard(nullptr);
+                break;
+            case yune_windows::LanguageBarSegment::Schema:
+                CycleSchema(nullptr);
+                break;
+        }
+    }
+
     bool ShouldHandleKeyDown(WPARAM key) const {
         if (IsShortcutModifierDown()) {
             return false;
+        }
+        if (state_.present && state_.ascii_mode && buffer_.empty()) {
+            if ((key >= L'A' && key <= L'Z') || (key >= L'a' && key <= L'z') ||
+                (key >= L'0' && key <= L'9') || key == VK_SPACE ||
+                key == VK_RETURN || IsPunctuationKey(key)) {
+                return false;
+            }
         }
         if ((key >= L'A' && key <= L'Z') || (key >= L'a' && key <= L'z')) {
             return true;
@@ -1164,7 +1536,7 @@ private:
 
     bool CommitCompositionForPunctuation(ITfContext* context, WPARAM key) {
         ServerResponse punctuation_response =
-            QueryServer(PunctuationInput(key), true);
+            QueryInput(PunctuationInput(key), true);
         if (!punctuation_response.ok ||
             punctuation_response.commit_text.empty()) {
             return false;
@@ -1172,7 +1544,7 @@ private:
 
         bool committed_composition = false;
         if (!buffer_.empty()) {
-            ServerResponse composition_response = QueryServer(buffer_, true);
+            ServerResponse composition_response = QueryInput(buffer_, true);
             if (!composition_response.ok) {
                 return false;
             }
@@ -1298,7 +1670,12 @@ private:
     std::wstring candidate_;
     std::vector<yune_windows::CandidateWindowCandidate> last_candidates_;
     int candidate_page_index_ = 0;
+    ImeState state_;
+    bool shift_down_ = false;
+    bool shift_consumed_ = false;
+    bool focused_ = false;
     yune_windows::NativeCandidateWindow candidate_window_;
+    yune_windows::LanguageBarWindow language_bar_;
 };
 
 class ClassFactory final : public IClassFactory {

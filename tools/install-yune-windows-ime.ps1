@@ -164,6 +164,7 @@ if ($LASTEXITCODE -ne 0) {
 
 $TsfDll = Join-Path $InstallRoot "YuneWindowsTSF.dll"
 $ProfileTool = Join-Path $InstallRoot "YuneWindowsProfileTool.exe"
+$SettingsTool = Join-Path $InstallRoot "YuneWindowsSettings.exe"
 $InstallStarted = $false
 
 try {
@@ -172,6 +173,7 @@ try {
     Copy-Item -LiteralPath (Join-Path $BuildDir "YuneWindowsTSF.dll") -Destination $InstallRoot -Force
     Copy-Item -LiteralPath (Join-Path $BuildDir "YuneWindowsServer.exe") -Destination $InstallRoot -Force
     Copy-Item -LiteralPath (Join-Path $BuildDir "YuneWindowsProfileTool.exe") -Destination $InstallRoot -Force
+    Copy-Item -LiteralPath (Join-Path $BuildDir "YuneWindowsSettings.exe") -Destination $SettingsTool -Force
     Copy-Item -LiteralPath $RimeDll -Destination $InstallRoot -Force
 
     $SchemaDest = Join-Path $InstallRoot "schema"

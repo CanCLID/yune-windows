@@ -35,7 +35,7 @@ foreach ($Required in @(
 
 $PopIndex = $BackspaceBody.IndexOf("buffer_.pop_back();", [System.StringComparison]::Ordinal)
 $EmptyCheckIndex = $BackspaceBody.IndexOf("if (buffer_.empty())", [System.StringComparison]::Ordinal)
-$QueryIndex = $BackspaceBody.IndexOf("QueryServer(buffer_, false)", [System.StringComparison]::Ordinal)
+$QueryIndex = $BackspaceBody.IndexOf("QueryInput(buffer_, false)", [System.StringComparison]::Ordinal)
 
 foreach ($Pair in @(
         @("buffer pop", $PopIndex),

@@ -41,6 +41,10 @@ foreach ($Required in @(
     }
 }
 
+if ($ReloadSource -notmatch 'if \(\$RefreshSchema\) \{(?s:.*?)Stop-YuneWindowsDevProcessesByPath(?s:.*?)prepare-yune-product-data\.ps1') {
+    throw "dev-reload-server.ps1 must stop the installed server before refreshing schema/user-data."
+}
+
 $TempRoot = Join-Path $env:TEMP ("yune-windows\dev-backup-contract-{0}-{1}" -f $PID, [Guid]::NewGuid().ToString("N").Substring(0, 8))
 $PathToProtect = Join-Path $TempRoot "schema"
 $ChildPath = Join-Path $PathToProtect "file.txt"

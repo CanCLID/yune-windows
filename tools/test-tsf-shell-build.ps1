@@ -35,9 +35,14 @@ if (-not (Test-Path -LiteralPath $ProfileTool)) {
     throw "missing built profile tool: $ProfileTool"
 }
 
+$SettingsTool = Join-Path $OutputDir "YuneWindowsSettings.exe"
+if (-not (Test-Path -LiteralPath $SettingsTool)) {
+    throw "missing built settings tool: $SettingsTool"
+}
+
 $CandidateSmoke = Join-Path $OutputDir "YuneWindowsCandidateWindowSmoke.exe"
 if (-not (Test-Path -LiteralPath $CandidateSmoke)) {
     throw "missing built candidate-window smoke executable: $CandidateSmoke"
 }
 
-Write-Host "TSF shell build produced $Dll, $Server, $ProfileTool, and $CandidateSmoke"
+Write-Host "TSF shell build produced $Dll, $Server, $ProfileTool, $SettingsTool, and $CandidateSmoke"

@@ -91,10 +91,21 @@ DLL reload; static/build proof must not be described as live proof. Review
 follow-up hardening may improve the TSF code path and dev harness without
 changing that live-proof boundary.
 
+### D-12 - IME state is server-owned
+
+M05 makes the shared server the only writer for live IME state: schema,
+`ascii_mode`, `full_shape`, and output standard. Clients, including the TSF DLL,
+the focus-scoped native language bar, dev tooling, and `YuneWindowsSettings.exe`,
+must use `op=` pipe verbs instead of reading or writing the private
+`state\ime-state.json` file directly. The TSF DLL treats state as a short-lived
+cache, refreshes it from server responses and focus/activation, and keeps the
+inline candidate window native. WebView2 remains reserved for a richer future
+settings/dictionary panel, not the latency-critical inline candidate surface.
+
 ## Last Updated
 
-2026-07-01 - M04 Candidate Window And Typing Quality implementation and
-review follow-up completed with server-side/runtime harness evidence and
-DLL-side static/build/smoke evidence. Live app proof for caret placement,
-no-orphan behavior, paging keys, and full-sentence punctuation remains blocked
-until `YuneWindowsTSF.dll` is not held by non-dev desktop processes.
+2026-07-01 - M05 IME Toggles, Language Bar, and Settings implementation added
+server-owned state, `op=` verbs, TSF hotkeys, focus-scoped native mini language
+bar, and native settings entrypoint with non-elevated build/contract/runtime
+evidence. Live app proof for M04/M05 DLL-side behavior remains blocked until
+`YuneWindowsTSF.dll` is not held by non-dev desktop processes.

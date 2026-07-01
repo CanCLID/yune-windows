@@ -32,15 +32,16 @@ foreach ($Required in @('VK_CONTROL', 'VK_MENU', 'VK_LWIN', 'VK_RWIN', 'GetKeySt
     }
 }
 
-$ModifierGuardPattern = @'
-bool ShouldHandleKeyDown\(WPARAM key\) const \{
-\s+if \(IsShortcutModifierDown\(\)\) \{
-\s+return false;
-\s+\}
-\s+if \(\(key >= L'A' && key <= L'Z'\) \|\| \(key >= L'a' && key <= L'z'\)\) \{
-'@
-
-if ($Source -notmatch $ModifierGuardPattern) {
+$ShouldHandleMatch = [regex]::Match(
+    $Source,
+    'bool ShouldHandleKeyDown\(WPARAM key\) const \{(?<body>[\s\S]*?)\r?\n    \}')
+if (-not $ShouldHandleMatch.Success) {
+    throw "could not locate TSF ShouldHandleKeyDown body."
+}
+$ShouldHandleBody = $ShouldHandleMatch.Groups["body"].Value
+$ModifierIndex = $ShouldHandleBody.IndexOf("if (IsShortcutModifierDown())", [System.StringComparison]::Ordinal)
+$LetterIndex = $ShouldHandleBody.IndexOf("if ((key >= L'A' && key <= L'Z')", [System.StringComparison]::Ordinal)
+if ($ModifierIndex -lt 0 -or $LetterIndex -lt 0 -or $ModifierIndex -gt $LetterIndex) {
     throw "TSF key-test path must pass Ctrl/Alt/Windows letter shortcuts through before starting composition."
 }
 

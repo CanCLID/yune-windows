@@ -25,6 +25,25 @@ struct CandidateWindowState {
     UINT dpi = 96;
 };
 
+enum class LanguageBarSegment {
+    AsciiMode,
+    FullShape,
+    OutputStandard,
+    Schema,
+};
+
+struct LanguageBarState {
+    bool ascii_mode = false;
+    bool full_shape = false;
+    std::wstring output_standard;
+    std::wstring schema_id;
+    RECT anchor = {0, 0, 0, 0};
+    HWND owner = nullptr;
+    UINT dpi = 96;
+};
+
+using LanguageBarClickHandler = void (*)(LanguageBarSegment segment, void* context);
+
 std::wstring SanitizeCandidateComment(std::wstring_view raw_comment);
 int ClampCandidateHighlight(int highlighted_index, int candidate_count);
 int CandidatePageCount(int candidate_count, int page_size);
@@ -55,6 +74,35 @@ private:
     HWND hwnd_ = nullptr;
     HWND owner_ = nullptr;
     CandidateWindowState state_;
+};
+
+class LanguageBarWindow {
+public:
+    LanguageBarWindow() = default;
+    ~LanguageBarWindow();
+
+    LanguageBarWindow(const LanguageBarWindow&) = delete;
+    LanguageBarWindow& operator=(const LanguageBarWindow&) = delete;
+
+    void SetClickHandler(LanguageBarClickHandler handler, void* context);
+    bool EnsureCreated(HWND owner);
+    bool Update(const LanguageBarState& state, bool show);
+    void Hide();
+
+    static LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM wparam,
+                                       LPARAM lparam);
+
+private:
+    LRESULT HandleMessage(UINT message, WPARAM wparam, LPARAM lparam);
+    bool ForegroundMatchesOwner() const;
+    LanguageBarSegment SegmentFromPoint(POINT point) const;
+    void Paint();
+
+    HWND hwnd_ = nullptr;
+    HWND owner_ = nullptr;
+    LanguageBarState state_;
+    LanguageBarClickHandler click_handler_ = nullptr;
+    void* click_context_ = nullptr;
 };
 
 }  // namespace yune_windows

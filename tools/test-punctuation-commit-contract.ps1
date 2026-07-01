@@ -29,7 +29,7 @@ foreach ($Required in @(
         'bool IsPunctuationKey',
         'PunctuationInput',
         'CommitCompositionForPunctuation',
-        'QueryServer\(PunctuationInput',
+        'QueryInput\(PunctuationInput',
         'CommitText\(context,\s*punctuation_response\.commit_text\)'
     )) {
     if ($Tsf -notmatch $Required) {
@@ -52,9 +52,9 @@ if ([string]::IsNullOrWhiteSpace($CompositionPunctuationSource)) {
 }
 foreach ($Required in @(
         'if \(!buffer_\.empty\(\)\)',
-        'ServerResponse composition_response = QueryServer\(buffer_, true\)',
+        'ServerResponse composition_response = QueryInput\(buffer_, true\)',
         'CommitText\(context,\s*composition_commit\)',
-        'ServerResponse punctuation_response\s*=\s*QueryServer\(PunctuationInput\(key\), true\)',
+        'ServerResponse punctuation_response\s*=\s*QueryInput\(PunctuationInput\(key\), true\)',
         'CommitText\(context,\s*punctuation_response\.commit_text\)',
         'buffer_\.clear\(\)',
         'last_candidates_\.clear\(\)',

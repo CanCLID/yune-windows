@@ -16,15 +16,18 @@ $IncludeDir = Join-Path $PackageDir "include"
 $ServerSource = Join-Path $RepoRoot "src\server\yune_windows_server.cpp"
 $TsfSource = Join-Path $RepoRoot "src\tsf\yune_windows_tsf.cpp"
 $ProfileToolSource = Join-Path $RepoRoot "src\tools\yune_windows_profile_tool.cpp"
+$SettingsToolSource = Join-Path $RepoRoot "src\tools\yune_windows_settings.cpp"
 $CandidateWindowSource = Join-Path $RepoRoot "src\candidate_window\yune_windows_candidate_window.cpp"
 $CandidateWindowSmokeSource = Join-Path $RepoRoot "src\candidate_window\yune_windows_candidate_window_smoke.cpp"
 $ServerExe = Join-Path $OutputDir "YuneWindowsServer.exe"
 $TsfDll = Join-Path $OutputDir "YuneWindowsTSF.dll"
 $ProfileToolExe = Join-Path $OutputDir "YuneWindowsProfileTool.exe"
+$SettingsToolExe = Join-Path $OutputDir "YuneWindowsSettings.exe"
 $CandidateWindowSmokeExe = Join-Path $OutputDir "YuneWindowsCandidateWindowSmoke.exe"
 $ServerObj = Join-Path $OutputDir "yune_windows_server.obj"
 $TsfObj = Join-Path $OutputDir "yune_windows_tsf.obj"
 $ProfileToolObj = Join-Path $OutputDir "yune_windows_profile_tool.obj"
+$SettingsToolObj = Join-Path $OutputDir "yune_windows_settings.obj"
 $CandidateWindowObj = Join-Path $OutputDir "yune_windows_candidate_window.obj"
 $CandidateWindowSmokeObj = Join-Path $OutputDir "yune_windows_candidate_window_smoke.obj"
 
@@ -78,8 +81,15 @@ if ($LASTEXITCODE -ne 0) {
     throw "profile tool build failed with exit code $LASTEXITCODE"
 }
 
+$SettingsToolCompile = "call `"$VsDevCmd`" -arch=x64 -host_arch=x64 >nul && cl.exe /nologo /std:c++20 /EHsc /W4 /permissive- /utf-8 /DUNICODE /D_UNICODE /Fo`"$SettingsToolObj`" /Fe`"$SettingsToolExe`" `"$SettingsToolSource`" /link ole32.lib user32.lib"
+cmd.exe /d /s /c "$SettingsToolCompile"
+if ($LASTEXITCODE -ne 0) {
+    throw "settings tool build failed with exit code $LASTEXITCODE"
+}
+
 Write-Host "Built TSF shell artifacts:"
 Write-Host "  $TsfDll"
 Write-Host "  $ServerExe"
 Write-Host "  $ProfileToolExe"
+Write-Host "  $SettingsToolExe"
 Write-Host "  $CandidateWindowSmokeExe"

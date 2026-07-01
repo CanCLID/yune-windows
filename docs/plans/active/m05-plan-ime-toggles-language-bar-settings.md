@@ -10,6 +10,12 @@ has, with parity to yune-web: schema switching, 中/英 (`ascii_mode`), full/hal
 width (`full_shape`), and output character standard — via toggle hotkeys, a small
 floating language bar, and a settings config UI.
 
+**Status update (2026-07-01):** implementation and non-elevated verification
+are complete for the server-owned state protocol, TSF hotkeys, focus-scoped
+native language bar, and native settings entrypoint. Holder-free live Notepad
+and Chromium proof for M04/M05 DLL-side behavior remains open, so this plan
+stays active and must not move to history yet.
+
 **Architecture:** the shared server becomes the single source of truth for
 persistent IME state (schema + options), applied to every per-keystroke session
 and saved to a per-user state file, mutated by new `op=` pipe verbs. The TSF DLL

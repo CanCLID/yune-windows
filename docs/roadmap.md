@@ -7,7 +7,7 @@ intentionally separate from Yune engine-performance work.
 
 | Lane | Current state | Next gate |
 | --- | --- | --- |
-| Product shell | Renamed public baseline with TSF DLL, shared server, native candidate window, diagnostics tooling, installer scripts, non-elevated contract tests, P2-WIN02 product-owned server startup, and P2-WIN03 development inner-loop tooling. Latest approved live closeout reached install/register, profile activation, Notepad, Chromium, diagnostics export, uninstall, and post-reboot no-residue cleanup. Both text-field smokes passed from the installed path, committed the expected Cantonese text, and recorded product-owned server start/readiness plus profile-active-before-typing evidence. P2-WIN03 installed-server reload is runtime-proven; installed TSF reload correctly safe-aborts when the DLL is held by non-dev desktop processes. Cold start is still synchronous in the TSF key path for up to `kServerLaunchReadyWaitMs = 15000`. | Start P2-WIN04 Daily Typing Quality unless dogfood package hardening is explicitly prioritized first. |
+| Product shell | Renamed public baseline with TSF DLL, shared server, native candidate window, diagnostics tooling, installer scripts, non-elevated contract tests, P2-WIN02 product-owned server startup, and P2-WIN03 development inner-loop tooling. Latest approved live closeout reached install/register, profile activation, Notepad, Chromium, diagnostics export, uninstall, and post-reboot no-residue cleanup. Both text-field smokes passed from the installed path, committed the expected Cantonese text, and recorded product-owned server start/readiness plus profile-active-before-typing evidence. P2-WIN03 installed-server reload is runtime-proven; installed TSF reload correctly safe-aborts when the DLL is held by non-dev desktop processes. Cold start is still synchronous in the TSF key path for up to `kServerLaunchReadyWaitMs = 15000`. | P2-WIN04 Candidate Window and Typing Quality in progress: fix candidate-window caret positioning and the stuck top-left panel, comment hygiene, paging, punctuation. |
 | Yune boundary | Windows consumes packaged Yune through `rime_get_api()` plus the opt-in `rime_get_yune_windows_profile_api()` surface. | Keep default `rime_get_api()` unchanged; send new engine needs to Yune as named proposals with tests. |
 | Reference code | Legacy Weasel-derived implementation is reference material only. | Extract no more code without a focused audit and smoke proof. |
 | Dogfood release | Public repo starts from clean initial history and omits old private evidence. Fresh post-rename live evidence exists, including Notepad, Chromium, diagnostics, recovered cleanup, compatibility matrix, signing decision, and complete closeout audit under the product-owned server contract. Compatibility matrix and signing decision are recorded; dogfood packaging, release signing, non-blocking cold-start, and user-data preservation remain open. | Start dogfood package hardening when selected. |
@@ -117,43 +117,47 @@ Historical plan:
 
 ## Candidate Next Milestones (for discussion)
 
-P2-WIN02 and P2-WIN03 are complete. The next candidate is **P2-WIN04 Daily
-Typing Quality** unless dogfood package hardening is explicitly prioritized
-first.
+P2-WIN02 and P2-WIN03 are complete. The active milestone is **P2-WIN04 Candidate
+Window and Typing Quality** (see
+`docs/plans/active/p2-win04-plan-candidate-window-typing-quality.md`), prompted by
+dogfooding: the candidate panel lands in the top-left instead of at the caret and
+can get stuck on screen, and candidate comments show raw dictionary CSV. The
+other rows remain candidates.
 
 | Candidate | Delivers | Rough size | Key dependency / risk |
 | --- | --- | --- | --- |
-| **P2-WIN04 - Daily Typing Quality** | Candidate paging + mouse selection, punctuation/full-width input, candidate comment hygiene, and learning/userdb so the IME adapts. Turns the proven typing path into a daily-usable Cantonese IME. | L (three slices) | Learning is a protocol change, not a flag flip (see notes); every slice touches the latency-critical inline path (D-04). |
+| **P2-WIN04 - Candidate Window and Typing Quality (active)** | Fix candidate-window caret positioning and the stuck/orphaned top-left panel; candidate comment hygiene; candidate paging; punctuation/full-width input. Makes the installed IME usable for daily typing. | L (four slices) | Positioning/paging/punctuation are DLL-side (holder-free reload session); comment hygiene is server-side (fast loop). Plan: `docs/plans/active/p2-win04-plan-candidate-window-typing-quality.md`. Learning/userdb split to a later milestone. |
 | **Non-blocking cold-start / per-user broker** | Removes the up-to-15s foreground freeze on the first cold keystroke and makes launch work in sandboxed/AppContainer hosts (UWP, WeChat, some Store/Electron). Reduces AV/EDR risk of spawning an unsigned exe from a browser. | M | Adds per-user autostart/broker state that install/uninstall must create and remove; documented P2-WIN02 fast-follow. |
 | **Dogfood package hardening (WIN-11)** | Self-contained install bundle decoupled from the local Yune source build, so a second machine can install without a Rust/Yune toolchain. | M | Production signing stays deferred; needs pre-staged `rime.dll` + schema + binaries + `install-info.json`. |
 | **User-data preservation (D-09)** | Preserve or migrate the learned dictionary / personalization across reinstall loops instead of deleting `user-data` on uninstall. | S | Decide backup vs. a `-PurgeUserData` switch; small but touches the uninstall path. |
 | **Deferred (Scope Ledger)** | Production signing + release distribution, rich settings UI (WebView2), auto-update, Store packaging, broader compatibility matrix (Win10, Office/Electron/UWP). | varies | Formally deferred until typing evidence + security review; keep behind the above. |
 
-### P2-WIN04 (Daily Typing Quality) workstream notes
+### P2-WIN04 workstream notes
 
-Recommended order is **paging -> punctuation -> learning**, each slice shippable
-and dogfoodable on its own:
+Sequence: do the server-side comment fix first (fast loop), then batch the
+DLL-side candidate-window and input work in a holder-free session (the DLL swap
+needs the holder apps closed).
 
-1. **Candidate paging + mouse** (smallest, lowest risk): `CandidateWindowState`
-   has `page_size`/`highlighted_index` but no page index, and the candidate
-   window is click-through (`WM_NCHITTEST -> HTTRANSPARENT`) today. A first cut
-   can page client-side over a larger returned candidate list, avoiding any
-   session-model change.
-2. **Punctuation / full-width / symbols**: `OnKeyDown` only handles a-z, 1-9,
-   space/enter/backspace/escape today. Verify whether the schema takes tone
-   digits (the smoke used toneless `ngohaig`, suggesting not) before scoping
-   tone input, since digits 1-9 are currently candidate selection.
-3. **Learning / userdb** (largest; own slice with its own live evidence): today
-   the protocol is stateless (`input=<full buffer>`, fresh session per
-   keystroke, `disable_learning=True`) and the TSF never tells Rime which
-   candidate the user picked, so enabling learning alone would teach the wrong
-   selections. Requires a persistent per-client session, a select-index/commit
-   message, userdb persistence, and D-05 secure-context suppression proven with
-   a fresh live privacy closeout.
-4. **Candidate comment hygiene**: the P2-WIN03 dev REPL showed candidate
-   comments can expose raw structured CSV-like blobs. This is a daily-typing
-   quality bug, not a dev-kit blocker; fix it in P2-WIN04 so comments are
-   useful, compact, and product-safe.
+1. **Comment hygiene (server, fast loop)**: the `jyut6ping3` dictionary packs a
+   CSV comment for the web UI; the server passes it through and the candidate
+   window draws it raw. Simplify it server-side (extract jyutping / blank) so it
+   does not touch the shared web schema; iterate via `dev-reload-server`.
+2. **Candidate window correctness (DLL)** - the top usability bugs from
+   dogfooding: `ShowCandidates` (`src\tsf\yune_windows_tsf.cpp`) anchors on
+   `GetScreenExt`/`{80,80}` instead of the caret - fix with
+   `ITfContextView::GetTextExt` in a read edit session; the parentless
+   `WS_EX_TOPMOST` candidate window can orphan on screen - give it an owner window
+   and complete every hide path.
+3. **Paging (DLL)**: add a page index + paging keys; first cut can page
+   client-side over a larger candidate list, avoiding a session-model change.
+4. **Punctuation / full-width (DLL + schema)**: forward punctuation keys to the
+   schema `punct_translator`. Tone-digit vs 1-9-selection is moot for toneless
+   input (`ngohaig`).
+
+Learning / userdb is intentionally split to a **later** milestone: it is a
+protocol change (persistent per-client session, select-index/commit feedback,
+userdb persistence, D-05 secure-context suppression with a fresh live privacy
+proof), not a flag flip, and should not ride the candidate-window work.
 
 ### Cross-cutting
 

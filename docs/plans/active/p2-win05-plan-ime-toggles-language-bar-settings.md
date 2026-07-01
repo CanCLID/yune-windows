@@ -250,8 +250,10 @@ DLL swaps (holder-free). D is the largest (new build target).
 - [ ] Verify via `dev-reload-server` (fast loop). Commit directly to `main`.
 
 ### Task 2: Slice B — hotkeys + pass-through + indicator
-- [ ] `PreserveKey` + `OnPreservedKey` toggle hotkeys; generalize `QueryServer`
-  for `op=` requests; ascii-mode English pass-through; input-mode compartment.
+- [ ] Lone-Shift key-up state machine for the 中/英 toggle (`WH_KEYBOARD_LL`
+  fallback if key-up is unreliable); `PreserveKey` + `OnPreservedKey` chord for
+  `full_shape` + schema-cycle; generalize `QueryServer` for `op=` requests;
+  ascii-mode English pass-through; input-mode compartment.
 - [ ] Contract tests for the new key path; build.
 - [ ] Live-verify via holder-free `dev-reload-tsf`. Commit directly to `main`.
 

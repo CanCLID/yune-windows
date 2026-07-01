@@ -49,6 +49,8 @@ Final intended state for this validation is installed and active for dogfooding:
 
 - `YuneWindowsProfileTool.exe --state` reported `registered: true` and
   `active: true`.
+- Active profile state can drift after the evidence run; before typing, reselect
+  Yune Windows in the target text field and verify active state again if needed.
 - `YuneWindowsServer.exe` was running from
   `%LOCALAPPDATA%\Yune\WindowsIme\YuneWindowsServer.exe`.
 - No delayed-delete cleanup, uninstall, AppVerifier, PageHeap, or verifier

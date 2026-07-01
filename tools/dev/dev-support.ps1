@@ -176,12 +176,16 @@ function Get-YuneWindowsDevPackage {
     Test-YuneWindowsDevPath -Path $RimeDll -Description "packaged rime.dll" -PathType Leaf
     Test-YuneWindowsDevPath -Path $SchemaSourceDir -Description "Yune schema source" -PathType Container
     Test-YuneWindowsDevPath `
+        -Path (Join-Path $SchemaSourceDir "jyut6ping3.schema.yaml") `
+        -Description "Yune Windows runtime schema entrypoint source" `
+        -PathType Leaf
+    Test-YuneWindowsDevPath `
         -Path (Join-Path $SchemaSourceDir "jyut6ping3_mobile.schema.yaml") `
-        -Description "Yune Windows runtime schema source" `
+        -Description "Yune Windows runtime schema template source" `
         -PathType Leaf
     Test-YuneWindowsDevPath `
         -Path (Join-Path $SchemaSourceDir "build\jyut6ping3_mobile.schema.yaml") `
-        -Description "prebuilt Yune Windows runtime schema source" `
+        -Description "prebuilt Yune Windows runtime schema template source" `
         -PathType Leaf
 
     return [pscustomobject]@{

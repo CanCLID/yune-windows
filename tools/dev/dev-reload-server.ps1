@@ -138,6 +138,9 @@ try {
                 -TimeoutMs 10000 | Out-Null
         }
 
+        # A foreground keystroke can auto-relaunch the installed server between
+        # the path check and explicit start. Keep that as a bounded readiness
+        # failure instead of broadening process ownership.
         $StartedProcess = & (Join-Path $RepoRoot "tools\start-yune-windows-server.ps1") `
             -YuneRoot $Package.yune_root `
             -InstallDir $Paths.install_dir `

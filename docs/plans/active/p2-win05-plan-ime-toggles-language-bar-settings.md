@@ -15,7 +15,7 @@ persistent IME state (schema + options), applied to every per-keystroke session
 and saved to a per-user state file, mutated by new `op=` pipe verbs. The TSF DLL
 gains toggle hotkeys and a clickable language bar (cloned from the candidate
 window) that call those verbs; a new standalone settings exe drives the same
-verbs and state file. The latency-critical inline candidate path stays native
+verbs only (the state file is private to the server). The latency-critical inline candidate path stays native
 (D-04). No Yune ABI change is required — the linked `RimeApi` already exposes
 every needed function.
 
@@ -163,14 +163,15 @@ DLL swaps (holder-free). D is the largest (new build target).
   the **state block on every server response** (Slice A), and by sending
   `op=get-state` on `OnSetFocus(focused=TRUE)`/`ActivateEx` so the mode is fresh
   when you switch into an app before typing. This keeps 中/英 and full/half
-  consistent across apps and the settings UI even when another writer changed
-  server state.
+  consistent across apps and the settings UI even when another client changed
+  server state through the server.
 - When `ascii_mode` is on (per the reconciled state), bypass the letter-buffering
   path (946-969) so English/ASCII passes straight through.
 - Drive the Windows 中/英 tray indicator via the registered input-mode
   compartment (1461).
-- **Verify live:** holder-free `dev-reload-tsf` swap; confirm Shift toggles 中/英,
-  English passes through in ascii mode, and the indicator reflects state.
+- **Verify live:** holder-free `dev-reload-tsf` swap; confirm `Ctrl+Shift+2`
+  toggles 中/英 and `Ctrl+Shift+3` toggles 全/半, English passes through in ascii
+  mode, and the native indicator reflects state.
 
 ### Slice C — Floating language bar
 

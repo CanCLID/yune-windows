@@ -129,6 +129,132 @@ std::string CStringOrEmpty(const char* value) {
     return value == nullptr ? std::string{} : std::string(value);
 }
 
+std::string TrimAsciiWhitespace(std::string value) {
+    while (!value.empty() && static_cast<unsigned char>(value.front()) <= 0x20) {
+        value.erase(value.begin());
+    }
+    while (!value.empty() && static_cast<unsigned char>(value.back()) <= 0x20) {
+        value.pop_back();
+    }
+    return value;
+}
+
+bool IsJyutpingComment(std::string_view value) {
+    bool has_letter = false;
+    bool has_tone = false;
+    for (const unsigned char ch : value) {
+        if (ch >= 'a' && ch <= 'z') {
+            has_letter = true;
+            continue;
+        }
+        if (ch >= 'A' && ch <= 'Z') {
+            has_letter = true;
+            continue;
+        }
+        if (ch >= '1' && ch <= '6') {
+            has_tone = true;
+            continue;
+        }
+        if (ch == '\'' || ch == '-' || ch == ' ') {
+            continue;
+        }
+        return false;
+    }
+    return has_letter && has_tone;
+}
+
+std::vector<std::string> ParseCsvPrefixFields(std::string_view record,
+                                              size_t max_fields) {
+    std::vector<std::string> fields;
+    std::string field;
+    bool quoted = false;
+    for (size_t i = 0; i < record.size(); ++i) {
+        const char ch = record[i];
+        if (quoted) {
+            if (ch == '"') {
+                if (i + 1 < record.size() && record[i + 1] == '"') {
+                    field.push_back('"');
+                    ++i;
+                } else {
+                    quoted = false;
+                }
+            } else {
+                field.push_back(ch);
+            }
+            continue;
+        }
+        if (ch == '"') {
+            quoted = true;
+            continue;
+        }
+        if (ch == ',') {
+            fields.push_back(TrimAsciiWhitespace(field));
+            field.clear();
+            if (fields.size() == max_fields) {
+                return fields;
+            }
+            continue;
+        }
+        field.push_back(ch);
+    }
+    fields.push_back(TrimAsciiWhitespace(field));
+    return fields;
+}
+
+std::string SimplifiedCsvJyutpingComment(std::string_view record) {
+    const std::vector<std::string> fields = ParseCsvPrefixFields(record, 3);
+    if (fields.size() < 3) {
+        return {};
+    }
+    if (fields[0].empty()) {
+        return {};
+    }
+    for (const unsigned char ch : fields[0]) {
+        if (ch < '0' || ch > '9') {
+            return {};
+        }
+    }
+    if (!IsJyutpingComment(fields[2])) {
+        return {};
+    }
+    return fields[2];
+}
+
+std::string CleanNonCsvComment(std::string_view raw_comment) {
+    std::string output;
+    output.reserve(raw_comment.size());
+    for (const unsigned char ch : raw_comment) {
+        if (ch < 0x20 || ch == 0x7f) {
+            continue;
+        }
+        output.push_back(static_cast<char>(ch));
+    }
+    return TrimAsciiWhitespace(output);
+}
+
+std::string SimplifyCandidateComment(std::string_view raw_comment) {
+    std::string record;
+    for (const unsigned char ch : raw_comment) {
+        if (ch == '\f' || ch == '\r' || ch == '\n') {
+            const std::string simplified =
+                SimplifiedCsvJyutpingComment(TrimAsciiWhitespace(record));
+            if (!simplified.empty()) {
+                return simplified;
+            }
+            record.clear();
+            continue;
+        }
+        record.push_back(static_cast<char>(ch));
+    }
+
+    const std::string simplified =
+        SimplifiedCsvJyutpingComment(TrimAsciiWhitespace(record));
+    if (!simplified.empty()) {
+        return simplified;
+    }
+    return CleanNonCsvComment(raw_comment);
+}
+
 std::string JsonEscape(std::string_view value) {
     std::ostringstream out;
     for (const unsigned char ch : value) {
@@ -306,7 +432,8 @@ public:
             for (int i = 0; i < context.menu.num_candidates; ++i) {
                 candidates.push_back(Candidate{
                     CStringOrEmpty(context.menu.candidates[i].text),
-                    CStringOrEmpty(context.menu.candidates[i].comment),
+                    SimplifyCandidateComment(
+                        CStringOrEmpty(context.menu.candidates[i].comment)),
                 });
             }
             api_->free_context(&context);

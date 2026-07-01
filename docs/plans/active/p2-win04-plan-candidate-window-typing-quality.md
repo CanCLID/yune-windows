@@ -140,12 +140,12 @@ in a holder-free session because they all reswap the DLL.
 ## Tasks
 
 ### Task 1: Slice A - server comment hygiene
-- [ ] Add the comment simplifier in `src\server\yune_windows_server.cpp`.
-- [ ] Add a contract asserting the server does not emit raw CSV comments
+- [x] Add the comment simplifier in `src\server\yune_windows_server.cpp`.
+- [x] Add a contract asserting the server does not emit raw CSV comments
   (static or a server-response check).
-- [ ] Verify via `dev-repl` that `ngohaig` candidates have clean comments.
-- [ ] Non-elevated build + host/IPC/candidate smokes pass.
-- [ ] Commit directly to `main` (scoped, reviewed) per the repo's direct-main
+- [x] Verify via `dev-repl` that `ngohaig` candidates have clean comments.
+- [x] Non-elevated build + host/IPC/candidate smokes pass.
+- [x] Commit directly to `main` (scoped, reviewed) per the repo's direct-main
   workflow.
 
 ### Task 2: Slice B - candidate window positioning + no-orphan

@@ -1,0 +1,13 @@
+﻿{
+    "pass":  true,
+    "exit_code":  0,
+    "generated_at":  "2026-07-01T09:12:30.3901455-07:00",
+    "output":  "docs\\evidence\\p2-win04\\slice-a-dev-reload-server-output.txt",
+    "server_processes":  [
+                             {
+                                 "Id":  26128,
+                                 "Path":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Yune\\WindowsIme\\YuneWindowsServer.exe",
+                                 "HasExited":  false
+                             }
+                         ]
+}

@@ -178,27 +178,27 @@ protocol. No new C++.
 - Create: `tools\dev\dev-repl.ps1`
 - Create: `tools\test-dev-tooling-safety-contract.ps1`
 
-- [ ] **Step 0: dev-support helpers + preflight**
+- [x] **Step 0: dev-support helpers + preflight**
   Create `dev-support.ps1` with a read-only DLL-holder helper (reimplemented, not
   dot-sourced from the uninstaller), a packaged-Yune preflight, and a
   scratch-server start helper. `dev-repl` calls the preflight and scratch-start.
 
-- [ ] **Step 1: Build/start a throwaway server**
+- [x] **Step 1: Build/start a throwaway server**
   After the package preflight, build the server to a scratch dir, prepare scratch
   schema/user data via `prepare-yune-product-data.ps1`, and start it on
   `\\.\pipe\yune-windows-ime-dev` via the `dev-support.ps1` scratch-start helper
   (not `start-yune-windows-server.ps1`, which requires an installed server).
 
-- [ ] **Step 2: Interactive loop**
+- [x] **Step 2: Interactive loop**
   Read a line of jyutping, open a `NamedPipeClientStream`, send
   `input=<line>\ncommit=0\n.\n`, parse the JSON, and print numbered candidates
   plus `schema_id`. Support `:commit <input>` (send `commit=1`) and `:quit`.
   Reconnect per input (the server serves one request per connection).
 
-- [ ] **Step 3: Teardown**
+- [x] **Step 3: Teardown**
   On exit, stop only the dev server process the script started.
 
-- [ ] **Step 4: Safety contract (static)**
+- [x] **Step 4: Safety contract (static)**
   `test-dev-tooling-safety-contract.ps1` discovers every `tools\dev\*.ps1` file
   plus any dot-sourced dev helper under `tools\dev`, then throws if any scanned
   file contains `regsvr32`, `MOVEFILE_DELAY_UNTIL_REBOOT`, `Register-` (incl.

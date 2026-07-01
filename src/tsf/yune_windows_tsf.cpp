@@ -695,9 +695,10 @@ private:
 };
 
 struct CandidateAnchorResult {
-    RECT anchor = {80, 80, 96, 104};
+    RECT anchor = {};
     HWND owner = nullptr;
     UINT dpi = 96;
+    bool has_anchor = false;
     bool has_text_ext = false;
     bool has_screen_ext = false;
 };
@@ -771,9 +772,11 @@ public:
             BOOL clipped = FALSE;
             if (SUCCEEDED(view->GetTextExt(cookie, selection.range, &text_ext,
                                            &clipped)) &&
-                text_ext.right >= text_ext.left &&
-                text_ext.bottom >= text_ext.top) {
+                clipped == FALSE &&
+                text_ext.right > text_ext.left &&
+                text_ext.bottom > text_ext.top) {
                 result_->anchor = text_ext;
+                result_->has_anchor = true;
                 result_->has_text_ext = true;
             }
             selection.range->Release();
@@ -787,6 +790,7 @@ public:
                 result_->anchor = screen_ext;
                 result_->anchor.right = result_->anchor.left + 24;
                 result_->anchor.bottom = result_->anchor.top + 24;
+                result_->has_anchor = true;
                 result_->has_screen_ext = true;
             }
         }
@@ -1040,13 +1044,10 @@ public:
             }
             return S_OK;
         }
-        if (IsPunctuationKey(key) && buffer_.empty()) {
-            ServerResponse response = QueryServer(PunctuationInput(key), true);
-            if (response.ok && !response.commit_text.empty()) {
+        if (IsPunctuationKey(key)) {
+            const bool was_composing = !buffer_.empty();
+            if (CommitCompositionForPunctuation(context, key) || was_composing) {
                 *eaten = TRUE;
-                WriteStructuralEvent("punctuation_commit", 0, 0);
-                CommitText(context, response.commit_text);
-                candidate_window_.Hide();
             }
             return S_OK;
         }
@@ -1117,7 +1118,7 @@ private:
             return !buffer_.empty();
         }
         if (IsPunctuationKey(key)) {
-            return buffer_.empty();
+            return true;
         }
         return false;
     }
@@ -1154,6 +1155,50 @@ private:
         WriteStructuralEvent("commit_text",
                              static_cast<int>(text.size()));
         return true;
+    }
+
+    bool CommitCompositionForPunctuation(ITfContext* context, WPARAM key) {
+        ServerResponse punctuation_response =
+            QueryServer(PunctuationInput(key), true);
+        if (!punctuation_response.ok ||
+            punctuation_response.commit_text.empty()) {
+            return false;
+        }
+
+        bool committed_composition = false;
+        if (!buffer_.empty()) {
+            ServerResponse composition_response = QueryServer(buffer_, true);
+            if (!composition_response.ok) {
+                return false;
+            }
+            std::wstring composition_commit = composition_response.commit_text;
+            if (composition_commit.empty()) {
+                composition_commit = candidate_;
+            }
+            if (composition_commit.empty()) {
+                return false;
+            }
+
+            WriteStructuralEvent("commit_request",
+                                 static_cast<int>(buffer_.size()),
+                                 static_cast<int>(last_candidates_.size()));
+            if (!CommitText(context, composition_commit)) {
+                return false;
+            }
+            committed_composition = true;
+            buffer_.clear();
+            candidate_.clear();
+            last_candidates_.clear();
+            candidate_page_index_ = 0;
+            candidate_window_.Hide();
+        }
+
+        WriteStructuralEvent("punctuation_commit", 0, 0);
+        if (CommitText(context, punctuation_response.commit_text)) {
+            candidate_window_.Hide();
+            return true;
+        }
+        return committed_composition;
     }
 
     bool PageCandidateWindow(ITfContext* context, int delta) {
@@ -1208,6 +1253,14 @@ private:
                     (void)request_hr;
                     (void)edit_hr;
                 }
+            }
+
+            if (!anchor_result.has_anchor) {
+                WriteStructuralEvent("candidate_anchor_failed",
+                                     static_cast<int>(candidates.size()),
+                                     static_cast<int>(candidates.size()));
+                candidate_window_.Hide();
+                return false;
             }
 
             yune_windows::CandidateWindowState state;

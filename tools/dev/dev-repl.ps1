@@ -1,7 +1,7 @@
 param(
     [string]$YuneRoot = "C:\Users\laubonghaudoi\Documents\GitHub\yune",
     [string]$ScratchRoot = "",
-    [string]$PipeName = "\\.\pipe\yune-windows-ime-dev",
+    [string]$PipeName = "",
     [string]$InputText = "",
     [switch]$Once,
     [switch]$Commit,
@@ -35,10 +35,20 @@ function Write-YuneWindowsDevResponse {
     }
 }
 
+function New-YuneWindowsDevReplPipeName {
+    return "\\.\pipe\yune-windows-ime-dev-$PID-$([Guid]::NewGuid().ToString("N").Substring(0, 8))"
+}
+
 if ($ScratchRoot -eq "") {
     $ScratchRoot = Join-Path $env:TEMP ("yune-windows\dev-repl-{0}-{1}" -f $PID, [Guid]::NewGuid().ToString("N").Substring(0, 8))
 }
 $ScratchRoot = Resolve-YuneWindowsDevFullPath $ScratchRoot
+$PipeName = if ([string]::IsNullOrWhiteSpace($PipeName)) {
+    New-YuneWindowsDevReplPipeName
+}
+else {
+    $PipeName
+}
 $BuildDir = Join-Path $ScratchRoot "build"
 $SharedDir = Join-Path $ScratchRoot "schema"
 $UserDir = Join-Path $ScratchRoot "user-data"

@@ -9,13 +9,16 @@
 the candidate window so it appears at the caret and never orphans, clean up the
 candidate comments, and add candidate paging and punctuation/full-width input.
 
-**Closeout status (2026-07-01):** implementation and non-elevated verification
-are complete. Server-side comment hygiene, larger candidate lists, punctuation
-`get_commit`, dev REPL checks, and installed-server reload were runtime-verified.
-DLL-side caret anchoring, owner/no-orphan lifecycle, paging keys, and punctuation
-forwarding were build/static/smoke verified only; live TSF DLL reload and app
-typing proof were not attempted because non-dev desktop processes held
-`YuneWindowsTSF.dll`. See `docs/evidence/p2-win04/README.md` and
+**Closeout status (2026-07-01):** implementation, review follow-up hardening,
+and non-elevated verification are complete. Server-side comment hygiene, larger
+candidate lists, punctuation `get_commit`, dev REPL checks, and installed-server
+reload were runtime-verified. The review follow-up adds unique per-run dev REPL
+pipes, robust comment-hygiene capture, no-anchor candidate popup suppression,
+and composing-punctuation handling. DLL-side caret anchoring, owner/no-orphan
+lifecycle, paging keys, and punctuation forwarding were build/static/smoke
+verified only; live TSF DLL reload and app typing proof were not attempted
+because non-dev desktop processes held `YuneWindowsTSF.dll`. See
+`docs/evidence/p2-win04/README.md` and
 `docs/evidence/p2-win04/tsf-dll-reload-blocker-20260701.md`.
 
 **Architecture:** iterate through the P2-WIN03 dev loop. Comment hygiene is

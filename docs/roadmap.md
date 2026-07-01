@@ -7,7 +7,7 @@ intentionally separate from Yune engine-performance work.
 
 | Lane | Current state | Next gate |
 | --- | --- | --- |
-| Product shell | Renamed public baseline with TSF DLL, shared server, native candidate window, diagnostics tooling, installer scripts, non-elevated contract tests, P2-WIN02 product-owned server startup, P2-WIN03 development inner-loop tooling, and P2-WIN04 candidate typing-quality implementation. Latest approved live closeout reached install/register, profile activation, Notepad, Chromium, diagnostics export, uninstall, and post-reboot no-residue cleanup. P2-WIN04 runtime evidence covers clean candidate comments, 30-candidate server supply, full-width punctuation via `get_commit`, and installed-server reload/readiness. DLL-side caret placement, no-orphan lifecycle, PageUp/PageDown paging, and punctuation forwarding are build/static/smoke verified; live app proof remains blocked until a holder-free TSF DLL session. Cold start is still synchronous in the TSF key path for up to `kServerLaunchReadyWaitMs = 15000`. | Holder-free P2-WIN04 live verification, or dogfood package hardening if packaging is prioritized first. |
+| Product shell | Renamed public baseline with TSF DLL, shared server, native candidate window, diagnostics tooling, installer scripts, non-elevated contract tests, P2-WIN02 product-owned server startup, P2-WIN03 development inner-loop tooling, and P2-WIN04 candidate typing-quality implementation. Latest approved live closeout reached install/register, profile activation, Notepad, Chromium, diagnostics export, uninstall, and post-reboot no-residue cleanup. P2-WIN04 runtime evidence covers clean candidate comments, 30-candidate server supply, full-width punctuation via `get_commit`, and installed-server reload/readiness. Review follow-up hardening adds unique per-run dev REPL pipes, no-anchor popup suppression, and composing-punctuation handling. DLL-side caret placement, no-orphan lifecycle, PageUp/PageDown paging, and punctuation forwarding are build/static/smoke verified; live app proof remains blocked until a holder-free TSF DLL session. Cold start is still synchronous in the TSF key path for up to `kServerLaunchReadyWaitMs = 15000`. | Holder-free P2-WIN04 live verification, or dogfood package hardening if packaging is prioritized first. |
 | Yune boundary | Windows consumes packaged Yune through `rime_get_api()` plus the opt-in `rime_get_yune_windows_profile_api()` surface. | Keep default `rime_get_api()` unchanged; send new engine needs to Yune as named proposals with tests. |
 | Reference code | Legacy Weasel-derived implementation is reference material only. | Extract no more code without a focused audit and smoke proof. |
 | Dogfood release | Public repo starts from clean initial history and omits old private evidence. Fresh post-rename live evidence exists, including Notepad, Chromium, diagnostics, recovered cleanup, compatibility matrix, signing decision, and complete closeout audit under the product-owned server contract. Compatibility matrix and signing decision are recorded; dogfood packaging, release signing, non-blocking cold-start, and user-data preservation remain open. | Start dogfood package hardening when selected. |
@@ -49,7 +49,9 @@ intentionally separate from Yune engine-performance work.
 7. **Candidate window and typing quality implementation** - clean raw dictionary
    CSV candidate comments, expose enough candidates for client-side paging, add
    read-session caret anchoring, owner-window/no-orphan guards, PageUp/PageDown
-   paging, and punctuation/full-width forwarding through Rime `get_commit`.
+   paging, punctuation/full-width forwarding through Rime `get_commit`, and
+   review follow-up hardening for dev REPL pipe isolation and composing
+   punctuation.
    Server-side behavior is runtime-proven through the dev REPL and installed
    server reload. DLL-side app behavior still needs holder-free live proof.
    Historical plan:
@@ -131,8 +133,12 @@ comments server-side, returns up to 30 candidates for client-side paging, uses a
 read-only TSF edit session to anchor the candidate window near the caret, gives
 the native candidate window an owner and foreground guard, adds PageUp/PageDown
 paging, and forwards punctuation keys so full-width punctuation can commit via
-the existing Rime `get_commit`/`free_commit` API. It does not widen Yune's
-default ABI and does not add a librime fallback.
+the existing Rime `get_commit`/`free_commit` API. The review follow-up removes
+the old top-left anchor fallback when no valid caret or screen anchor exists,
+rejects clipped or zero-size `GetTextExt` anchors, and makes composing
+punctuation commit the current candidate before inserting schema-produced
+punctuation. It does not widen Yune's default ABI and does not add a librime
+fallback.
 
 Runtime evidence proves the server-side paths through the dev REPL and installed
 server reload. DLL-side behavior is covered by static contracts, the TSF shell
@@ -172,9 +178,10 @@ rows are candidate next milestones.
    remains blocked by TSF DLL holders.
 4. **Punctuation / full-width (DLL + schema)**: implemented. The server returns
    auto-committed punctuation through the existing Rime `get_commit` path, and
-   TSF forwards punctuation keys when no composition buffer is active. Server
-   proof is captured by the dev REPL; live app proof remains blocked by TSF DLL
-   holders.
+   TSF forwards punctuation keys when the buffer is empty or composing. In the
+   composing case it commits the current candidate first, then inserts
+   schema-produced punctuation. Server proof is captured by the dev REPL; live
+   app proof remains blocked by TSF DLL holders.
 
 Learning / userdb is intentionally split to a **later** milestone: it is a
 protocol change (persistent per-client session, select-index/commit feedback,

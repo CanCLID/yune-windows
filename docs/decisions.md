@@ -87,12 +87,14 @@ existing default Rime `get_commit`/`free_commit` slots. The default
 `rime_get_api()` ABI stays unchanged, and any future engine requirement must be
 a named Yune proposal with tests before this repo depends on it. DLL-side
 candidate-window behavior still needs live app evidence after a holder-free TSF
-DLL reload; static/build proof must not be described as live proof.
+DLL reload; static/build proof must not be described as live proof. Review
+follow-up hardening may improve the TSF code path and dev harness without
+changing that live-proof boundary.
 
 ## Last Updated
 
-2026-07-01 - P2-WIN04 Candidate Window And Typing Quality implementation
-completed with server-side runtime evidence and DLL-side static/build/smoke
-evidence. Live app proof for caret placement, no-orphan behavior, paging keys,
-and full-sentence punctuation remains blocked until `YuneWindowsTSF.dll` is not
-held by non-dev desktop processes.
+2026-07-01 - P2-WIN04 Candidate Window And Typing Quality implementation and
+review follow-up completed with server-side/runtime harness evidence and
+DLL-side static/build/smoke evidence. Live app proof for caret placement,
+no-orphan behavior, paging keys, and full-sentence punctuation remains blocked
+until `YuneWindowsTSF.dll` is not held by non-dev desktop processes.

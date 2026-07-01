@@ -15,11 +15,28 @@ foreach ($Required in @(
         'context_->GetSelection\(cookie,\s*TF_DEFAULT_SELECTION',
         'view->GetTextExt\(cookie,\s*selection\.range',
         'view->GetScreenExt',
-        'CandidateAnchorResult'
+        'CandidateAnchorResult',
+        'candidate_anchor_failed'
     )) {
     if ($Source -notmatch $Required) {
         throw "TSF caret anchoring contract missing pattern: $Required"
     }
+}
+
+if ($Source -match 'RECT anchor = \{80,\s*80,\s*96,\s*104\}') {
+    throw "candidate anchoring must not retain the old top-left default rectangle"
+}
+if ($Source -match 'text_ext\.right\s*>=\s*text_ext\.left') {
+    throw "zero-width GetTextExt rectangles must not be accepted as valid caret anchors"
+}
+if ($Source -match 'text_ext\.bottom\s*>=\s*text_ext\.top') {
+    throw "zero-height GetTextExt rectangles must not be accepted as valid caret anchors"
+}
+if ($Source -notmatch 'clipped\s*==\s*FALSE') {
+    throw "clipped GetTextExt rectangles should fall back instead of anchoring the candidate window"
+}
+if ($Source -notmatch 'if \(!anchor_result\.has_anchor\) \{(?s:.*?)candidate_window_\.Hide\(\)(?s:.*?)return false;') {
+    throw "candidate window must hide and return false when no valid anchor is available"
 }
 
 $InsertSessionSource = [regex]::Match(

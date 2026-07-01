@@ -71,16 +71,22 @@ typing behavior still needs holder-free live app proof.
   non-elevated path. The installed TSF DLL reload path verifies process
   ownership before closing the dev-owned test window and safely aborts when
   non-dev desktop apps hold `YuneWindowsTSF.dll`; a full TSF file swap requires
-  a holder-free session rather than forced app closure.
+  a holder-free session rather than forced app closure. One-shot dev REPL runs
+  use unique per-run pipes by default so concurrent scratch servers do not
+  collide on the dev pipe mutex; fixed pipes remain available only through an
+  explicit `-PipeName` override.
 - [ ] **WIN-14 - Daily typing quality:** P2-WIN04 implements candidate comment
   hygiene, larger candidate supply for client-side paging, PageUp/PageDown
   paging, read-session caret anchoring, owner/no-orphan candidate window
   lifecycle hardening, and punctuation/full-width forwarding through the
   existing Rime `get_commit` API. Server-side comment, paging-supply, and
   punctuation paths are runtime-verified through the dev REPL and installed
-  server reload. DLL-side caret, no-orphan, paging-key, and full-sentence
-  punctuation behavior still needs holder-free Notepad/Chromium proof. Mouse
-  selection and learning/userdb remain later daily-typing work.
+  server reload. The review follow-up prevents the old top-left anchor fallback,
+  rejects clipped or zero-size caret rectangles, and commits the current
+  composition before schema-produced punctuation for natural sentence flow.
+  DLL-side caret, no-orphan, paging-key, and full-sentence punctuation behavior
+  still needs holder-free Notepad/Chromium proof. Mouse selection and
+  learning/userdb remain later daily-typing work.
 
 ## Non-Elevated Verification Gates
 
@@ -102,6 +108,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-yune-server-ipc-s
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-candidate-window-smoke.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-install-dir-safety-contract.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-machine-state-approval-gates.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-dev-repl-pipe-isolation-contract.ps1 -YuneRoot C:\Users\laubonghaudoi\Documents\GitHub\yune
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-server-comment-hygiene-contract.ps1 -YuneRoot C:\Users\laubonghaudoi\Documents\GitHub\yune
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-tsf-caret-anchor-contract.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-candidate-window-owner-lifecycle-contract.ps1

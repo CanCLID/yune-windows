@@ -10,9 +10,10 @@ AppVerifier/PageHeap setup, or full live install/uninstall loops.
 
 Use the REPL for engine, candidate, and schema debugging without touching the
 installed IME. It builds to a temp directory, prepares scratch Yune product
-data, starts a throwaway `YuneWindowsServer.exe` on
-`\\.\pipe\yune-windows-ime-dev`, reconnects per request, and stops only that
-scratch server on exit.
+data, starts a throwaway `YuneWindowsServer.exe` on a unique per-run dev pipe,
+reconnects per request, and stops only that scratch server on exit. Pass
+`-PipeName \\.\pipe\yune-windows-ime-dev` only when intentionally debugging a
+fixed pipe.
 
 Run one query non-interactively:
 

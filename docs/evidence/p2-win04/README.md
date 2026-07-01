@@ -2,6 +2,10 @@
 
 P2-WIN04 implementation evidence was captured on 2026-07-01.
 
+Review follow-up hardening was also completed on 2026-07-01. It adds unique
+default dev REPL pipes, robust comment-hygiene capture, stricter caret-anchor
+fallback contracts, and composing-punctuation handling in the TSF key path.
+
 ## Runtime Evidence
 
 - `slice-a-dev-repl-ngohaig.txt` - dev REPL proof that `ngohaig` candidate
@@ -15,6 +19,9 @@ P2-WIN04 implementation evidence was captured on 2026-07-01.
   returns full-width U+3002 through the existing Rime `get_commit` path.
 - `final-dev-reload-server-output.txt` - installed-server reload after the
   final server changes; readiness passed.
+- `tsf-holders-review-followup-20260701.json` - read-only holder snapshot from
+  the review follow-up. Non-dev holders were still present, so no TSF DLL reload
+  was attempted.
 
 ## DLL-Side Verification Boundary
 
@@ -24,6 +31,8 @@ P2-WIN04 implementation evidence was captured on 2026-07-01.
   were not attempted because non-dev processes held `YuneWindowsTSF.dll`.
 
 The DLL-side candidate-window and key-handling implementation is covered by
-static contracts, the TSF shell build, and the candidate-window smoke test in
-this closeout. Live caret placement, no-orphan behavior, PageUp/PageDown paging,
-and full-sentence punctuation typing still require a holder-free desktop session.
+static contracts, the TSF shell build, and the candidate-window smoke test.
+The review follow-up also adds a contract for the no-anchor failure path and a
+contract for composing punctuation. Live caret placement, no-orphan behavior,
+PageUp/PageDown paging, and full-sentence punctuation typing still require a
+holder-free desktop session.

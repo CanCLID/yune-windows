@@ -9,7 +9,7 @@ $Scripts = @(
     "tools\clear-yune-windows-machine-residue.ps1",
     "tools\run-notepad-smoke.ps1",
     "tools\run-chromium-smoke.ps1",
-    "tools\run-p2-win01-live-smoke.ps1"
+    "tools\run-m01-live-smoke.ps1"
 )
 
 foreach ($Script in $Scripts) {
@@ -38,7 +38,7 @@ foreach ($Script in @(
         "tools\clear-yune-windows-machine-residue.ps1",
         "tools\run-notepad-smoke.ps1",
         "tools\run-chromium-smoke.ps1",
-        "tools\run-p2-win01-live-smoke.ps1"
+        "tools\run-m01-live-smoke.ps1"
     )) {
     $Path = Join-Path $RepoRoot $Script
     $PreviousErrorActionPreference = $ErrorActionPreference
@@ -65,7 +65,7 @@ foreach ($Script in @(
         "tools\clear-yune-windows-machine-residue.ps1",
         "tools\run-notepad-smoke.ps1",
         "tools\run-chromium-smoke.ps1",
-        "tools\run-p2-win01-live-smoke.ps1"
+        "tools\run-m01-live-smoke.ps1"
     )) {
     $Path = Join-Path $RepoRoot $Script
     $PlaceholderNote = "<current-session approval note>"

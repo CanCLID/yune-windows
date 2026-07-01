@@ -7,7 +7,7 @@ $ErrorActionPreference = "Stop"
 
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 if ($OutputDir -eq "") {
-    $OutputDir = Join-Path $RepoRoot "docs\evidence\p2-win01-yune-host"
+    $OutputDir = Join-Path $env:TEMP "yune-windows\m01\yune-host\evidence"
 }
 
 $Runner = Join-Path $RepoRoot "tools\run-yune-host-smoke.ps1"

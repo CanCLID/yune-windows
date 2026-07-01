@@ -6,7 +6,7 @@ $ErrorActionPreference = "Stop"
 
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 if ($OutputDir -eq "") {
-    $OutputDir = Join-Path $env:TEMP "yune-windows\p2-win01-audit-diagnostics-pre-state-test"
+    $OutputDir = Join-Path $env:TEMP "yune-windows\m01-audit-diagnostics-pre-state-test"
 }
 if (Test-Path -LiteralPath $OutputDir) {
     Remove-Item -LiteralPath $OutputDir -Recurse -Force
@@ -62,7 +62,7 @@ function Write-DiagnosticsBundle([string]$RelativePath) {
 
 function Write-DiagnosticsPreState([bool]$Active, [string]$CapturedAt = "2026-06-25T09:00:06.0000000-07:00") {
     $ActiveText = if ($Active) { "true" } else { "false" }
-    Write-EvidenceFile "p2-win01-settings\diagnostics-pre-state.json" @"
+    Write-EvidenceFile "m01\settings\diagnostics-pre-state.json" @"
 {
   "captured_at": "$CapturedAt",
   "install_dir": "C:\\Users\\example\\AppData\\Local\\YuneWindows\\WindowsIme",
@@ -79,12 +79,12 @@ function Write-AppSmokeResultDates(
     [string]$NotepadDate = "2026-06-25T09:00:05.0000000-07:00",
     [string]$ChromiumDate = "2026-06-25T09:00:05.5000000-07:00"
 ) {
-    Write-EvidenceFile "p2-win01-tsf-smoke\notepad-smoke-result.md" @"
+    Write-EvidenceFile "m01\tsf-smoke\notepad-smoke-result.md" @"
 # Notepad Smoke Result
 
 Date: $NotepadDate
 "@
-    Write-EvidenceFile "p2-win01-tsf-smoke\chromium-smoke-result.md" @"
+    Write-EvidenceFile "m01\tsf-smoke\chromium-smoke-result.md" @"
 # Chromium Smoke Result
 
 Date: $ChromiumDate
@@ -98,7 +98,7 @@ function Read-DiagnosticsGateStatus {
 
     $JsonPath = Join-Path $OutputDir "$Name.json"
     $MarkdownPath = Join-Path $OutputDir "$Name.md"
-    & (Join-Path $RepoRoot "tools\audit-p2-win01-closeout.ps1") `
+    & (Join-Path $RepoRoot "tools\audit-m01-closeout.ps1") `
         -EvidenceRoot $EvidenceRoot `
         -JsonPath $JsonPath `
         -MarkdownPath $MarkdownPath | Out-Null
@@ -113,10 +113,10 @@ function Read-DiagnosticsGateStatus {
 
 $SyntheticInstallDir = "C:\Users\example\AppData\Local\Yune\WindowsIme"
 $SyntheticYuneRoot = "C:\Users\example\Documents\GitHub\yune"
-$SyntheticDiagnosticsOutputDir = Join-Path $EvidenceRoot "p2-win01-settings\registered-session-diagnostics"
+$SyntheticDiagnosticsOutputDir = Join-Path $EvidenceRoot "m01\settings\registered-session-diagnostics"
 $SyntheticBrowserPath = "C:\Program Files\Microsoft\Edge\Application\msedge.exe"
-Write-EvidenceFile "p2-win01-settings\diagnostics-export.md" "diagnostics preflight"
-Write-EvidenceFile "p2-win01-installer\approval.md" @'
+Write-EvidenceFile "m01\settings\diagnostics-export.md" "diagnostics preflight"
+Write-EvidenceFile "m01\installer\approval.md" @'
 # Live Smoke Approval
 
 Date: 2026-06-25T09:00:00.0000000-07:00
@@ -135,9 +135,9 @@ Yune root: C:\Users\example\Documents\GitHub\yune
 
 Browser path: C:\Program Files\Microsoft\Edge\Application\msedge.exe
 '@
-Write-EvidenceFile "p2-win01-installer\commands.txt" @"
-tools\run-p2-win01-live-smoke.ps1 -PreflightOnly -PreflightPath '$EvidenceRoot\p2-win01-installer\live-preflight.json' -YuneRoot '$SyntheticYuneRoot' -InstallDir '$SyntheticInstallDir' -BrowserPath '$SyntheticBrowserPath'
-PASS tools\run-p2-win01-live-smoke.ps1 -PreflightOnly -PreflightPath '$EvidenceRoot\p2-win01-installer\live-preflight.json' -YuneRoot '$SyntheticYuneRoot' -InstallDir '$SyntheticInstallDir' -BrowserPath '$SyntheticBrowserPath'
+Write-EvidenceFile "m01\installer\commands.txt" @"
+tools\run-m01-live-smoke.ps1 -PreflightOnly -PreflightPath '$EvidenceRoot\m01\installer\live-preflight.json' -YuneRoot '$SyntheticYuneRoot' -InstallDir '$SyntheticInstallDir' -BrowserPath '$SyntheticBrowserPath'
+PASS tools\run-m01-live-smoke.ps1 -PreflightOnly -PreflightPath '$EvidenceRoot\m01\installer\live-preflight.json' -YuneRoot '$SyntheticYuneRoot' -InstallDir '$SyntheticInstallDir' -BrowserPath '$SyntheticBrowserPath'
 tools\install-yune-windows-ime.ps1 -YuneRoot '$SyntheticYuneRoot' -InstallDir '$SyntheticInstallDir' -ApprovedMachineStateChange -ApprovalNote 'User approved elevated live smoke in this session.'
 PASS tools\install-yune-windows-ime.ps1 -YuneRoot '$SyntheticYuneRoot' -InstallDir '$SyntheticInstallDir' -ApprovedMachineStateChange -ApprovalNote 'User approved elevated live smoke in this session.'
 tools\run-notepad-smoke.ps1 -YuneRoot '$SyntheticYuneRoot' -InstallDir '$SyntheticInstallDir' -ApprovedMachineStateChange -ApprovalNote 'User approved elevated live smoke in this session.'
@@ -150,9 +150,9 @@ tools\uninstall-yune-windows-ime.ps1 -InstallDir '$SyntheticInstallDir' -Approve
 PASS tools\uninstall-yune-windows-ime.ps1 -InstallDir '$SyntheticInstallDir' -ApprovedMachineStateChange -ApprovalNote 'User approved elevated live smoke in this session.'
 "@
 Write-AppSmokeResultDates
-Write-DiagnosticsBundle "p2-win01-settings\registered-session-diagnostics\synthetic.zip"
+Write-DiagnosticsBundle "m01\settings\registered-session-diagnostics\synthetic.zip"
 $SyntheticDiagnosticsBundle = Join-Path $SyntheticDiagnosticsOutputDir "synthetic.zip"
-Write-EvidenceFile "p2-win01-installer\result.md" @"
+Write-EvidenceFile "m01\installer\result.md" @"
 # Install And Smoke Result
 
 Date: 2026-06-25T09:00:00.0000000-07:00

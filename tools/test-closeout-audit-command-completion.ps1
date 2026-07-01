@@ -6,7 +6,7 @@ $ErrorActionPreference = "Stop"
 
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 if ($OutputDir -eq "") {
-    $OutputDir = Join-Path $env:TEMP "yune-windows\p2-win01-audit-command-completion-test"
+    $OutputDir = Join-Path $env:TEMP "yune-windows\m01-audit-command-completion-test"
 }
 $OutputDir = [System.IO.Path]::GetFullPath($OutputDir)
 $AllowedRoot = [System.IO.Path]::GetFullPath((Join-Path $env:TEMP "yune-windows"))
@@ -22,7 +22,7 @@ $FixtureDir = Join-Path $OutputDir "complete-fixture"
     -OutputDir $FixtureDir | Out-Null
 
 $EvidenceRoot = Join-Path $FixtureDir "evidence"
-$CommandsPath = Join-Path $EvidenceRoot "p2-win01-installer\commands.txt"
+$CommandsPath = Join-Path $EvidenceRoot "m01\installer\commands.txt"
 if (-not (Test-Path -LiteralPath $CommandsPath)) {
     throw "complete synthetic fixture did not write commands.txt"
 }
@@ -35,7 +35,7 @@ $CommandsWithoutCompletion | Out-File -LiteralPath $CommandsPath -Encoding utf8
 
 $JsonPath = Join-Path $OutputDir "audit-without-command-completion.json"
 $MarkdownPath = Join-Path $OutputDir "audit-without-command-completion.md"
-& (Join-Path $RepoRoot "tools\audit-p2-win01-closeout.ps1") `
+& (Join-Path $RepoRoot "tools\audit-m01-closeout.ps1") `
     -EvidenceRoot $EvidenceRoot `
     -JsonPath $JsonPath `
     -MarkdownPath $MarkdownPath | Out-Null
@@ -66,7 +66,7 @@ $FixtureWithFailureDir = Join-Path $OutputDir "complete-fixture-with-failure"
     -OutputDir $FixtureWithFailureDir | Out-Null
 
 $EvidenceRootWithFailure = Join-Path $FixtureWithFailureDir "evidence"
-$CommandsWithFailurePath = Join-Path $EvidenceRootWithFailure "p2-win01-installer\commands.txt"
+$CommandsWithFailurePath = Join-Path $EvidenceRootWithFailure "m01\installer\commands.txt"
 if (-not (Test-Path -LiteralPath $CommandsWithFailurePath)) {
     throw "complete synthetic fixture did not write commands.txt for failed-command case"
 }
@@ -79,7 +79,7 @@ $CommandsWithFailure | Out-File -LiteralPath $CommandsWithFailurePath -Encoding 
 
 $FailedCommandJsonPath = Join-Path $OutputDir "audit-with-failed-command.json"
 $FailedCommandMarkdownPath = Join-Path $OutputDir "audit-with-failed-command.md"
-& (Join-Path $RepoRoot "tools\audit-p2-win01-closeout.ps1") `
+& (Join-Path $RepoRoot "tools\audit-m01-closeout.ps1") `
     -EvidenceRoot $EvidenceRootWithFailure `
     -JsonPath $FailedCommandJsonPath `
     -MarkdownPath $FailedCommandMarkdownPath | Out-Null
@@ -110,7 +110,7 @@ $FixtureWithRecoveredCleanupDir = Join-Path $OutputDir "complete-fixture-with-re
     -OutputDir $FixtureWithRecoveredCleanupDir | Out-Null
 
 $EvidenceRootWithRecoveredCleanup = Join-Path $FixtureWithRecoveredCleanupDir "evidence"
-$CommandsWithRecoveredCleanupPath = Join-Path $EvidenceRootWithRecoveredCleanup "p2-win01-installer\commands.txt"
+$CommandsWithRecoveredCleanupPath = Join-Path $EvidenceRootWithRecoveredCleanup "m01\installer\commands.txt"
 if (-not (Test-Path -LiteralPath $CommandsWithRecoveredCleanupPath)) {
     throw "complete synthetic fixture did not write commands.txt for recovered-cleanup case"
 }
@@ -130,7 +130,7 @@ $CommandsWithRecoveredCleanup | Out-File -LiteralPath $CommandsWithRecoveredClea
 
 $RecoveredCleanupJsonPath = Join-Path $OutputDir "audit-with-recovered-cleanup.json"
 $RecoveredCleanupMarkdownPath = Join-Path $OutputDir "audit-with-recovered-cleanup.md"
-& (Join-Path $RepoRoot "tools\audit-p2-win01-closeout.ps1") `
+& (Join-Path $RepoRoot "tools\audit-m01-closeout.ps1") `
     -EvidenceRoot $EvidenceRootWithRecoveredCleanup `
     -JsonPath $RecoveredCleanupJsonPath `
     -MarkdownPath $RecoveredCleanupMarkdownPath | Out-Null

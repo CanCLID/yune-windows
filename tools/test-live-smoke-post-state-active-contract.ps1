@@ -9,7 +9,7 @@ if (-not (Get-Command Assert-YuneWindowsActiveInstalledSnapshot -ErrorAction Sil
     throw "live smoke support must expose Assert-YuneWindowsActiveInstalledSnapshot"
 }
 
-$OutputDir = Join-Path $env:TEMP "yune-windows\p2-win01-post-state-active-contract-test"
+$OutputDir = Join-Path $env:TEMP "yune-windows\m01-post-state-active-contract-test"
 if (Test-Path -LiteralPath $OutputDir) {
     Remove-Item -LiteralPath $OutputDir -Recurse -Force
 }

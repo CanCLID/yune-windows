@@ -6,7 +6,7 @@ $ErrorActionPreference = "Stop"
 
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 if ($OutputDir -eq "") {
-    $OutputDir = Join-Path $env:TEMP "yune-windows\p2-win01-audit-install-dir-transcript-test"
+    $OutputDir = Join-Path $env:TEMP "yune-windows\m01-audit-install-dir-transcript-test"
 }
 if (Test-Path -LiteralPath $OutputDir) {
     Remove-Item -LiteralPath $OutputDir -Recurse -Force
@@ -17,7 +17,7 @@ $FixtureDir = Join-Path $OutputDir "complete-fixture"
     -OutputDir $FixtureDir | Out-Null
 
 $EvidenceRoot = Join-Path $FixtureDir "evidence"
-$CommandsPath = Join-Path $EvidenceRoot "p2-win01-installer\commands.txt"
+$CommandsPath = Join-Path $EvidenceRoot "m01\installer\commands.txt"
 @"
 tools\install-yune-windows-ime.ps1 -ApprovedMachineStateChange
 tools\run-notepad-smoke.ps1 -ApprovedMachineStateChange
@@ -28,7 +28,7 @@ tools\uninstall-yune-windows-ime.ps1 -ApprovedMachineStateChange
 
 $JsonPath = Join-Path $OutputDir "audit.json"
 $MarkdownPath = Join-Path $OutputDir "audit.md"
-& (Join-Path $RepoRoot "tools\audit-p2-win01-closeout.ps1") `
+& (Join-Path $RepoRoot "tools\audit-m01-closeout.ps1") `
     -EvidenceRoot $EvidenceRoot `
     -JsonPath $JsonPath `
     -MarkdownPath $MarkdownPath | Out-Null
@@ -57,7 +57,7 @@ $MismatchedFixtureDir = Join-Path $OutputDir "mismatched-install-dir-fixture"
     -OutputDir $MismatchedFixtureDir | Out-Null
 
 $MismatchedEvidenceRoot = Join-Path $MismatchedFixtureDir "evidence"
-$MismatchedCommandsPath = Join-Path $MismatchedEvidenceRoot "p2-win01-installer\commands.txt"
+$MismatchedCommandsPath = Join-Path $MismatchedEvidenceRoot "m01\installer\commands.txt"
 if (-not (Test-Path -LiteralPath $MismatchedCommandsPath)) {
     throw "mismatched install-dir fixture did not write commands.txt"
 }
@@ -69,7 +69,7 @@ if (-not (Test-Path -LiteralPath $MismatchedCommandsPath)) {
 
 $MismatchedJsonPath = Join-Path $OutputDir "audit-mismatched-install-dir.json"
 $MismatchedMarkdownPath = Join-Path $OutputDir "audit-mismatched-install-dir.md"
-& (Join-Path $RepoRoot "tools\audit-p2-win01-closeout.ps1") `
+& (Join-Path $RepoRoot "tools\audit-m01-closeout.ps1") `
     -EvidenceRoot $MismatchedEvidenceRoot `
     -JsonPath $MismatchedJsonPath `
     -MarkdownPath $MismatchedMarkdownPath | Out-Null

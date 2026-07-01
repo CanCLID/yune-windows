@@ -1,9 +1,0 @@
-﻿{
-    "generated_at":  "2026-06-29T22:19:35.6500544-07:00",
-    "status":  "failed",
-    "elevated_process_started":  true,
-    "exit_code":  1,
-    "error":  "",
-    "result_path":  "C:\\Users\\laubonghaudoi\\Documents\\GitHub\\yune-windows\\docs\\evidence\\p2-win01-installer\\post-reboot-required-cleanup-result.json",
-    "transcript_path":  "C:\\Users\\laubonghaudoi\\Documents\\GitHub\\yune-windows\\docs\\evidence\\p2-win01-installer\\post-reboot-required-cleanup-transcript-20260629-221935.txt"
-}

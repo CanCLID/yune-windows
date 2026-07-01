@@ -6,7 +6,7 @@ $ErrorActionPreference = "Stop"
 
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 if ($OutputDir -eq "") {
-    $OutputDir = Join-Path $env:TEMP "yune-windows\p2-win01-live-preflight-test"
+    $OutputDir = Join-Path $env:TEMP "yune-windows\m01-live-preflight-test"
 }
 if (Test-Path -LiteralPath $OutputDir) {
     Remove-Item -LiteralPath $OutputDir -Recurse -Force
@@ -31,7 +31,7 @@ $DirtyResiduePath = Join-Path $OutputDir "dirty-current-residue.json"
     filesystem_leftovers = @("C:\Windows\System32\YuneWindows.dll.old.0")
 } | ConvertTo-Json -Depth 6 | Out-File -LiteralPath $DirtyResiduePath -Encoding utf8
 
-& (Join-Path $RepoRoot "tools\run-p2-win01-live-smoke.ps1") `
+& (Join-Path $RepoRoot "tools\run-m01-live-smoke.ps1") `
     -InstallDir $InstallDir `
     -PreflightOnly `
     -PreflightPath $OrchestratorReport `
@@ -100,7 +100,7 @@ foreach ($Report in @($Live, $Install)) {
 }
 
 $DirtyResidueReportPath = Join-Path $OutputDir "dirty-residue-live-preflight.json"
-& (Join-Path $RepoRoot "tools\run-p2-win01-live-smoke.ps1") `
+& (Join-Path $RepoRoot "tools\run-m01-live-smoke.ps1") `
     -InstallDir $InstallDir `
     -PreflightOnly `
     -PreflightPath $DirtyResidueReportPath `

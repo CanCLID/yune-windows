@@ -6,7 +6,7 @@ $ErrorActionPreference = "Stop"
 
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 if ($OutputDir -eq "") {
-    $OutputDir = Join-Path $env:TEMP "yune-windows\p2-win01-audit-cleanup-validation-schema-test"
+    $OutputDir = Join-Path $env:TEMP "yune-windows\m01-audit-cleanup-validation-schema-test"
 }
 if (Test-Path -LiteralPath $OutputDir) {
     Remove-Item -LiteralPath $OutputDir -Recurse -Force
@@ -16,7 +16,7 @@ if (Test-Path -LiteralPath $OutputDir) {
     -OutputDir $OutputDir | Out-Null
 
 $EvidenceRoot = Join-Path $OutputDir "evidence"
-$ValidationPath = Join-Path $EvidenceRoot "p2-win01-installer\cleanup-validation.json"
+$ValidationPath = Join-Path $EvidenceRoot "m01\installer\cleanup-validation.json"
 @{
     generated_at = "2026-06-25T09:00:09.0000000-07:00"
     pass = "true"
@@ -27,7 +27,7 @@ $ValidationPath = Join-Path $EvidenceRoot "p2-win01-installer\cleanup-validation
 
 $JsonPath = Join-Path $OutputDir "audit-cleanup-validation-schema.json"
 $MarkdownPath = Join-Path $OutputDir "audit-cleanup-validation-schema.md"
-& (Join-Path $RepoRoot "tools\audit-p2-win01-closeout.ps1") `
+& (Join-Path $RepoRoot "tools\audit-m01-closeout.ps1") `
     -EvidenceRoot $EvidenceRoot `
     -JsonPath $JsonPath `
     -MarkdownPath $MarkdownPath | Out-Null

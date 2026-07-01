@@ -6,7 +6,7 @@ $ErrorActionPreference = "Stop"
 
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 if ($OutputDir -eq "") {
-    $OutputDir = Join-Path $env:TEMP "yune-windows\p2-win01-audit-complete-test"
+    $OutputDir = Join-Path $env:TEMP "yune-windows\m01-audit-complete-test"
 }
 if (Test-Path -LiteralPath $OutputDir) {
     Remove-Item -LiteralPath $OutputDir -Recurse -Force
@@ -118,22 +118,22 @@ $CommitPng = New-TestPngBytes ([System.Drawing.Color]::LightGray)
 $ExpectedCommit = -join ([char[]](0x6211, 0x4fc2, 0x500b))
 $SyntheticInstallDir = "C:\Users\example\AppData\Local\Yune\WindowsIme"
 $SyntheticYuneRoot = "C:\Users\example\Documents\GitHub\yune"
-$SyntheticDiagnosticsOutputDir = Join-Path $EvidenceRoot "p2-win01-settings\registered-session-diagnostics"
+$SyntheticDiagnosticsOutputDir = Join-Path $EvidenceRoot "m01\settings\registered-session-diagnostics"
 $SyntheticBrowserPath = Join-Path $OutputDir "browser\msedge.exe"
 New-Item -ItemType Directory -Force (Split-Path -Parent $SyntheticBrowserPath) | Out-Null
 "" | Out-File -LiteralPath $SyntheticBrowserPath -Encoding ascii
 $SyntheticInstallDirJson = $SyntheticInstallDir.Replace("\", "\\")
 
-Write-EvidenceFile "p2-win01-bootstrap\repo-state.md" "repo state"
-Write-EvidenceFile "p2-win01-bootstrap\reference-audit.md" "reference audit"
-Write-EvidenceFile "p2-win01-bootstrap\process-model.md" "process model"
-Write-EvidenceFile "p2-win01-bootstrap\first-smoke-target.md" "first smoke"
-Write-EvidenceFile "p2-win01-yune-host\result.json" '{"status": {"schema_id": "jyut6ping3"}}'
-Write-EvidenceFile "p2-win01-tsf-smoke\server-ipc-smoke.md" "shared server IPC returned non-raw Yune candidates"
-Write-EvidenceFile "p2-win01-candidate-window\build-preflight.md" "candidate preflight"
-Write-EvidenceFile "p2-win01-settings\diagnostics-export.md" "diagnostics preflight"
-Write-EvidenceFile "p2-win01-settings\webview2-spike.md" 'Decision: `defer-settings`'
-Write-EvidenceFile "p2-win01-tsf-smoke\machine-state-gates.md" @'
+Write-EvidenceFile "m01\bootstrap\repo-state.md" "repo state"
+Write-EvidenceFile "m01\bootstrap\reference-audit.md" "reference audit"
+Write-EvidenceFile "m01\bootstrap\process-model.md" "process model"
+Write-EvidenceFile "m01\bootstrap\first-smoke-target.md" "first smoke"
+Write-EvidenceFile "m01\yune-host\result.json" '{"status": {"schema_id": "jyut6ping3"}}'
+Write-EvidenceFile "m01\tsf-smoke\server-ipc-smoke.md" "shared server IPC returned non-raw Yune candidates"
+Write-EvidenceFile "m01\candidate-window\build-preflight.md" "candidate preflight"
+Write-EvidenceFile "m01\settings\diagnostics-export.md" "diagnostics preflight"
+Write-EvidenceFile "m01\settings\webview2-spike.md" 'Decision: `defer-settings`'
+Write-EvidenceFile "m01\tsf-smoke\machine-state-gates.md" @'
 # Machine-State Approval Gates
 
 Pass.
@@ -151,7 +151,7 @@ Machine-state approval gates refused unapproved install, uninstall, Notepad smok
 - `tools\clear-yune-windows-machine-residue.ps1`
 - `tools\run-notepad-smoke.ps1`
 - `tools\run-chromium-smoke.ps1`
-- `tools\run-p2-win01-live-smoke.ps1`
+- `tools\run-m01-live-smoke.ps1`
 
 The scripts were invoked without `-ApprovedMachineStateChange`; each refused
 before registration, uninstall, machine residue cleanup, profile activation,
@@ -168,9 +168,9 @@ without `-ApprovalNote`; it refused before elevated/STA context checks,
 command transcript writes, profile-probe build, install, registration, app
 automation, or cleanup could run.
 '@
-Write-EvidenceFile "p2-win01-installer\live-preflight.json" (New-ValidPreflightJson -RequireBrowser $true)
-Write-EvidenceFile "p2-win01-installer\install-preflight.json" (New-ValidPreflightJson -RequireBrowser $false)
-Write-EvidenceFile "p2-win01-installer\approval.md" @"
+Write-EvidenceFile "m01\installer\live-preflight.json" (New-ValidPreflightJson -RequireBrowser $true)
+Write-EvidenceFile "m01\installer\install-preflight.json" (New-ValidPreflightJson -RequireBrowser $false)
+Write-EvidenceFile "m01\installer\approval.md" @"
 # Live Smoke Approval
 
 Date: 2026-06-25T09:00:00.0000000-07:00
@@ -190,7 +190,7 @@ Yune root: C:\Users\example\Documents\GitHub\yune
 Browser path: $SyntheticBrowserPath
 "@
 
-Write-EvidenceFile "p2-win01-tsf-smoke\notepad-smoke-result.md" @"
+Write-EvidenceFile "m01\tsf-smoke\notepad-smoke-result.md" @"
 # Notepad Smoke
 
 Date: 2026-06-25T09:00:05.5000000-07:00
@@ -221,7 +221,7 @@ Structural candidate window failure observed: False
 Structural event matcher: exact event tokens
 Structural new log lines: 3
 "@
-Write-EvidenceFile "p2-win01-tsf-smoke\notepad-post-state.json" @"
+Write-EvidenceFile "m01\tsf-smoke\notepad-post-state.json" @"
 {
   "captured_at": "2026-06-25T09:00:05.0000000-07:00",
   "install_dir": "C:\\Users\\example\\AppData\\Local\\YuneWindows\\WindowsIme",
@@ -232,10 +232,10 @@ Write-EvidenceFile "p2-win01-tsf-smoke\notepad-post-state.json" @"
   "server_processes": []
 }
 "@
-Write-EvidenceBytes "p2-win01-tsf-smoke\candidate-display-notepad.png" $CandidatePng
-Write-EvidenceBytes "p2-win01-tsf-smoke\notepad-commit.png" $CommitPng
+Write-EvidenceBytes "m01\tsf-smoke\candidate-display-notepad.png" $CandidatePng
+Write-EvidenceBytes "m01\tsf-smoke\notepad-commit.png" $CommitPng
 
-Write-EvidenceFile "p2-win01-tsf-smoke\chromium-smoke-result.md" @"
+Write-EvidenceFile "m01\tsf-smoke\chromium-smoke-result.md" @"
 # Chromium Smoke
 
 Date: 2026-06-25T09:00:06.5000000-07:00
@@ -268,7 +268,7 @@ Structural candidate window failure observed: False
 Structural event matcher: exact event tokens
 Structural new log lines: 3
 "@
-Write-EvidenceFile "p2-win01-tsf-smoke\chromium-post-state.json" @"
+Write-EvidenceFile "m01\tsf-smoke\chromium-post-state.json" @"
 {
   "captured_at": "2026-06-25T09:00:06.0000000-07:00",
   "install_dir": "C:\\Users\\example\\AppData\\Local\\YuneWindows\\WindowsIme",
@@ -279,12 +279,12 @@ Write-EvidenceFile "p2-win01-tsf-smoke\chromium-post-state.json" @"
   "server_processes": []
 }
 "@
-Write-EvidenceBytes "p2-win01-tsf-smoke\candidate-display-chromium.png" $CandidatePng
-Write-EvidenceBytes "p2-win01-tsf-smoke\chromium-commit.png" $CommitPng
+Write-EvidenceBytes "m01\tsf-smoke\candidate-display-chromium.png" $CandidatePng
+Write-EvidenceBytes "m01\tsf-smoke\chromium-commit.png" $CommitPng
 
-Write-EvidenceFile "p2-win01-installer\commands.txt" @"
-tools\run-p2-win01-live-smoke.ps1 -PreflightOnly -PreflightPath '$EvidenceRoot\p2-win01-installer\live-preflight.json' -YuneRoot '$SyntheticYuneRoot' -InstallDir '$SyntheticInstallDir' -BrowserPath '$SyntheticBrowserPath'
-PASS tools\run-p2-win01-live-smoke.ps1 -PreflightOnly -PreflightPath '$EvidenceRoot\p2-win01-installer\live-preflight.json' -YuneRoot '$SyntheticYuneRoot' -InstallDir '$SyntheticInstallDir' -BrowserPath '$SyntheticBrowserPath'
+Write-EvidenceFile "m01\installer\commands.txt" @"
+tools\run-m01-live-smoke.ps1 -PreflightOnly -PreflightPath '$EvidenceRoot\m01\installer\live-preflight.json' -YuneRoot '$SyntheticYuneRoot' -InstallDir '$SyntheticInstallDir' -BrowserPath '$SyntheticBrowserPath'
+PASS tools\run-m01-live-smoke.ps1 -PreflightOnly -PreflightPath '$EvidenceRoot\m01\installer\live-preflight.json' -YuneRoot '$SyntheticYuneRoot' -InstallDir '$SyntheticInstallDir' -BrowserPath '$SyntheticBrowserPath'
 tools\install-yune-windows-ime.ps1 -YuneRoot '$SyntheticYuneRoot' -InstallDir '$SyntheticInstallDir' -ApprovedMachineStateChange -ApprovalNote 'User approved elevated live smoke in this session.'
 PASS tools\install-yune-windows-ime.ps1 -YuneRoot '$SyntheticYuneRoot' -InstallDir '$SyntheticInstallDir' -ApprovedMachineStateChange -ApprovalNote 'User approved elevated live smoke in this session.'
 tools\run-notepad-smoke.ps1 -YuneRoot '$SyntheticYuneRoot' -InstallDir '$SyntheticInstallDir' -ApprovedMachineStateChange -ApprovalNote 'User approved elevated live smoke in this session.'
@@ -296,7 +296,7 @@ PASS tools\export-yune-windows-diagnostics.ps1 -OutputDir '$SyntheticDiagnostics
 tools\uninstall-yune-windows-ime.ps1 -InstallDir '$SyntheticInstallDir' -ApprovedMachineStateChange -ApprovalNote 'User approved elevated live smoke in this session.'
 PASS tools\uninstall-yune-windows-ime.ps1 -InstallDir '$SyntheticInstallDir' -ApprovedMachineStateChange -ApprovalNote 'User approved elevated live smoke in this session.'
 "@
-Write-EvidenceFile "p2-win01-installer\pre-install-state.json" @"
+Write-EvidenceFile "m01\installer\pre-install-state.json" @"
 {
   "captured_at": "2026-06-25T09:00:01.0000000-07:00",
   "install_dir": "$SyntheticInstallDirJson",
@@ -310,7 +310,7 @@ Write-EvidenceFile "p2-win01-installer\pre-install-state.json" @"
   "filesystem_leftovers": []
 }
 "@
-Write-EvidenceFile "p2-win01-installer\post-install-state.json" @"
+Write-EvidenceFile "m01\installer\post-install-state.json" @"
 {
   "captured_at": "2026-06-25T09:00:02.0000000-07:00",
   "install_dir": "$SyntheticInstallDirJson",
@@ -334,7 +334,7 @@ Write-EvidenceFile "p2-win01-installer\post-install-state.json" @"
   "machine_registration_dll_path_matches": true
 }
 "@
-Write-EvidenceFile "p2-win01-installer\result.md" @"
+Write-EvidenceFile "m01\installer\result.md" @"
 # Install And Smoke Result
 
 Date: 2026-06-25T09:00:11.0000000-07:00
@@ -350,7 +350,7 @@ Diagnostics bundle:
 $SyntheticDiagnosticsOutputDir\synthetic.zip
 ````
 "@
-Write-EvidenceFile "p2-win01-settings\diagnostics-pre-state.json" @"
+Write-EvidenceFile "m01\settings\diagnostics-pre-state.json" @"
 {
   "captured_at": "2026-06-25T09:00:07.0000000-07:00",
   "install_dir": "$SyntheticInstallDirJson",
@@ -361,9 +361,9 @@ Write-EvidenceFile "p2-win01-settings\diagnostics-pre-state.json" @"
   "server_processes": []
 }
 "@
-Write-DiagnosticsBundle "p2-win01-settings\registered-session-diagnostics\synthetic.zip"
-Write-EvidenceFile "p2-win01-installer\cleanup-validation.json" '{"generated_at": "2026-06-25T09:00:09.0000000-07:00", "pass": true, "issues": []}'
-Write-EvidenceFile "p2-win01-installer\post-cleanup-state.json" @"
+Write-DiagnosticsBundle "m01\settings\registered-session-diagnostics\synthetic.zip"
+Write-EvidenceFile "m01\installer\cleanup-validation.json" '{"generated_at": "2026-06-25T09:00:09.0000000-07:00", "pass": true, "issues": []}'
+Write-EvidenceFile "m01\installer\post-cleanup-state.json" @"
 {
   "captured_at": "2026-06-25T09:00:08.0000000-07:00",
   "install_dir": "$SyntheticInstallDirJson",
@@ -377,7 +377,7 @@ Write-EvidenceFile "p2-win01-installer\post-cleanup-state.json" @"
   "filesystem_leftovers": []
 }
 "@
-Write-EvidenceFile "p2-win01-installer\cleanup-result.md" @'
+Write-EvidenceFile "m01\installer\cleanup-result.md" @'
 # Cleanup Result
 
 Date: 2026-06-25T09:00:10.0000000-07:00
@@ -389,7 +389,7 @@ Pass: True
 
 $JsonPath = Join-Path $OutputDir "audit.json"
 $MarkdownPath = Join-Path $OutputDir "audit.md"
-& (Join-Path $RepoRoot "tools\audit-p2-win01-closeout.ps1") `
+& (Join-Path $RepoRoot "tools\audit-m01-closeout.ps1") `
     -EvidenceRoot $EvidenceRoot `
     -JsonPath $JsonPath `
     -MarkdownPath $MarkdownPath
@@ -397,7 +397,7 @@ $MarkdownPath = Join-Path $OutputDir "audit.md"
 $Audit = Get-Content -Raw -LiteralPath $JsonPath | ConvertFrom-Json
 if ($Audit.status -ne "complete") {
     $GateSummary = ($Audit.gates | ForEach-Object { "$($_.id)=$($_.status)" }) -join ", "
-    throw "synthetic complete evidence should close P2-WIN01 audit, got status=$($Audit.status): $GateSummary"
+    throw "synthetic complete evidence should close M01 audit, got status=$($Audit.status): $GateSummary"
 }
 
 foreach ($Gate in $Audit.gates) {

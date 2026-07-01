@@ -5,7 +5,7 @@ $ErrorActionPreference = "Stop"
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 . (Join-Path $RepoRoot "tools\live-smoke-support.ps1")
 
-$TempDir = Join-Path $env:TEMP "yune-windows\p2-win01-browser-architecture-test"
+$TempDir = Join-Path $env:TEMP "yune-windows\m01-browser-architecture-test"
 if (Test-Path -LiteralPath $TempDir) {
     Remove-Item -LiteralPath $TempDir -Recurse -Force
 }

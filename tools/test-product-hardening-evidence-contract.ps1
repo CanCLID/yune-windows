@@ -4,34 +4,26 @@ $ErrorActionPreference = "Stop"
 
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 
-$ProductHardeningEvidence = @(
-    "docs\evidence\p2-win01-installer\compatibility-matrix.md",
-    "docs\evidence\p2-win01-installer\signing-decision.md"
-)
-$MissingProductHardeningEvidence = @($ProductHardeningEvidence | Where-Object {
-        -not (Test-Path -LiteralPath (Join-Path $RepoRoot $_))
-    })
-if ($MissingProductHardeningEvidence.Count -gt 0) {
-    $Roadmap = Get-Content -Raw -LiteralPath (Join-Path $RepoRoot "docs\roadmap.md")
-    $Requirements = Get-Content -Raw -LiteralPath (Join-Path $RepoRoot "docs\requirements.md")
-    if (($Roadmap -notmatch "Dogfood is not ready until fresh post-rename evidence proves") -or
-        ($Requirements -notmatch "Fresh post-rename live evidence\s+is\s+required")) {
-        throw "missing product-hardening evidence and public docs do not mark post-rename evidence as pending"
-    }
-    Write-Host "Product-hardening evidence is omitted from the public baseline; post-rename evidence is pending."
-    return
-}
-
-function Read-RequiredDoc {
-    param(
-        [string]$RelativePath
-    )
+function Read-RequiredText {
+    param([string]$RelativePath)
 
     $Path = Join-Path $RepoRoot $RelativePath
     if (-not (Test-Path -LiteralPath $Path)) {
-        throw "missing product-hardening evidence doc: $RelativePath"
+        throw "missing required doc: $RelativePath"
     }
     return Get-Content -Raw -LiteralPath $Path
+}
+
+function Read-RequiredJson {
+    param([string]$RelativePath)
+
+    $Text = Read-RequiredText $RelativePath
+    try {
+        return $Text | ConvertFrom-Json
+    }
+    catch {
+        throw "required JSON is invalid: $RelativePath"
+    }
 }
 
 function Require-Text {
@@ -46,57 +38,77 @@ function Require-Text {
     }
 }
 
-$Compatibility = Read-RequiredDoc "docs\evidence\p2-win01-installer\compatibility-matrix.md"
-foreach ($Pattern in @(
-        '# P2-WIN01 Compatibility Matrix',
-        'Status: covered-by-p2-win02-live-closeout',
-        'P2-WIN01-WIN11-X64',
-        'Notepad',
-        'Chromium',
-        'fresh install',
-        'TSF registration',
-        'profile activation',
-        'diagnostics export',
-        'uninstall',
-        'cleanup verification',
-        'docs/evidence/p2-win02-server-lifecycle/live-closeout-20260630-203015.md',
-        'Dogfood package hardening remains open'
+$M01Summary = Read-RequiredJson "docs\evidence\m01\summary.json"
+$M02Summary = Read-RequiredJson "docs\evidence\m02\summary.json"
+
+if ($M01Summary.milestone -ne "M01") {
+    throw "M01 summary has unexpected milestone: $($M01Summary.milestone)"
+}
+if ($M01Summary.status -ne "complete") {
+    throw "M01 summary must remain complete"
+}
+if ($M01Summary.evidence_policy -ne "compact-summary-only") {
+    throw "M01 summary must document compact-summary-only evidence policy"
+}
+if ($M01Summary.compatibility.target_id -ne "M01-WIN11-X64") {
+    throw "M01 summary must retain compatibility target M01-WIN11-X64"
+}
+if ($M01Summary.compatibility.live_status -ne "covered-by-m02-summary") {
+    throw "M01 summary must record covered live status"
+}
+if ($M01Summary.compatibility.live_closeout_evidence -ne "docs/evidence/m02/summary.json") {
+    throw "M01 summary must point to the M02 compact closeout summary"
+}
+foreach ($ExpectedPath in @(
+        "fresh install",
+        "TSF registration",
+        "profile activation",
+        "Notepad",
+        "Chromium",
+        "diagnostics export",
+        "uninstall",
+        "cleanup verification"
     )) {
-    Require-Text $Compatibility ([regex]::Escape($Pattern)) "compatibility matrix"
+    if ($ExpectedPath -notin @($M01Summary.compatibility.tested_paths)) {
+        throw "M01 compatibility summary is missing tested path: $ExpectedPath"
+    }
+}
+if ($M01Summary.signing.decision -ne "defer-production-signing") {
+    throw "M01 signing summary must defer production signing"
+}
+if ($M01Summary.signing.unsigned_local_dogfood_only -ne $true) {
+    throw "M01 signing summary must restrict unsigned artifacts to local dogfood"
+}
+if ($M01Summary.signing.production_distribution_blocked -ne $true) {
+    throw "M01 signing summary must block production/public distribution"
 }
 
-$Signing = Read-RequiredDoc "docs\evidence\p2-win01-installer\signing-decision.md"
-foreach ($Pattern in @(
-        '# P2-WIN01 Signing Decision',
-        'Decision: defer-production-signing',
-        'Unsigned\s+local\s+dogfood\s+artifacts\s+are\s+allowed\s+only\s+for\s+approved\s+P2-WIN01\s+evidence\s+collection',
-        'Production\s+or\s+public\s+distribution\s+remains\s+blocked',
-        'code-signing\s+certificate',
-        'installer\s+result\s+must\s+record\s+exact\s+artifact\s+paths',
-        'does not close P2-WIN01'
-    )) {
-    if ($Pattern -match '\\s') {
-        Require-Text $Signing $Pattern "signing decision"
-    }
-    else {
-        Require-Text $Signing ([regex]::Escape($Pattern)) "signing decision"
-    }
+if ($M02Summary.milestone -ne "M02") {
+    throw "M02 summary has unexpected milestone: $($M02Summary.milestone)"
+}
+if ($M02Summary.closeout.product_owned_server_start_observed -ne $true) {
+    throw "M02 summary must retain product-owned server start evidence"
+}
+if ($M02Summary.closeout.profile_active_verified_before_typing -ne $true) {
+    throw "M02 summary must retain profile active before typing evidence"
+}
+if ($M02Summary.closeout.no_residue_after_reboot -ne $true) {
+    throw "M02 summary must retain post-reboot no-residue cleanup evidence"
 }
 
-$Roadmap = Read-RequiredDoc "docs\roadmap.md"
-Require-Text $Roadmap "Compatibility\s+matrix\s+and\s+signing\s+decision\s+are\s+recorded" "roadmap"
+$Roadmap = Read-RequiredText "docs\roadmap.md"
+Require-Text $Roadmap "Compatibility target and signing decision are retained in compact M01 summary evidence" "roadmap"
 Require-Text $Roadmap "dogfood\s+packaging,\s+release\s+signing,\s+non-blocking\s+cold-start,\s+and\s+user-data\s+preservation\s+remain\s+open" "roadmap"
 if ($Roadmap -match [regex]::Escape("compatibility matrix, signing decision, and dogfood release remain open")) {
     throw "roadmap still reports compatibility matrix and signing decision as open"
 }
 
-$Plan = Read-RequiredDoc "docs\plans\history\p2-win01-plan-windows-product.md"
+$Plan = Read-RequiredText "docs\plans\history\m01-plan-windows-product.md"
 foreach ($Pattern in @(
-        'docs\evidence\p2-win01-installer\compatibility-matrix.md',
-        'docs\evidence\p2-win01-installer\signing-decision.md',
+        'tools\collect-m01-compatibility-environment.ps1',
         'tools\test-product-hardening-evidence-contract.ps1'
     )) {
-    Require-Text $Plan ([regex]::Escape($Pattern)) "active plan"
+    Require-Text $Plan ([regex]::Escape($Pattern)) "archived M01 plan"
 }
 
-Write-Host "Product-hardening compatibility and signing evidence contract passed."
+Write-Host "Product-hardening compatibility and signing evidence summary contract passed."

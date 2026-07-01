@@ -1,0 +1,32 @@
+{
+  "milestone": "M04",
+  "title": "Candidate Window And Typing Quality",
+  "status": "implementation-complete-live-dll-proof-pending",
+  "evidence_policy": "compact-summary-only",
+  "raw_artifacts_pruned": [
+    "dev REPL outputs",
+    "server reload outputs",
+    "TSF holder snapshots"
+  ],
+  "proven": [
+    "server comment hygiene",
+    "30-candidate server supply",
+    "punctuation get_commit path",
+    "static caret-anchor contract",
+    "static owner lifecycle contract",
+    "candidate-window smoke"
+  ],
+  "remaining": [
+    "holder-free Notepad and Chromium proof for caret placement",
+    "holder-free no-orphan proof",
+    "holder-free paging and full-sentence punctuation proof"
+  ],
+  "regeneration_commands": [
+    "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\test-server-comment-hygiene-contract.ps1 -YuneRoot C:\\Users\\laubonghaudoi\\Documents\\GitHub\\yune",
+    "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\test-candidate-paging-contract.ps1",
+    "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\test-punctuation-commit-contract.ps1",
+    "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\test-tsf-caret-anchor-contract.ps1",
+    "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\test-candidate-window-owner-lifecycle-contract.ps1"
+  ],
+  "live_machine_state_required": false
+}

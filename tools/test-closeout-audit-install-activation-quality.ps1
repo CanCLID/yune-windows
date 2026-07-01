@@ -6,7 +6,7 @@ $ErrorActionPreference = "Stop"
 
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 if ($OutputDir -eq "") {
-    $OutputDir = Join-Path $env:TEMP "yune-windows\p2-win01-audit-install-activation-quality-test"
+    $OutputDir = Join-Path $env:TEMP "yune-windows\m01-audit-install-activation-quality-test"
 }
 if (Test-Path -LiteralPath $OutputDir) {
     Remove-Item -LiteralPath $OutputDir -Recurse -Force
@@ -24,7 +24,7 @@ function Write-EvidenceFile([string]$RelativePath, [string]$Content) {
 function Read-InstallGateStatus([string]$Name) {
     $JsonPath = Join-Path $OutputDir "$Name.json"
     $MarkdownPath = Join-Path $OutputDir "$Name.md"
-    & (Join-Path $RepoRoot "tools\audit-p2-win01-closeout.ps1") `
+    & (Join-Path $RepoRoot "tools\audit-m01-closeout.ps1") `
         -EvidenceRoot $EvidenceRoot `
         -JsonPath $JsonPath `
         -MarkdownPath $MarkdownPath | Out-Null
@@ -44,25 +44,25 @@ function Update-StateSnapshotCapturedAt([string]$RelativePath, [string]$Captured
     $State | ConvertTo-Json -Depth 8 | Out-File -LiteralPath $Path -Encoding utf8
 }
 
-Write-EvidenceFile "p2-win01-bootstrap\repo-state.md" "repo state"
-Write-EvidenceFile "p2-win01-bootstrap\reference-audit.md" "reference audit"
-Write-EvidenceFile "p2-win01-bootstrap\process-model.md" "process model"
-Write-EvidenceFile "p2-win01-bootstrap\first-smoke-target.md" "first smoke"
-Write-EvidenceFile "p2-win01-yune-host\result.json" '{"status": {"schema_id": "jyut6ping3"}}'
-Write-EvidenceFile "p2-win01-tsf-smoke\server-ipc-smoke.md" "server ipc smoke"
-Write-EvidenceFile "p2-win01-candidate-window\build-preflight.md" "candidate preflight"
-Write-EvidenceFile "p2-win01-settings\diagnostics-export.md" "diagnostics preflight"
-Write-EvidenceFile "p2-win01-settings\webview2-spike.md" 'Decision: `defer-settings`'
-Write-EvidenceFile "p2-win01-tsf-smoke\machine-state-gates.md" "approval gates"
-Write-EvidenceFile "p2-win01-installer\live-preflight.json" '{"machine_state_changed": false}'
-Write-EvidenceFile "p2-win01-installer\install-preflight.json" '{"machine_state_changed": false}'
-Write-EvidenceFile "p2-win01-installer\commands.txt" @"
+Write-EvidenceFile "m01\bootstrap\repo-state.md" "repo state"
+Write-EvidenceFile "m01\bootstrap\reference-audit.md" "reference audit"
+Write-EvidenceFile "m01\bootstrap\process-model.md" "process model"
+Write-EvidenceFile "m01\bootstrap\first-smoke-target.md" "first smoke"
+Write-EvidenceFile "m01\yune-host\result.json" '{"status": {"schema_id": "jyut6ping3"}}'
+Write-EvidenceFile "m01\tsf-smoke\server-ipc-smoke.md" "server ipc smoke"
+Write-EvidenceFile "m01\candidate-window\build-preflight.md" "candidate preflight"
+Write-EvidenceFile "m01\settings\diagnostics-export.md" "diagnostics preflight"
+Write-EvidenceFile "m01\settings\webview2-spike.md" 'Decision: `defer-settings`'
+Write-EvidenceFile "m01\tsf-smoke\machine-state-gates.md" "approval gates"
+Write-EvidenceFile "m01\installer\live-preflight.json" '{"machine_state_changed": false}'
+Write-EvidenceFile "m01\installer\install-preflight.json" '{"machine_state_changed": false}'
+Write-EvidenceFile "m01\installer\commands.txt" @"
 tools\install-yune-windows-ime.ps1 -ApprovedMachineStateChange
 tools\run-notepad-smoke.ps1 -ApprovedMachineStateChange
 tools\run-chromium-smoke.ps1 -ApprovedMachineStateChange
 tools\uninstall-yune-windows-ime.ps1 -ApprovedMachineStateChange
 "@
-Write-EvidenceFile "p2-win01-installer\result.md" @"
+Write-EvidenceFile "m01\installer\result.md" @"
 # Install And Smoke Result
 
 Status: passed
@@ -72,7 +72,7 @@ Notepad smoke: completed.
 Chromium smoke: completed.
 Diagnostics bundle: synthetic.zip.
 "@
-Write-EvidenceFile "p2-win01-installer\post-install-state.json" @"
+Write-EvidenceFile "m01\installer\post-install-state.json" @"
 {
   "install_dir": "C:\\Users\\example\\AppData\\Local\\YuneWindows\\WindowsIme",
   "install_dir_exists": false,
@@ -82,7 +82,7 @@ Write-EvidenceFile "p2-win01-installer\post-install-state.json" @"
   "server_processes": []
 }
 "@
-Write-EvidenceFile "p2-win01-tsf-smoke\notepad-post-state.json" @"
+Write-EvidenceFile "m01\tsf-smoke\notepad-post-state.json" @"
 {
   "install_dir": "C:\\Users\\example\\AppData\\Local\\YuneWindows\\WindowsIme",
   "install_dir_exists": false,
@@ -95,7 +95,7 @@ Write-EvidenceFile "p2-win01-tsf-smoke\notepad-post-state.json" @"
 
 $JsonPath = Join-Path $OutputDir "audit.json"
 $MarkdownPath = Join-Path $OutputDir "audit.md"
-& (Join-Path $RepoRoot "tools\audit-p2-win01-closeout.ps1") `
+& (Join-Path $RepoRoot "tools\audit-m01-closeout.ps1") `
     -EvidenceRoot $EvidenceRoot `
     -JsonPath $JsonPath `
     -MarkdownPath $MarkdownPath
@@ -115,7 +115,7 @@ Write-Host "Closeout audit rejects weak install/profile activation evidence."
     -OutputDir $OutputDir
 
 Update-StateSnapshotCapturedAt `
-    -RelativePath "p2-win01-installer\pre-install-state.json" `
+    -RelativePath "m01\installer\pre-install-state.json" `
     -CapturedAt "2026-06-25T09:00:03.0000000-07:00"
 $OutOfOrderPreInstallStatus = Read-InstallGateStatus "audit-with-pre-install-after-post-install"
 if ($OutOfOrderPreInstallStatus -ne "invalid") {
@@ -126,7 +126,7 @@ if ($OutOfOrderPreInstallStatus -ne "invalid") {
     -OutputDir $OutputDir
 
 Update-StateSnapshotCapturedAt `
-    -RelativePath "p2-win01-installer\post-install-state.json" `
+    -RelativePath "m01\installer\post-install-state.json" `
     -CapturedAt "2026-06-25T09:00:07.0000000-07:00"
 $LatePostInstallStatus = Read-InstallGateStatus "audit-with-post-install-after-app-smokes"
 if ($LatePostInstallStatus -ne "invalid") {

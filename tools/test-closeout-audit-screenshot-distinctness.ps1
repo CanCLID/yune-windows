@@ -6,7 +6,7 @@ $ErrorActionPreference = "Stop"
 
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 if ($OutputDir -eq "") {
-    $OutputDir = Join-Path $env:TEMP "yune-windows\p2-win01-audit-screenshot-distinctness-test"
+    $OutputDir = Join-Path $env:TEMP "yune-windows\m01-audit-screenshot-distinctness-test"
 }
 if (Test-Path -LiteralPath $OutputDir) {
     Remove-Item -LiteralPath $OutputDir -Recurse -Force
@@ -47,23 +47,23 @@ function New-TestPngBytes {
 $ExpectedCommit = -join ([char[]](0x6211, 0x4fc2, 0x500b))
 $Png = New-TestPngBytes
 
-Write-EvidenceFile "p2-win01-bootstrap\repo-state.md" "repo state"
-Write-EvidenceFile "p2-win01-bootstrap\reference-audit.md" "reference audit"
-Write-EvidenceFile "p2-win01-bootstrap\process-model.md" "process model"
-Write-EvidenceFile "p2-win01-bootstrap\first-smoke-target.md" "first smoke"
-Write-EvidenceFile "p2-win01-yune-host\result.json" '{"status": {"schema_id": "jyut6ping3"}}'
-Write-EvidenceFile "p2-win01-tsf-smoke\server-ipc-smoke.md" "server ipc smoke"
-Write-EvidenceFile "p2-win01-candidate-window\build-preflight.md" "candidate preflight"
-Write-EvidenceFile "p2-win01-settings\diagnostics-export.md" "diagnostics preflight"
-Write-EvidenceFile "p2-win01-settings\webview2-spike.md" 'Decision: `defer-settings`'
-Write-EvidenceFile "p2-win01-tsf-smoke\machine-state-gates.md" "approval gates"
-Write-EvidenceFile "p2-win01-installer\live-preflight.json" '{"machine_state_changed": false}'
-Write-EvidenceFile "p2-win01-installer\install-preflight.json" '{"machine_state_changed": false}'
+Write-EvidenceFile "m01\bootstrap\repo-state.md" "repo state"
+Write-EvidenceFile "m01\bootstrap\reference-audit.md" "reference audit"
+Write-EvidenceFile "m01\bootstrap\process-model.md" "process model"
+Write-EvidenceFile "m01\bootstrap\first-smoke-target.md" "first smoke"
+Write-EvidenceFile "m01\yune-host\result.json" '{"status": {"schema_id": "jyut6ping3"}}'
+Write-EvidenceFile "m01\tsf-smoke\server-ipc-smoke.md" "server ipc smoke"
+Write-EvidenceFile "m01\candidate-window\build-preflight.md" "candidate preflight"
+Write-EvidenceFile "m01\settings\diagnostics-export.md" "diagnostics preflight"
+Write-EvidenceFile "m01\settings\webview2-spike.md" 'Decision: `defer-settings`'
+Write-EvidenceFile "m01\tsf-smoke\machine-state-gates.md" "approval gates"
+Write-EvidenceFile "m01\installer\live-preflight.json" '{"machine_state_changed": false}'
+Write-EvidenceFile "m01\installer\install-preflight.json" '{"machine_state_changed": false}'
 
 foreach ($Name in @("notepad", "chromium")) {
     $Title = if ($Name -eq "notepad") { "Notepad Smoke" } else { "Chromium Smoke" }
     $ResultFile = if ($Name -eq "notepad") { "notepad-smoke-result.md" } else { "chromium-smoke-result.md" }
-    Write-EvidenceFile "p2-win01-tsf-smoke\$ResultFile" @"
+    Write-EvidenceFile "m01\tsf-smoke\$ResultFile" @"
 # $Title
 
 Observed clipboard text after select-all/copy:
@@ -80,14 +80,14 @@ Matches expected Yune commit: True
 "@
 }
 
-Write-EvidenceBytes "p2-win01-tsf-smoke\candidate-display-notepad.png" $Png
-Write-EvidenceBytes "p2-win01-tsf-smoke\notepad-commit.png" $Png
-Write-EvidenceBytes "p2-win01-tsf-smoke\candidate-display-chromium.png" $Png
-Write-EvidenceBytes "p2-win01-tsf-smoke\chromium-commit.png" $Png
+Write-EvidenceBytes "m01\tsf-smoke\candidate-display-notepad.png" $Png
+Write-EvidenceBytes "m01\tsf-smoke\notepad-commit.png" $Png
+Write-EvidenceBytes "m01\tsf-smoke\candidate-display-chromium.png" $Png
+Write-EvidenceBytes "m01\tsf-smoke\chromium-commit.png" $Png
 
 $JsonPath = Join-Path $OutputDir "audit.json"
 $MarkdownPath = Join-Path $OutputDir "audit.md"
-& (Join-Path $RepoRoot "tools\audit-p2-win01-closeout.ps1") `
+& (Join-Path $RepoRoot "tools\audit-m01-closeout.ps1") `
     -EvidenceRoot $EvidenceRoot `
     -JsonPath $JsonPath `
     -MarkdownPath $MarkdownPath

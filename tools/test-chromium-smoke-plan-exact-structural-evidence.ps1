@@ -3,13 +3,24 @@ param()
 $ErrorActionPreference = "Stop"
 
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
-$PlanPath = Join-Path $RepoRoot "docs\evidence\p2-win01-tsf-smoke\chromium-smoke-plan.md"
+$PlanPath = Join-Path $RepoRoot "docs\evidence\m01\tsf-smoke\chromium-smoke-plan.md"
 if (-not (Test-Path -LiteralPath $PlanPath)) {
-    $Roadmap = Get-Content -Raw -LiteralPath (Join-Path $RepoRoot "docs\roadmap.md")
-    if ($Roadmap -notmatch "regenerate post-rename live evidence") {
-        throw "missing Chromium smoke plan and public roadmap does not mark post-rename evidence as pending"
+    $SummaryPath = Join-Path $RepoRoot "docs\evidence\m01\summary.json"
+    if (-not (Test-Path -LiteralPath $SummaryPath)) {
+        throw "missing Chromium smoke plan and compact M01 summary"
     }
-    Write-Host "Chromium smoke plan evidence is omitted from the public baseline; post-rename evidence is pending."
+    $Summary = Get-Content -Raw -LiteralPath $SummaryPath | ConvertFrom-Json
+    if (($Summary.status -ne "complete") -or
+        ($Summary.evidence_policy -ne "compact-summary-only")) {
+        throw "M01 summary must document complete compact-summary evidence when raw Chromium smoke plan is pruned"
+    }
+    $AuditSource = Get-Content -Raw -LiteralPath (Join-Path $RepoRoot "tools\audit-m01-closeout.ps1")
+    foreach ($RequiredToken in @("candidate_update", "commit_text")) {
+        if ($AuditSource -notmatch [regex]::Escape($RequiredToken)) {
+            throw "closeout audit must retain exact structural event token check for $RequiredToken"
+        }
+    }
+    Write-Host "Chromium smoke plan raw evidence is pruned; compact summary and audit token checks are present."
     return
 }
 $PlanText = Get-Content -Raw -LiteralPath $PlanPath

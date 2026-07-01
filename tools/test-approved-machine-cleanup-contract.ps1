@@ -561,7 +561,7 @@ foreach ($Mutation in @("Set-ItemProperty", "Remove-Item", "Remove-ItemProperty"
     }
 }
 
-$TempDir = Join-Path $env:TEMP "yune-windows\p2-win01-approved-machine-cleanup-test"
+$TempDir = Join-Path $env:TEMP "yune-windows\m01-approved-machine-cleanup-test"
 New-Item -ItemType Directory -Force $TempDir | Out-Null
 $PlanPath = Join-Path $TempDir "machine-cleanup-plan.json"
 $EvidenceDir = Join-Path $TempDir "evidence"
@@ -618,14 +618,14 @@ if (Test-Path -LiteralPath (Join-Path $EvidenceDir "machine-cleanup-after.json")
     throw "approved machine cleanup script wrote after snapshot without approval"
 }
 
-$PlanText = Get-Content -Raw -LiteralPath (Join-Path $RepoRoot "docs\plans\active\p2-win01-plan-windows-product.md")
+$PlanText = Get-Content -Raw -LiteralPath (Join-Path $RepoRoot "docs\plans\history\m01-plan-windows-product.md")
 foreach ($RequiredPlanText in @(
         'tools\clear-yune-windows-machine-residue.ps1',
         'tools\test-approved-machine-cleanup-contract.ps1',
-        'docs\evidence\p2-win01-installer\machine-cleanup-approval.md',
-        'docs\evidence\p2-win01-installer\machine-cleanup-before.json',
-        'docs\evidence\p2-win01-installer\machine-cleanup-after.json',
-        'docs\evidence\p2-win01-installer\machine-cleanup-result.md'
+        'docs\evidence\m01\installer\machine-cleanup-approval.md',
+        'docs\evidence\m01\installer\machine-cleanup-before.json',
+        'docs\evidence\m01\installer\machine-cleanup-after.json',
+        'docs\evidence\m01\installer\machine-cleanup-result.md'
     )) {
     if ($PlanText -notmatch [regex]::Escape($RequiredPlanText)) {
         throw "active plan is missing approved machine cleanup reference: $RequiredPlanText"

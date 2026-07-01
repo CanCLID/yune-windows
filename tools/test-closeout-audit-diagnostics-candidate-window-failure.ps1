@@ -3,7 +3,7 @@ param()
 $ErrorActionPreference = "Stop"
 
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
-$OutputDir = Join-Path $env:TEMP "yune-windows\p2-win01-audit-diagnostics-candidate-window-failure-test"
+$OutputDir = Join-Path $env:TEMP "yune-windows\m01-audit-diagnostics-candidate-window-failure-test"
 if (Test-Path -LiteralPath $OutputDir) {
     Remove-Item -LiteralPath $OutputDir -Recurse -Force
 }
@@ -12,7 +12,7 @@ if (Test-Path -LiteralPath $OutputDir) {
     -OutputDir $OutputDir
 
 $EvidenceRoot = Join-Path $OutputDir "evidence"
-$ZipPath = Join-Path $EvidenceRoot "p2-win01-settings\registered-session-diagnostics\synthetic.zip"
+$ZipPath = Join-Path $EvidenceRoot "m01\settings\registered-session-diagnostics\synthetic.zip"
 $ExpandedDir = Join-Path $OutputDir "expanded-diagnostics"
 Expand-Archive -LiteralPath $ZipPath -DestinationPath $ExpandedDir -Force
 Add-Content `
@@ -23,7 +23,7 @@ Compress-Archive -Path (Join-Path $ExpandedDir "*") -DestinationPath $ZipPath -F
 
 $JsonPath = Join-Path $OutputDir "audit-with-diagnostics-candidate-window-failure.json"
 $MarkdownPath = Join-Path $OutputDir "audit-with-diagnostics-candidate-window-failure.md"
-& (Join-Path $RepoRoot "tools\audit-p2-win01-closeout.ps1") `
+& (Join-Path $RepoRoot "tools\audit-m01-closeout.ps1") `
     -EvidenceRoot $EvidenceRoot `
     -JsonPath $JsonPath `
     -MarkdownPath $MarkdownPath

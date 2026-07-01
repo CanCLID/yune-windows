@@ -1,9 +1,0 @@
-﻿{
-    "generated_at":  "2026-06-29T21:57:20.0592390-07:00",
-    "status":  "completed",
-    "elevated_process_started":  true,
-    "exit_code":  0,
-    "error":  "",
-    "preflight_path":  "C:\\Users\\laubonghaudoi\\Documents\\GitHub\\yune-windows\\docs\\evidence\\p2-win01-installer\\live-preflight.json",
-    "transcript_path":  "C:\\Users\\laubonghaudoi\\Documents\\GitHub\\yune-windows\\docs\\evidence\\p2-win01-installer\\elevated-preflight-transcript-20260629-215720.txt"
-}

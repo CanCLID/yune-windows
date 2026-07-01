@@ -4,7 +4,7 @@ $ErrorActionPreference = "Stop"
 
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $SupportPath = Join-Path $RepoRoot "tools\live-smoke-support.ps1"
-$OrchestratorPath = Join-Path $RepoRoot "tools\run-p2-win01-live-smoke.ps1"
+$OrchestratorPath = Join-Path $RepoRoot "tools\run-m01-live-smoke.ps1"
 $SnapshotScriptPath = Join-Path $RepoRoot "tools\write-yune-windows-state-snapshot.ps1"
 
 foreach ($Path in @($SupportPath, $OrchestratorPath, $SnapshotScriptPath)) {

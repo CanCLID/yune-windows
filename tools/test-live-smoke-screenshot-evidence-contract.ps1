@@ -8,7 +8,7 @@ $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 . (Join-Path $RepoRoot "tools\live-smoke-support.ps1")
 
 if ($OutputDir -eq "") {
-    $OutputDir = Join-Path $env:TEMP "yune-windows\p2-win01-screenshot-evidence-contract"
+    $OutputDir = Join-Path $env:TEMP "yune-windows\m01-screenshot-evidence-contract"
 }
 if (Test-Path -LiteralPath $OutputDir) {
     Remove-Item -LiteralPath $OutputDir -Recurse -Force

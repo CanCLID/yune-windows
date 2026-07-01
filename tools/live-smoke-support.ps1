@@ -2897,7 +2897,7 @@ function Assert-ConcreteChromiumBrowserPath {
     }
 }
 
-function New-P2Win01PreflightReport {
+function New-M01PreflightReport {
     param(
         [string]$YuneRoot = "C:\Users\laubonghaudoi\Documents\GitHub\yune",
         [string]$InstallDir = "$env:LOCALAPPDATA\Yune\WindowsIme",
@@ -3000,11 +3000,11 @@ function New-P2Win01PreflightReport {
     }
 }
 
-function Assert-P2Win01PreflightReady {
+function Assert-M01PreflightReady {
     param(
         [Parameter(Mandatory = $true)]
         [object]$Report,
-        [string]$Context = "P2-WIN01 live preflight"
+        [string]$Context = "M01 live preflight"
     )
 
     $Issues = [System.Collections.Generic.List[string]]::new()
@@ -3106,7 +3106,7 @@ function Assert-P2Win01PreflightReady {
     }
 }
 
-function Write-P2Win01PreflightReport {
+function Write-M01PreflightReport {
     param(
         [Parameter(Mandatory = $true)]
         [string]$Path,
@@ -3130,7 +3130,7 @@ function Write-P2Win01PreflightReport {
         }
     }
 
-    $Report = New-P2Win01PreflightReport `
+    $Report = New-M01PreflightReport `
         -YuneRoot $YuneRoot `
         -InstallDir $InstallDir `
         -BrowserPath $BrowserPath `

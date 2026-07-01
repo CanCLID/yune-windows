@@ -6,7 +6,7 @@ $ErrorActionPreference = "Stop"
 
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 if ($OutputDir -eq "") {
-    $OutputDir = Join-Path $env:TEMP "yune-windows\p2-win01-webview2-test"
+    $OutputDir = Join-Path $env:TEMP "yune-windows\m01-webview2-test"
 }
 if (Test-Path -LiteralPath $OutputDir) {
     Remove-Item -LiteralPath $OutputDir -Recurse -Force
@@ -40,7 +40,7 @@ foreach ($Field in @("runtime_availability", "installer_size", "high_dpi", "them
     }
 }
 
-$Doc = Join-Path $RepoRoot "docs\evidence\p2-win01-settings\webview2-spike.md"
+$Doc = Join-Path $RepoRoot "docs\evidence\m01\settings\webview2-spike.md"
 if (-not (Test-Path -LiteralPath $Doc)) {
     $Roadmap = Get-Content -Raw -LiteralPath (Join-Path $RepoRoot "docs\roadmap.md")
     if ($Roadmap -notmatch "Rich settings UI until typing evidence is refreshed") {

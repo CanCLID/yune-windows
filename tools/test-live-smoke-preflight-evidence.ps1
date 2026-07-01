@@ -3,7 +3,7 @@ param()
 $ErrorActionPreference = "Stop"
 
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
-$EvidenceDir = Join-Path $RepoRoot "docs\evidence\p2-win01-installer"
+$EvidenceDir = Join-Path $RepoRoot "docs\evidence\m01\installer"
 $Reports = @(
     @{ Name = "live"; Path = Join-Path $EvidenceDir "live-preflight.json" },
     @{ Name = "install"; Path = Join-Path $EvidenceDir "install-preflight.json" }
@@ -11,11 +11,19 @@ $Reports = @(
 
 $MissingReports = @($Reports | Where-Object { -not (Test-Path -LiteralPath $_.Path) })
 if ($MissingReports.Count -gt 0) {
-    $Requirements = Get-Content -Raw -LiteralPath (Join-Path $RepoRoot "docs\requirements.md")
-    if ($Requirements -notmatch "Fresh post-rename live evidence\s+is\s+required") {
-        throw "missing durable live preflight evidence and requirements do not mark post-rename evidence as pending"
+    $SummaryPath = Join-Path $RepoRoot "docs\evidence\m01\summary.json"
+    if (-not (Test-Path -LiteralPath $SummaryPath)) {
+        throw "missing durable live preflight evidence and compact M01 summary"
     }
-    Write-Host "Live/install preflight durable evidence is omitted from the public baseline; post-rename evidence is pending."
+    $Summary = Get-Content -Raw -LiteralPath $SummaryPath | ConvertFrom-Json
+    if (($Summary.status -ne "complete") -or
+        ($Summary.evidence_policy -ne "compact-summary-only")) {
+        throw "M01 summary must document complete compact-summary evidence when durable preflight artifacts are pruned"
+    }
+    if ("powershell -STA -NoProfile -ExecutionPolicy Bypass -File tools\run-m01-live-smoke.ps1" -notin @($Summary.regeneration_commands)) {
+        throw "M01 summary must document the live-smoke regeneration command"
+    }
+    Write-Host "Live/install preflight durable evidence is pruned; compact summary records the regeneration path."
     return
 }
 

@@ -6,7 +6,7 @@ $ErrorActionPreference = "Stop"
 
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 if ($OutputDir -eq "") {
-    $OutputDir = Join-Path $env:TEMP "yune-windows\p2-win01-audit-cleanup-result-timestamps-test"
+    $OutputDir = Join-Path $env:TEMP "yune-windows\m01-audit-cleanup-result-timestamps-test"
 }
 if (Test-Path -LiteralPath $OutputDir) {
     Remove-Item -LiteralPath $OutputDir -Recurse -Force
@@ -22,7 +22,7 @@ function Invoke-CompleteSynthetic {
 
 function Invoke-Audit {
     $EvidenceRoot = Join-Path $OutputDir "evidence"
-    & (Join-Path $RepoRoot "tools\audit-p2-win01-closeout.ps1") `
+    & (Join-Path $RepoRoot "tools\audit-m01-closeout.ps1") `
         -EvidenceRoot $EvidenceRoot `
         -JsonPath $JsonPath `
         -MarkdownPath $MarkdownPath | Out-Null
@@ -46,7 +46,7 @@ function Assert-CleanupGateInvalid([object]$Audit, [string]$Context) {
 
 function Set-CleanupResultDate([string]$Date) {
     $EvidenceRoot = Join-Path $OutputDir "evidence"
-    $CleanupResultPath = Join-Path $EvidenceRoot "p2-win01-installer\cleanup-result.md"
+    $CleanupResultPath = Join-Path $EvidenceRoot "m01\installer\cleanup-result.md"
     $Text = Get-Content -Raw -LiteralPath $CleanupResultPath
     if ($Text -notmatch "(?m)^Date:\s*\S+\s*$") {
         throw "synthetic cleanup-result.md should contain a Date line"

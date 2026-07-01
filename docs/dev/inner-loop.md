@@ -1,6 +1,6 @@
 # Development Inner Loop
 
-P2-WIN03 adds a non-elevated development kit for the Windows product. The one
+M03 adds a non-elevated development kit for the Windows product. The one
 time install/register setup remains approval-gated; the inner-loop tools below
 use scratch builds, exact installed-path swaps, and dev-owned processes only.
 They do not perform TSF registration, registry edits, delayed-delete cleanup,
@@ -140,6 +140,5 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-dev-reload-server
 The dev loop is non-elevated. It must not install, register, unregister, edit
 registry state, schedule delayed deletes, enable verifier tooling, or run the
 canonical live IME install/uninstall path. Installed-path reload evidence is
-development evidence only; it does not close dogfood readiness. P2-WIN03
-runtime evidence is recorded under
-`docs/evidence/p2-win03-dev-inner-loop/`.
+development evidence only; it does not close dogfood readiness. M03 runtime
+evidence is summarized under `docs/evidence/m03/summary.md`.

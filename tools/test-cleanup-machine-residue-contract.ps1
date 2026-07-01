@@ -123,7 +123,7 @@ foreach ($RequiredRegistryKey in @(
     }
 }
 
-$LiveSource = Get-Content -Raw -LiteralPath (Join-Path $RepoRoot "tools\run-p2-win01-live-smoke.ps1")
+$LiveSource = Get-Content -Raw -LiteralPath (Join-Path $RepoRoot "tools\run-m01-live-smoke.ps1")
 foreach ($Required in @(
         "-IncludeMachineResidue",
         "-RequireMachineResidueCheck")) {

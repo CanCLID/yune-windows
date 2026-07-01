@@ -6,7 +6,7 @@ $ErrorActionPreference = "Stop"
 
 if ($OutputPath -eq "") {
     $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
-    $OutputPath = Join-Path $RepoRoot "docs\evidence\p2-win01-settings\webview2-feasibility.json"
+    $OutputPath = Join-Path $RepoRoot "docs\evidence\m01\settings\webview2-feasibility.json"
 }
 
 function Candidate-Path([string]$Path) {
@@ -57,7 +57,7 @@ if ($RuntimeRoots.Count -gt 0) {
 }
 
 $Decision = "defer-settings"
-$Reason = "P2-WIN01 only needs typing, diagnostics export, and cleanup evidence; a settings UI would add installer and host-bridge scope before the IME is proven end to end."
+$Reason = "M01 only needs typing, diagnostics export, and cleanup evidence; a settings UI would add installer and host-bridge scope before the IME is proven end to end."
 
 $Result = [ordered]@{
     generated_at = (Get-Date).ToString("o")
@@ -74,7 +74,7 @@ $Result = [ordered]@{
     installer_size = [ordered]@{
         runtime_bytes = $RuntimeBytes
         runtime_megabytes = if ($null -ne $RuntimeBytes) { [Math]::Round($RuntimeBytes / 1MB, 1) } else { $null }
-        packaging_position = "Do not bundle WebView2 for P2-WIN01; defer settings UI until typing, install, diagnostics, and cleanup are proven."
+        packaging_position = "Do not bundle WebView2 for M01; defer settings UI until typing, install, diagnostics, and cleanup are proven."
     }
     high_dpi = [ordered]@{
         position = "Native candidate window handles first inline high-DPI work; WebView2 high-DPI behavior is deferred with settings UI."
@@ -83,10 +83,10 @@ $Result = [ordered]@{
         position = "Native candidate renderer uses system font and colors for inline UI; settings UI theme/font integration is deferred."
     }
     accessibility = [ordered]@{
-        position = "No settings controls ship in P2-WIN01, so no placeholder accessibility surface is exposed."
+        position = "No settings controls ship in M01, so no placeholder accessibility surface is exposed."
     }
     host_bridge_security = [ordered]@{
-        position = "No WebView2 host bridge is introduced in P2-WIN01; this avoids a new trust boundary before the IME is proven."
+        position = "No WebView2 host bridge is introduced in M01; this avoids a new trust boundary before the IME is proven."
     }
     diagnostics_export = [ordered]@{
         implemented = Test-Path -LiteralPath (Join-Path (Resolve-Path (Join-Path $PSScriptRoot "..")) "tools\export-yune-windows-diagnostics.ps1")

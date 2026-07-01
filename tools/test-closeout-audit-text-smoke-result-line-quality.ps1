@@ -6,7 +6,7 @@ $ErrorActionPreference = "Stop"
 
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 if ($OutputDir -eq "") {
-    $OutputDir = Join-Path $env:TEMP "yune-windows\p2-win01-audit-text-smoke-result-line-quality-test"
+    $OutputDir = Join-Path $env:TEMP "yune-windows\m01-audit-text-smoke-result-line-quality-test"
 }
 $OutputDir = [System.IO.Path]::GetFullPath($OutputDir)
 $AllowedRoot = [System.IO.Path]::GetFullPath((Join-Path $env:TEMP "yune-windows"))
@@ -49,7 +49,7 @@ function Assert-TextSmokeGateRejectsWeakLine {
     $SafeGateId = $GateId -replace '[^A-Za-z0-9_-]', '-'
     $JsonPath = Join-Path $OutputDir "audit-text-smoke-result-line-quality-$SafeGateId.json"
     $MarkdownPath = Join-Path $OutputDir "audit-text-smoke-result-line-quality-$SafeGateId.md"
-    & (Join-Path $RepoRoot "tools\audit-p2-win01-closeout.ps1") `
+    & (Join-Path $RepoRoot "tools\audit-m01-closeout.ps1") `
         -EvidenceRoot $EvidenceRoot `
         -JsonPath $JsonPath `
         -MarkdownPath $MarkdownPath | Out-Null
@@ -69,22 +69,22 @@ function Assert-TextSmokeGateRejectsWeakLine {
 
 Assert-TextSmokeGateRejectsWeakLine `
     -GateId "tsf-notepad-smoke" `
-    -RelativePath "p2-win01-tsf-smoke\notepad-smoke-result.md" `
+    -RelativePath "m01\tsf-smoke\notepad-smoke-result.md" `
     -Line "Foreground target verified before typing: True"
 
 Assert-TextSmokeGateRejectsWeakLine `
     -GateId "chromium-text-field-smoke" `
-    -RelativePath "p2-win01-tsf-smoke\chromium-smoke-result.md" `
+    -RelativePath "m01\tsf-smoke\chromium-smoke-result.md" `
     -Line "Chromium textarea focus verified before typing: True"
 
 Assert-TextSmokeGateRejectsWeakLine `
     -GateId "chromium-text-field-smoke" `
-    -RelativePath "p2-win01-tsf-smoke\chromium-smoke-result.md" `
+    -RelativePath "m01\tsf-smoke\chromium-smoke-result.md" `
     -Line "Chromium text-field click verified before typing: True"
 
 Assert-TextSmokeGateRejectsWeakLine `
     -GateId "chromium-text-field-smoke" `
-    -RelativePath "p2-win01-tsf-smoke\chromium-smoke-result.md" `
+    -RelativePath "m01\tsf-smoke\chromium-smoke-result.md" `
     -Line "Structural event matcher: exact event tokens"
 
 Write-Host "Closeout audit rejects weak text-smoke result-line evidence."

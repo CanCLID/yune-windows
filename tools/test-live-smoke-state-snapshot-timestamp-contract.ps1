@@ -4,11 +4,11 @@ $ErrorActionPreference = "Stop"
 
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $SupportPath = Join-Path $RepoRoot "tools\live-smoke-support.ps1"
-$OrchestratorPath = Join-Path $RepoRoot "tools\run-p2-win01-live-smoke.ps1"
+$OrchestratorPath = Join-Path $RepoRoot "tools\run-m01-live-smoke.ps1"
 
 . $SupportPath
 
-$TempRoot = Join-Path $env:TEMP "yune-windows\p2-win01-state-snapshot-timestamp-contract"
+$TempRoot = Join-Path $env:TEMP "yune-windows\m01-state-snapshot-timestamp-contract"
 if (Test-Path -LiteralPath $TempRoot) {
     Remove-Item -LiteralPath $TempRoot -Recurse -Force
 }
@@ -183,7 +183,7 @@ if ($CleanupInvalidResult.pass -ne $false -or
 $OrchestratorSource = Get-Content -Raw -LiteralPath $OrchestratorPath
 $CleanupPattern = 'Test-YuneWindowsCleanupState(?s:.*?)-RequireProfileState(?s:.*?)-RequireMachineResidueCheck(?s:.*?)-RequireCapturedAt'
 if ($OrchestratorSource -notmatch $CleanupPattern) {
-    throw "run-p2-win01-live-smoke.ps1 must require captured_at when validating post-cleanup state."
+    throw "run-m01-live-smoke.ps1 must require captured_at when validating post-cleanup state."
 }
 
 Write-Host "Live state snapshot validators require parseable captured_at timestamps."

@@ -3,7 +3,7 @@ param()
 $ErrorActionPreference = "Stop"
 
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
-$OrchestratorPath = Join-Path $RepoRoot "tools\run-p2-win01-live-smoke.ps1"
+$OrchestratorPath = Join-Path $RepoRoot "tools\run-m01-live-smoke.ps1"
 $InstallScriptPath = Join-Path $RepoRoot "tools\install-yune-windows-ime.ps1"
 
 $OrchestratorSource = Get-Content -Raw -LiteralPath $OrchestratorPath
@@ -29,7 +29,7 @@ foreach ($Required in @(
         '-RefreshCurrentResidue',
         '-ApprovalNote $ApprovalNote',
         '-BrowserPath $ResolvedBrowserPath',
-        'Assert-P2Win01PreflightReady',
+        'Assert-M01PreflightReady',
         'Record-CommandSuccess $InstallPreflightCommand',
         'Record-CommandFailure $InstallPreflightCommand',
         '-FailureStage $CurrentStage'
@@ -59,7 +59,7 @@ $CommandIndex = $OrchestratorSource.IndexOf('$InstallPreflightCommand = "tools\i
 $AppendBrowserIndex = $OrchestratorSource.IndexOf('$InstallPreflightCommand += " -BrowserPath $(Format-CommandValue $ResolvedBrowserPath)"', $InstallPreflightIndex)
 $RecordIndex = $OrchestratorSource.IndexOf('Record-Command $InstallPreflightCommand', $InstallPreflightIndex)
 $InvokeIndex = $OrchestratorSource.IndexOf('& (Join-Path $RepoRoot "tools\install-yune-windows-ime.ps1")', $InstallPreflightIndex)
-$AssertIndex = $OrchestratorSource.IndexOf('Assert-P2Win01PreflightReady', $InstallPreflightIndex)
+$AssertIndex = $OrchestratorSource.IndexOf('Assert-M01PreflightReady', $InstallPreflightIndex)
 $SuccessIndex = $OrchestratorSource.IndexOf('Record-CommandSuccess $InstallPreflightCommand', $InstallPreflightIndex)
 $FailureIndex = $OrchestratorSource.IndexOf('Record-CommandFailure $InstallPreflightCommand', $InstallPreflightIndex)
 if ($CommandIndex -lt 0 -or

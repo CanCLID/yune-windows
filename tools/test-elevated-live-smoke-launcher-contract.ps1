@@ -3,10 +3,10 @@ param()
 $ErrorActionPreference = "Stop"
 
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
-$Launcher = Join-Path $RepoRoot "tools\start-p2-win01-elevated-live-smoke.ps1"
+$Launcher = Join-Path $RepoRoot "tools\start-m01-elevated-live-smoke.ps1"
 
 if (-not (Test-Path -LiteralPath $Launcher)) {
-    throw "missing elevated live-smoke launcher: tools\start-p2-win01-elevated-live-smoke.ps1"
+    throw "missing elevated live-smoke launcher: tools\start-m01-elevated-live-smoke.ps1"
 }
 
 $Source = Get-Content -Raw -LiteralPath $Launcher
@@ -81,7 +81,7 @@ function Invoke-LauncherChild {
     }
 }
 
-$TempDirRoot = Join-Path $env:TEMP "yune-windows\p2-win01-elevated-launcher-test"
+$TempDirRoot = Join-Path $env:TEMP "yune-windows\m01-elevated-launcher-test"
 $TempDir = Join-Path $TempDirRoot ([guid]::NewGuid().ToString("N"))
 New-Item -ItemType Directory -Force $TempDir | Out-Null
 $DefaultYuneRoot = "C:\Users\laubonghaudoi\Documents\GitHub\yune"

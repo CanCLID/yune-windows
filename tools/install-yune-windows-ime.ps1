@@ -20,9 +20,9 @@ if ($PreflightOnly) {
             -ApprovalNote $ApprovalNote
     }
     if ($PreflightPath -eq "") {
-        $PreflightPath = Join-Path $env:TEMP "yune-windows\p2-win01-install-preflight.json"
+        $PreflightPath = Join-Path $env:TEMP "yune-windows\m01-install-preflight.json"
     }
-    Write-P2Win01PreflightReport `
+    Write-M01PreflightReport `
         -Path $PreflightPath `
         -YuneRoot $YuneRoot `
         -InstallDir $InstallDir `
@@ -143,7 +143,7 @@ Require-Administrator
 
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $InstallRoot = Resolve-SafeInstallDir $InstallDir
-$BuildDir = Join-Path $env:TEMP "yune-windows\p2-win01-install-build"
+$BuildDir = Join-Path $env:TEMP "yune-windows\m01-install-build"
 $PackageDir = Join-Path $YuneRoot "target\yune-windows-native\x86_64-pc-windows-msvc\dist"
 $RimeDll = Join-Path $PackageDir "lib\rime.dll"
 $SchemaSource = Join-Path $YuneRoot "apps\yune-web\public\schema"

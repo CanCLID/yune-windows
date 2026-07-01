@@ -4,8 +4,8 @@ $ErrorActionPreference = "Stop"
 
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $FixtureScript = Join-Path $RepoRoot "tools\test-closeout-audit-complete-synthetic.ps1"
-$AuditScript = Join-Path $RepoRoot "tools\audit-p2-win01-closeout.ps1"
-$OutputDir = Join-Path $env:TEMP "yune-windows\p2-win01-audit-live-preflight-timestamps-test"
+$AuditScript = Join-Path $RepoRoot "tools\audit-m01-closeout.ps1"
+$OutputDir = Join-Path $env:TEMP "yune-windows\m01-audit-live-preflight-timestamps-test"
 $EvidenceRoot = Join-Path $OutputDir "evidence"
 $JsonPath = Join-Path $OutputDir "audit-under-test.json"
 $MarkdownPath = Join-Path $OutputDir "audit-under-test.md"
@@ -30,7 +30,7 @@ function Set-PreflightGeneratedAt([string]$RelativePath, [string]$GeneratedAt) {
 }
 
 function Set-ApprovalDate([string]$DateLine) {
-    $Path = Join-Path $EvidenceRoot "p2-win01-installer\approval.md"
+    $Path = Join-Path $EvidenceRoot "m01\installer\approval.md"
     $Text = Get-Content -Raw -LiteralPath $Path
     $Text = [regex]::Replace($Text, '(?m)^Date:.*$', $DateLine, 1)
     $Text | Out-File -LiteralPath $Path -Encoding utf8
@@ -46,7 +46,7 @@ function Get-Gate([object]$Audit, [string]$GateId) {
 
 New-CompleteFixture
 Set-PreflightGeneratedAt `
-    -RelativePath "p2-win01-installer\live-preflight.json" `
+    -RelativePath "m01\installer\live-preflight.json" `
     -GeneratedAt "2026-06-25T08:59:59.0000000-07:00"
 $StaleLiveAudit = Invoke-CloseoutAudit
 $StaleLiveGate = Get-Gate -Audit $StaleLiveAudit -GateId "live-preflight"
@@ -66,7 +66,7 @@ if ($MalformedApprovalGate.status -ne "invalid") {
 
 New-CompleteFixture
 Set-PreflightGeneratedAt `
-    -RelativePath "p2-win01-installer\install-preflight.json" `
+    -RelativePath "m01\installer\install-preflight.json" `
     -GeneratedAt "2026-06-25T08:59:59.0000000-07:00"
 $AdvisoryInstallAudit = Invoke-CloseoutAudit
 $AdvisoryInstallGate = Get-Gate -Audit $AdvisoryInstallAudit -GateId "live-preflight"

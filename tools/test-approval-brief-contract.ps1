@@ -3,9 +3,9 @@ param()
 $ErrorActionPreference = "Stop"
 
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
-$BriefScript = Join-Path $RepoRoot "tools\write-p2-win01-approval-brief.ps1"
+$BriefScript = Join-Path $RepoRoot "tools\write-m01-approval-brief.ps1"
 if (-not (Test-Path -LiteralPath $BriefScript)) {
-    throw "missing approval brief writer: tools\write-p2-win01-approval-brief.ps1"
+    throw "missing approval brief writer: tools\write-m01-approval-brief.ps1"
 }
 
 $Source = Get-Content -Raw -LiteralPath $BriefScript
@@ -19,7 +19,7 @@ foreach ($Required in @(
         'machine-cleanup-result\.md',
         'Preflight refresh command',
         'PreflightPath',
-        'run-p2-win01-live-smoke\.ps1',
+        'run-m01-live-smoke\.ps1',
         'ApprovedMachineStateChange',
         'ApprovalNote',
         'powershell -STA',
@@ -34,7 +34,7 @@ foreach ($Required in @(
         'Approval brief current-residue validation requires -CurrentResiduePath or -RefreshCurrentResidue.',
         'Assert-CleanupPlanCoversCurrentResidue',
         'Get-YuneWindowsMachineResidue',
-        'tools\\start-p2-win01-elevated-live-smoke.ps1',
+        'tools\\start-m01-elevated-live-smoke.ps1',
         'PrepPreflightPath',
         'A non-elevated prep preflight can confirm clean residue, source/runtime inputs, STA context, and browser availability; ready_for_live_smoke remains false until the elevated child reruns it with is_administrator=true.',
         'Use the single-UAC launcher from a non-elevated shell after the prep preflight records empty machine_state_issues, empty filesystem_leftovers, install_dir_exists=false, server_process_count=0, is_sta=true, and browser_available=true.',
@@ -69,7 +69,7 @@ foreach ($Forbidden in @(
     }
 }
 
-$TempDir = Join-Path $env:TEMP "yune-windows\p2-win01-approval-brief-test"
+$TempDir = Join-Path $env:TEMP "yune-windows\m01-approval-brief-test"
 New-Item -ItemType Directory -Force $TempDir | Out-Null
 $CleanupPlanPath = Join-Path $TempDir "machine-cleanup-plan.json"
 $AuditPath = Join-Path $TempDir "audit.json"
@@ -161,7 +161,7 @@ if (-not (Test-Path -LiteralPath $OutputPath)) {
 
 $Brief = Get-Content -Raw -LiteralPath $OutputPath
 foreach ($Expected in @(
-        '# P2-WIN01 Approval Brief',
+        '# M01 Approval Brief',
         'Machine state changed: false',
         'Approval required: true',
         'Cleanup plan generated_at: 2026-06-25T14:13:35.2880334-07:00',
@@ -195,15 +195,15 @@ foreach ($Expected in @(
         'A non-elevated prep preflight can confirm clean residue, source/runtime inputs, STA context, and browser availability; ready_for_live_smoke remains false until the elevated child reruns it with is_administrator=true.',
         'Use the single-UAC launcher from a non-elevated shell after the prep preflight records empty machine_state_issues, empty filesystem_leftovers, install_dir_exists=false, server_process_count=0, is_sta=true, and browser_available=true.',
         'Use the direct elevated STA command only from an already elevated shell; its preflight must record ready_for_live_smoke=true, empty residue arrays, is_administrator=true, is_sta=true, and browser_available=true before install starts.',
-        'powershell -STA -NoProfile -ExecutionPolicy Bypass -File tools\run-p2-win01-live-smoke.ps1 -PreflightOnly -PreflightPath',
+        'powershell -STA -NoProfile -ExecutionPolicy Bypass -File tools\run-m01-live-smoke.ps1 -PreflightOnly -PreflightPath',
         '-RefreshCurrentResidue',
         "-ApprovalNote '<current-session approval note>'",
         'Non-mutating launcher validation command: elevated-live-smoke-prep-validation-result.json.',
         'Run this command after refreshing prep preflight and before using the single-UAC launcher; it checks the same prep evidence and returns without invoking UAC.',
         'This validation command does not accept an approval switch or approval note because it cannot start the elevated child.',
         'prep-preflight-ready',
-        'powershell -NoProfile -ExecutionPolicy Bypass -File tools\start-p2-win01-elevated-live-smoke.ps1',
-        'tools\start-p2-win01-elevated-live-smoke.ps1 -ApprovedMachineStateChange',
+        'powershell -NoProfile -ExecutionPolicy Bypass -File tools\start-m01-elevated-live-smoke.ps1',
+        'tools\start-m01-elevated-live-smoke.ps1 -ApprovedMachineStateChange',
         "-PrepPreflightPath '$ExpectedLivePreflightPath'",
         "-LaunchResultPath '$ExpectedPrepValidationResultPath'",
         '-ValidatePrepOnly',
@@ -211,13 +211,13 @@ foreach ($Expected in @(
         'failed-to-start',
         'elevation-canceled',
         'elevated-live-smoke-launch-result.json',
-        "tools\start-p2-win01-elevated-live-smoke.ps1 -ApprovedMachineStateChange -ApprovalNote '<current-session approval note>' -YuneRoot '$ExpectedYuneRoot' -InstallDir '$ExpectedInstallDir' -PrepPreflightPath '$ExpectedLivePreflightPath'",
-        'powershell -STA -NoProfile -ExecutionPolicy Bypass -File tools\run-p2-win01-live-smoke.ps1',
+        "tools\start-m01-elevated-live-smoke.ps1 -ApprovedMachineStateChange -ApprovalNote '<current-session approval note>' -YuneRoot '$ExpectedYuneRoot' -InstallDir '$ExpectedInstallDir' -PrepPreflightPath '$ExpectedLivePreflightPath'",
+        'powershell -STA -NoProfile -ExecutionPolicy Bypass -File tools\run-m01-live-smoke.ps1',
         '-ApprovedMachineStateChange',
         '-ApprovalNote',
         "-YuneRoot '$ExpectedYuneRoot'",
         "-InstallDir '$ExpectedInstallDir'",
-        'does not close P2-WIN01'
+        'does not close M01'
     )) {
     if ($Brief -notmatch [regex]::Escape($Expected)) {
         throw "approval brief is missing expected text: $Expected"
@@ -227,7 +227,7 @@ foreach ($Expected in @(
 foreach ($Unexpected in @(
         "-YuneRoot '$RelativeYuneRoot'",
         "-InstallDir '$RelativeInstallDir'",
-        "tools\run-p2-win01-live-smoke.ps1 -ApprovedMachineStateChange -ApprovalNote '<current-session approval note>' -YuneRoot '$ExpectedYuneRoot' -InstallDir '$ExpectedInstallDir' -PrepPreflightPath"
+        "tools\run-m01-live-smoke.ps1 -ApprovedMachineStateChange -ApprovalNote '<current-session approval note>' -YuneRoot '$ExpectedYuneRoot' -InstallDir '$ExpectedInstallDir' -PrepPreflightPath"
     )) {
     if ($Brief -match [regex]::Escape($Unexpected)) {
         throw "approval brief should normalize operator command paths, but still contains: $Unexpected"
@@ -235,7 +235,7 @@ foreach ($Unexpected in @(
 }
 
 $PrepValidationLine = @($Brief -split "`r?`n" | Where-Object {
-        $_ -match [regex]::Escape("tools\start-p2-win01-elevated-live-smoke.ps1") -and
+        $_ -match [regex]::Escape("tools\start-m01-elevated-live-smoke.ps1") -and
         $_ -match [regex]::Escape("elevated-live-smoke-prep-validation-result.json")
     } | Select-Object -First 1)
 if ($PrepValidationLine.Count -ne 1) {
@@ -679,15 +679,15 @@ if ($InvalidAuditSucceeded) {
     throw "approval brief writer must reject closeout audit evidence without parseable generated_at."
 }
 
-$Plan = Get-Content -Raw -LiteralPath (Join-Path $RepoRoot "docs\plans\active\p2-win01-plan-windows-product.md")
+$Plan = Get-Content -Raw -LiteralPath (Join-Path $RepoRoot "docs\plans\history\m01-plan-windows-product.md")
 foreach ($RequiredPlanText in @(
-        'tools\write-p2-win01-approval-brief.ps1',
+        'tools\write-m01-approval-brief.ps1',
         'tools\test-approval-brief-contract.ps1',
-        'docs\evidence\p2-win01-installer\approval-brief.md'
+        'docs\evidence\m01\installer\approval-brief.md'
     )) {
     if ($Plan -notmatch [regex]::Escape($RequiredPlanText)) {
         throw "active plan is missing approval brief reference: $RequiredPlanText"
     }
 }
 
-Write-Host "P2-WIN01 approval brief is non-mutating and operator-ready."
+Write-Host "M01 approval brief is non-mutating and operator-ready."

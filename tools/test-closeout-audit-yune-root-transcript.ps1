@@ -6,7 +6,7 @@ $ErrorActionPreference = "Stop"
 
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 if ($OutputDir -eq "") {
-    $OutputDir = Join-Path $env:TEMP "yune-windows\p2-win01-audit-yune-root-transcript-test"
+    $OutputDir = Join-Path $env:TEMP "yune-windows\m01-audit-yune-root-transcript-test"
 }
 if (Test-Path -LiteralPath $OutputDir) {
     Remove-Item -LiteralPath $OutputDir -Recurse -Force
@@ -17,25 +17,25 @@ $FixtureDir = Join-Path $OutputDir "complete-fixture"
     -OutputDir $FixtureDir | Out-Null
 
 $EvidenceRoot = Join-Path $FixtureDir "evidence"
-$CommandsPath = Join-Path $EvidenceRoot "p2-win01-installer\commands.txt"
+$CommandsPath = Join-Path $EvidenceRoot "m01\installer\commands.txt"
 @"
-tools\run-p2-win01-live-smoke.ps1 -PreflightOnly -PreflightPath '$EvidenceRoot\p2-win01-installer\live-preflight.json' -InstallDir 'C:\Users\example\AppData\Local\Yune\WindowsIme' -BrowserPath 'C:\Program Files\Microsoft\Edge\Application\msedge.exe'
-PASS tools\run-p2-win01-live-smoke.ps1 -PreflightOnly -PreflightPath '$EvidenceRoot\p2-win01-installer\live-preflight.json' -InstallDir 'C:\Users\example\AppData\Local\Yune\WindowsIme' -BrowserPath 'C:\Program Files\Microsoft\Edge\Application\msedge.exe'
+tools\run-m01-live-smoke.ps1 -PreflightOnly -PreflightPath '$EvidenceRoot\m01\installer\live-preflight.json' -InstallDir 'C:\Users\example\AppData\Local\Yune\WindowsIme' -BrowserPath 'C:\Program Files\Microsoft\Edge\Application\msedge.exe'
+PASS tools\run-m01-live-smoke.ps1 -PreflightOnly -PreflightPath '$EvidenceRoot\m01\installer\live-preflight.json' -InstallDir 'C:\Users\example\AppData\Local\Yune\WindowsIme' -BrowserPath 'C:\Program Files\Microsoft\Edge\Application\msedge.exe'
 tools\install-yune-windows-ime.ps1 -InstallDir 'C:\Users\example\AppData\Local\Yune\WindowsIme' -ApprovedMachineStateChange -ApprovalNote 'User approved elevated live smoke in this session.'
 PASS tools\install-yune-windows-ime.ps1 -InstallDir 'C:\Users\example\AppData\Local\Yune\WindowsIme' -ApprovedMachineStateChange -ApprovalNote 'User approved elevated live smoke in this session.'
 tools\run-notepad-smoke.ps1 -InstallDir 'C:\Users\example\AppData\Local\Yune\WindowsIme' -ApprovedMachineStateChange -ApprovalNote 'User approved elevated live smoke in this session.'
 PASS tools\run-notepad-smoke.ps1 -InstallDir 'C:\Users\example\AppData\Local\Yune\WindowsIme' -ApprovedMachineStateChange -ApprovalNote 'User approved elevated live smoke in this session.'
 tools\run-chromium-smoke.ps1 -InstallDir 'C:\Users\example\AppData\Local\Yune\WindowsIme' -BrowserPath 'C:\Program Files\Microsoft\Edge\Application\msedge.exe' -ApprovedMachineStateChange -ApprovalNote 'User approved elevated live smoke in this session.'
 PASS tools\run-chromium-smoke.ps1 -InstallDir 'C:\Users\example\AppData\Local\Yune\WindowsIme' -BrowserPath 'C:\Program Files\Microsoft\Edge\Application\msedge.exe' -ApprovedMachineStateChange -ApprovalNote 'User approved elevated live smoke in this session.'
-tools\export-yune-windows-diagnostics.ps1 -OutputDir '$EvidenceRoot\p2-win01-settings\registered-session-diagnostics' -InstallDir 'C:\Users\example\AppData\Local\Yune\WindowsIme'
-PASS tools\export-yune-windows-diagnostics.ps1 -OutputDir '$EvidenceRoot\p2-win01-settings\registered-session-diagnostics' -InstallDir 'C:\Users\example\AppData\Local\Yune\WindowsIme'
+tools\export-yune-windows-diagnostics.ps1 -OutputDir '$EvidenceRoot\m01\settings\registered-session-diagnostics' -InstallDir 'C:\Users\example\AppData\Local\Yune\WindowsIme'
+PASS tools\export-yune-windows-diagnostics.ps1 -OutputDir '$EvidenceRoot\m01\settings\registered-session-diagnostics' -InstallDir 'C:\Users\example\AppData\Local\Yune\WindowsIme'
 tools\uninstall-yune-windows-ime.ps1 -InstallDir 'C:\Users\example\AppData\Local\Yune\WindowsIme' -ApprovedMachineStateChange -ApprovalNote 'User approved elevated live smoke in this session.'
 PASS tools\uninstall-yune-windows-ime.ps1 -InstallDir 'C:\Users\example\AppData\Local\Yune\WindowsIme' -ApprovedMachineStateChange -ApprovalNote 'User approved elevated live smoke in this session.'
 "@ | Out-File -LiteralPath $CommandsPath -Encoding utf8
 
 $JsonPath = Join-Path $OutputDir "audit-missing-yune-root.json"
 $MarkdownPath = Join-Path $OutputDir "audit-missing-yune-root.md"
-& (Join-Path $RepoRoot "tools\audit-p2-win01-closeout.ps1") `
+& (Join-Path $RepoRoot "tools\audit-m01-closeout.ps1") `
     -EvidenceRoot $EvidenceRoot `
     -JsonPath $JsonPath `
     -MarkdownPath $MarkdownPath | Out-Null
@@ -65,7 +65,7 @@ $MismatchedFixtureDir = Join-Path $OutputDir "mismatched-yune-root-fixture"
     -OutputDir $MismatchedFixtureDir | Out-Null
 
 $MismatchedEvidenceRoot = Join-Path $MismatchedFixtureDir "evidence"
-$MismatchedCommandsPath = Join-Path $MismatchedEvidenceRoot "p2-win01-installer\commands.txt"
+$MismatchedCommandsPath = Join-Path $MismatchedEvidenceRoot "m01\installer\commands.txt"
 if (-not (Test-Path -LiteralPath $MismatchedCommandsPath)) {
     throw "mismatched Yune-root fixture did not write commands.txt"
 }
@@ -77,7 +77,7 @@ if (-not (Test-Path -LiteralPath $MismatchedCommandsPath)) {
 
 $MismatchedJsonPath = Join-Path $OutputDir "audit-mismatched-yune-root.json"
 $MismatchedMarkdownPath = Join-Path $OutputDir "audit-mismatched-yune-root.md"
-& (Join-Path $RepoRoot "tools\audit-p2-win01-closeout.ps1") `
+& (Join-Path $RepoRoot "tools\audit-m01-closeout.ps1") `
     -EvidenceRoot $MismatchedEvidenceRoot `
     -JsonPath $MismatchedJsonPath `
     -MarkdownPath $MismatchedMarkdownPath | Out-Null

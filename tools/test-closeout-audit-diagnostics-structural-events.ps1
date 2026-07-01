@@ -6,7 +6,7 @@ $ErrorActionPreference = "Stop"
 
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 if ($OutputDir -eq "") {
-    $OutputDir = Join-Path $env:TEMP "yune-windows\p2-win01-audit-diagnostics-structural-events-test"
+    $OutputDir = Join-Path $env:TEMP "yune-windows\m01-audit-diagnostics-structural-events-test"
 }
 $OutputDir = [System.IO.Path]::GetFullPath($OutputDir)
 $AllowedRoot = [System.IO.Path]::GetFullPath((Join-Path $env:TEMP "yune-windows"))
@@ -21,7 +21,7 @@ if (Test-Path -LiteralPath $OutputDir) {
     -OutputDir $OutputDir | Out-Null
 
 $EvidenceRoot = Join-Path $OutputDir "evidence"
-$DiagnosticsZip = Join-Path $EvidenceRoot "p2-win01-settings\registered-session-diagnostics\synthetic.zip"
+$DiagnosticsZip = Join-Path $EvidenceRoot "m01\settings\registered-session-diagnostics\synthetic.zip"
 if (-not (Test-Path -LiteralPath $DiagnosticsZip)) {
     throw "complete synthetic fixture did not write diagnostics bundle"
 }
@@ -47,7 +47,7 @@ Compress-Archive -Path (Join-Path $EditDir "*") -DestinationPath $DiagnosticsZip
 
 $JsonPath = Join-Path $OutputDir "audit-diagnostics-structural-events.json"
 $MarkdownPath = Join-Path $OutputDir "audit-diagnostics-structural-events.md"
-& (Join-Path $RepoRoot "tools\audit-p2-win01-closeout.ps1") `
+& (Join-Path $RepoRoot "tools\audit-m01-closeout.ps1") `
     -EvidenceRoot $EvidenceRoot `
     -JsonPath $JsonPath `
     -MarkdownPath $MarkdownPath | Out-Null

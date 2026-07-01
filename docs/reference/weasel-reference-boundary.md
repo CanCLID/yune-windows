@@ -27,13 +27,16 @@ Audit these areas first:
 
 ## Required Audit Output
 
-Post-rename dogfood work should regenerate public Yune Windows evidence such as:
+Post-rename dogfood work should keep public Yune Windows evidence compact:
 
 ```text
-docs/evidence/p2-win01-bootstrap/reference-audit.md
-docs/evidence/p2-win01-bootstrap/process-model.md
-docs/evidence/p2-win01-bootstrap/first-smoke-target.md
+docs/evidence/m01/summary.md
+docs/evidence/m01/summary.json
 ```
+
+When deeper reference-audit files are needed, generate them under
+`docs/evidence/m01/bootstrap/` for the local run, then distill the result back
+into the compact M01 summary instead of retaining bulky artifacts.
 
 Each audited module should be classified as one of:
 

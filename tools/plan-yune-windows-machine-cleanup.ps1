@@ -12,7 +12,7 @@ $ErrorActionPreference = "Stop"
 
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 if ($OutputPath -eq "") {
-    $OutputPath = Join-Path $RepoRoot "docs\evidence\p2-win01-installer\machine-cleanup-plan.json"
+    $OutputPath = Join-Path $RepoRoot "docs\evidence\m01\installer\machine-cleanup-plan.json"
 }
 
 $InstallRoot = [System.IO.Path]::GetFullPath($InstallDir)

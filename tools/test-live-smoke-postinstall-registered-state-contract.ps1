@@ -3,7 +3,7 @@ param()
 $ErrorActionPreference = "Stop"
 
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
-$OrchestratorPath = Join-Path $RepoRoot "tools\run-p2-win01-live-smoke.ps1"
+$OrchestratorPath = Join-Path $RepoRoot "tools\run-m01-live-smoke.ps1"
 $SupportPath = Join-Path $RepoRoot "tools\live-smoke-support.ps1"
 $OrchestratorSource = Get-Content -Raw -LiteralPath $OrchestratorPath
 $SupportSource = Get-Content -Raw -LiteralPath $SupportPath
@@ -35,7 +35,7 @@ function Require-OrderedText {
 
     $Index = $OrchestratorSource.IndexOf($Needle, $PreviousIndex.Value + 1)
     if ($Index -lt 0) {
-        throw "tools\run-p2-win01-live-smoke.ps1 is missing $Reason."
+        throw "tools\run-m01-live-smoke.ps1 is missing $Reason."
     }
     $PreviousIndex.Value = $Index
 }
@@ -54,7 +54,7 @@ Require-OrderedText 'Record-Command $NotepadCommand' "Notepad command transcript
 
 . $SupportPath
 
-$TempRoot = Join-Path $env:TEMP "yune-windows\p2-win01-postinstall-registered-state-contract"
+$TempRoot = Join-Path $env:TEMP "yune-windows\m01-postinstall-registered-state-contract"
 if (Test-Path -LiteralPath $TempRoot) {
     Remove-Item -LiteralPath $TempRoot -Recurse -Force
 }

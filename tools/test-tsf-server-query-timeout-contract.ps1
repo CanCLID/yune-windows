@@ -4,7 +4,7 @@ $ErrorActionPreference = "Stop"
 
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $TsfSourcePath = Join-Path $RepoRoot "src\tsf\yune_windows_tsf.cpp"
-$PlanPath = Join-Path $RepoRoot "docs\plans\active\p2-win01-plan-windows-product.md"
+$PlanPath = Join-Path $RepoRoot "docs\plans\history\m01-plan-windows-product.md"
 if (-not (Test-Path -LiteralPath $TsfSourcePath)) {
     throw "missing TSF source: $TsfSourcePath"
 }

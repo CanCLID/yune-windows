@@ -28,7 +28,7 @@ if (-not (Test-Path -LiteralPath $ProfileTool)) {
 }
 
 if ($EvidenceDir -eq "") {
-    $EvidenceDir = Join-Path $RepoRoot "docs\evidence\p2-win01-tsf-smoke"
+    $EvidenceDir = Join-Path $RepoRoot "docs\evidence\m01\tsf-smoke"
 }
 New-Item -ItemType Directory -Force $EvidenceDir | Out-Null
 $ResultPath = Join-Path $EvidenceDir "notepad-smoke-result.md"

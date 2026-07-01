@@ -1,0 +1,25 @@
+{
+  "milestone": "M03",
+  "title": "Development Inner Loop",
+  "status": "complete",
+  "evidence_policy": "compact-summary-only",
+  "raw_artifacts_pruned": [
+    "runtime validation transcripts",
+    "holder snapshots",
+    "reload outputs",
+    "profile state snapshots"
+  ],
+  "proven": [
+    "no-install dev REPL",
+    "installed-server reload with backup and readiness",
+    "TSF reload holder safety",
+    "dry-run watch routing",
+    "dev tooling safety boundary"
+  ],
+  "regeneration_commands": [
+    "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\test-dev-tooling-safety-contract.ps1",
+    "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\test-dev-reload-no-reregister-contract.ps1",
+    "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\dev\\dev-repl.ps1 -InputText ngohaig -Once"
+  ],
+  "live_machine_state_required": false
+}

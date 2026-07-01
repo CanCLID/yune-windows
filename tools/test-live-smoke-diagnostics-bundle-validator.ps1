@@ -3,7 +3,7 @@ param()
 $ErrorActionPreference = "Stop"
 
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
-$OrchestratorPath = Join-Path $RepoRoot "tools\run-p2-win01-live-smoke.ps1"
+$OrchestratorPath = Join-Path $RepoRoot "tools\run-m01-live-smoke.ps1"
 if (-not (Test-Path -LiteralPath $OrchestratorPath)) {
     throw "missing live smoke orchestrator: $OrchestratorPath"
 }
@@ -39,7 +39,7 @@ if ($null -eq $FunctionAst) {
 }
 Invoke-Expression $FunctionAst.Extent.Text
 
-$OutputDir = Join-Path $env:TEMP "yune-windows\p2-win01-diagnostics-bundle-validator-test"
+$OutputDir = Join-Path $env:TEMP "yune-windows\m01-diagnostics-bundle-validator-test"
 if (Test-Path -LiteralPath $OutputDir) {
     Remove-Item -LiteralPath $OutputDir -Recurse -Force
 }

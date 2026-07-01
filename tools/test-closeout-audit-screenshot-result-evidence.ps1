@@ -6,7 +6,7 @@ $ErrorActionPreference = "Stop"
 
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 if ($OutputDir -eq "") {
-    $OutputDir = Join-Path $env:TEMP "yune-windows\p2-win01-audit-screenshot-result-evidence-test"
+    $OutputDir = Join-Path $env:TEMP "yune-windows\m01-audit-screenshot-result-evidence-test"
 }
 $OutputDir = [System.IO.Path]::GetFullPath($OutputDir)
 $AllowedRoot = [System.IO.Path]::GetFullPath((Join-Path $env:TEMP "yune-windows"))
@@ -33,8 +33,8 @@ function Remove-ResultLine([string]$RelativePath, [string]$LinePattern) {
 }
 
 foreach ($ResultPath in @(
-        "p2-win01-tsf-smoke\notepad-smoke-result.md",
-        "p2-win01-tsf-smoke\chromium-smoke-result.md"
+        "m01\tsf-smoke\notepad-smoke-result.md",
+        "m01\tsf-smoke\chromium-smoke-result.md"
     )) {
     Remove-ResultLine `
         -RelativePath $ResultPath `
@@ -46,7 +46,7 @@ foreach ($ResultPath in @(
 
 $JsonPath = Join-Path $OutputDir "audit-without-screenshot-result-proof.json"
 $MarkdownPath = Join-Path $OutputDir "audit-without-screenshot-result-proof.md"
-& (Join-Path $RepoRoot "tools\audit-p2-win01-closeout.ps1") `
+& (Join-Path $RepoRoot "tools\audit-m01-closeout.ps1") `
     -EvidenceRoot $EvidenceRoot `
     -JsonPath $JsonPath `
     -MarkdownPath $MarkdownPath | Out-Null

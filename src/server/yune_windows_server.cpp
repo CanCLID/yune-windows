@@ -342,7 +342,7 @@ public:
         traits_.user_data_dir = user_dir_.c_str();
         traits_.distribution_name = "Yune Windows";
         traits_.distribution_code_name = "yune-windows";
-        traits_.distribution_version = "p2-win01";
+        traits_.distribution_version = "0.1.0-dev";
         traits_.app_name = "rime.yune-windows.server";
         traits_.min_log_level = 2;
         traits_.log_dir = "";

@@ -4,16 +4,16 @@ $ErrorActionPreference = "Stop"
 
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $SupportPath = Join-Path $RepoRoot "tools\live-smoke-support.ps1"
-$OrchestratorPath = Join-Path $RepoRoot "tools\run-p2-win01-live-smoke.ps1"
+$OrchestratorPath = Join-Path $RepoRoot "tools\run-m01-live-smoke.ps1"
 
 $SupportSource = Get-Content -Raw -LiteralPath $SupportPath
-if ($SupportSource -notmatch 'function\s+Assert-P2Win01PreflightReady') {
-    throw "live-smoke-support.ps1 is missing Assert-P2Win01PreflightReady."
+if ($SupportSource -notmatch 'function\s+Assert-M01PreflightReady') {
+    throw "live-smoke-support.ps1 is missing Assert-M01PreflightReady."
 }
 
 . $SupportPath
 
-$TempDir = Join-Path $env:TEMP "yune-windows\p2-win01-preflight-readiness-gate-test"
+$TempDir = Join-Path $env:TEMP "yune-windows\m01-preflight-readiness-gate-test"
 if (Test-Path -LiteralPath $TempDir) {
     Remove-Item -LiteralPath $TempDir -Recurse -Force
 }
@@ -79,7 +79,7 @@ function Expect-Failure {
 
     $Message = ""
     try {
-        Assert-P2Win01PreflightReady -Report $Report -Context "synthetic preflight"
+        Assert-M01PreflightReady -Report $Report -Context "synthetic preflight"
     }
     catch {
         $Message = $_.Exception.Message
@@ -115,7 +115,7 @@ function New-StringTypedReport {
     return $Report
 }
 
-Assert-P2Win01PreflightReady -Report (New-Report) -Context "clean synthetic preflight"
+Assert-M01PreflightReady -Report (New-Report) -Context "clean synthetic preflight"
 
 Expect-Failure -Report (New-Report -Ready $false) -Expected "ready_for_live_smoke=false"
 Expect-Failure -Report (New-Report -MachineStateChanged $true) -Expected "machine_state_changed=true"
@@ -154,10 +154,10 @@ Expect-Failure -Report (New-StringTypedReport) -Expected "ready_for_live_smoke m
 $OrchestratorSource = Get-Content -Raw -LiteralPath $OrchestratorPath
 foreach ($Required in @(
         '$CurrentStage = "live-preflight"',
-        '$LivePreflightCommand = "tools\run-p2-win01-live-smoke.ps1 -PreflightOnly',
+        '$LivePreflightCommand = "tools\run-m01-live-smoke.ps1 -PreflightOnly',
         'Record-Command $LivePreflightCommand',
-        'Write-P2Win01PreflightReport',
-        'Assert-P2Win01PreflightReady',
+        'Write-M01PreflightReport',
+        'Assert-M01PreflightReady',
         'Record-CommandSuccess $LivePreflightCommand',
         'Record-CommandFailure $LivePreflightCommand',
         '-FailureStage $CurrentStage'
@@ -180,9 +180,9 @@ if ($LivePreflightIndex -gt $InstallIndex) {
     throw "live preflight readiness gate must run before install."
 }
 
-$CommandIndex = $OrchestratorSource.IndexOf('$LivePreflightCommand = "tools\run-p2-win01-live-smoke.ps1 -PreflightOnly', $LivePreflightIndex)
+$CommandIndex = $OrchestratorSource.IndexOf('$LivePreflightCommand = "tools\run-m01-live-smoke.ps1 -PreflightOnly', $LivePreflightIndex)
 $RecordIndex = $OrchestratorSource.IndexOf('Record-Command $LivePreflightCommand', $LivePreflightIndex)
-$AssertIndex = $OrchestratorSource.IndexOf('Assert-P2Win01PreflightReady', $LivePreflightIndex)
+$AssertIndex = $OrchestratorSource.IndexOf('Assert-M01PreflightReady', $LivePreflightIndex)
 $SuccessIndex = $OrchestratorSource.IndexOf('Record-CommandSuccess $LivePreflightCommand', $LivePreflightIndex)
 $FailureIndex = $OrchestratorSource.IndexOf('Record-CommandFailure $LivePreflightCommand', $LivePreflightIndex)
 if ($CommandIndex -lt 0 -or $RecordIndex -lt 0 -or $AssertIndex -lt 0 -or $SuccessIndex -lt 0 -or $FailureIndex -lt 0) {
@@ -195,7 +195,7 @@ if ($FailureIndex -lt $RecordIndex) {
     throw "live preflight command transcript must record FAIL only after the start line can be written."
 }
 
-$Plan = Get-Content -Raw -LiteralPath (Join-Path $RepoRoot "docs\plans\active\p2-win01-plan-windows-product.md")
+$Plan = Get-Content -Raw -LiteralPath (Join-Path $RepoRoot "docs\plans\history\m01-plan-windows-product.md")
 if ($Plan -notmatch [regex]::Escape("tools\test-live-smoke-preflight-readiness-gate.ps1")) {
     throw "active plan must mention the live preflight readiness gate contract."
 }

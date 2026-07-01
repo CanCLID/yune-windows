@@ -6,7 +6,7 @@ $ErrorActionPreference = "Stop"
 
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 if ($OutputDir -eq "") {
-    $OutputDir = Join-Path $env:TEMP "yune-windows\p2-win01-diagnostics-log-privacy-test"
+    $OutputDir = Join-Path $env:TEMP "yune-windows\m01-diagnostics-log-privacy-test"
 }
 
 $ExportScript = Join-Path $RepoRoot "tools\export-yune-windows-diagnostics.ps1"

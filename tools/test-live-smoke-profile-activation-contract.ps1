@@ -6,7 +6,7 @@ $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $SupportScript = Join-Path $RepoRoot "tools\live-smoke-support.ps1"
 $NotepadSmoke = Join-Path $RepoRoot "tools\run-notepad-smoke.ps1"
 $ChromiumSmoke = Join-Path $RepoRoot "tools\run-chromium-smoke.ps1"
-$LiveSmoke = Join-Path $RepoRoot "tools\run-p2-win01-live-smoke.ps1"
+$LiveSmoke = Join-Path $RepoRoot "tools\run-m01-live-smoke.ps1"
 
 $SupportSource = Get-Content -Raw -LiteralPath $SupportScript
 foreach ($Required in @(

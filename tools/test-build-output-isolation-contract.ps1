@@ -19,8 +19,8 @@ foreach ($RelativePath in $BuildSmokeScripts) {
         throw "missing build-smoke script: $RelativePath"
     }
     $Source = Get-Content -Raw -LiteralPath $Path
-    if ($Source -match 'Join-Path\s+\$env:TEMP\s+"yune-windows\\p2-win01-(tsf|server-readiness)"') {
-        throw "$RelativePath must not default to a shared p2-win01 build directory."
+    if ($Source -match 'Join-Path\s+\$env:TEMP\s+"yune-windows\\m01-(tsf|server-readiness)"') {
+        throw "$RelativePath must not default to a shared m01 build directory."
     }
     if ($Source -notmatch 'GetCurrentProcess\(\)\.Id') {
         throw "$RelativePath must include the current process id in its default build output directory."

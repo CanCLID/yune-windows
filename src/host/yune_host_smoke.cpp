@@ -435,7 +435,7 @@ int wmain(int argc, wchar_t** argv) {
         traits.user_data_dir = user_dir.c_str();
         traits.distribution_name = "Yune Windows";
         traits.distribution_code_name = "yune-windows";
-        traits.distribution_version = "p2-win01";
+        traits.distribution_version = "0.1.0-dev";
         traits.app_name = "rime.yune-windows.host-smoke";
         traits.min_log_level = 2;
         traits.log_dir = "";

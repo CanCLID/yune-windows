@@ -12,11 +12,13 @@ engine and is consumed through a packaged Windows ABI surface.
 - This public baseline is the renamed Yune Windows product tree.
 - Fresh post-rename live evidence exists for install/register, Notepad,
   Chromium, diagnostics, uninstall, and post-reboot cleanup.
-- P2-WIN03 Development Inner Loop is complete: the repo has non-elevated dev
+- M03 Development Inner Loop is complete: the repo has non-elevated dev
   REPL, installed-server reload, installed TSF DLL reload, disposable test
-  window, and dry-run watch tooling. The next product gate is P2-WIN04 Daily
-  Typing Quality unless dogfood package hardening is explicitly prioritized
-  first.
+  window, and dry-run watch tooling.
+- M04 Candidate Window and Typing Quality is implemented; holder-free live
+  app proof for the DLL-side behavior remains open.
+- M05 IME Toggles, Language Bar, and Settings is the active plan unless
+  dogfood package hardening is explicitly prioritized first.
 - The legacy Weasel-derived implementation remains useful reference material
   for TSF, server, IPC, installer, candidate-window positioning, and smoke
   harness behavior.

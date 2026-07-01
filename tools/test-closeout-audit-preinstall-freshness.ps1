@@ -6,7 +6,7 @@ $ErrorActionPreference = "Stop"
 
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 if ($OutputDir -eq "") {
-    $OutputDir = Join-Path $env:TEMP "yune-windows\p2-win01-audit-preinstall-freshness-test"
+    $OutputDir = Join-Path $env:TEMP "yune-windows\m01-audit-preinstall-freshness-test"
 }
 if (Test-Path -LiteralPath $OutputDir) {
     Remove-Item -LiteralPath $OutputDir -Recurse -Force
@@ -25,13 +25,13 @@ function Write-EvidenceFile([string]$EvidenceRoot, [string]$RelativePath, [strin
 }
 
 function Write-InstallActivationEvidence([string]$EvidenceRoot) {
-    Write-EvidenceFile $EvidenceRoot "p2-win01-installer\commands.txt" @"
+    Write-EvidenceFile $EvidenceRoot "m01\installer\commands.txt" @"
 tools\install-yune-windows-ime.ps1 -ApprovedMachineStateChange
 tools\run-notepad-smoke.ps1 -ApprovedMachineStateChange
 tools\run-chromium-smoke.ps1 -ApprovedMachineStateChange
 tools\uninstall-yune-windows-ime.ps1 -ApprovedMachineStateChange
 "@
-    Write-EvidenceFile $EvidenceRoot "p2-win01-installer\result.md" @"
+    Write-EvidenceFile $EvidenceRoot "m01\installer\result.md" @"
 # Install And Smoke Result
 
 Status: passed
@@ -41,7 +41,7 @@ Notepad smoke: completed.
 Chromium smoke: completed.
 Diagnostics bundle: synthetic.zip.
 "@
-    Write-EvidenceFile $EvidenceRoot "p2-win01-installer\post-install-state.json" @"
+    Write-EvidenceFile $EvidenceRoot "m01\installer\post-install-state.json" @"
 {
   "install_dir": "C:\\Users\\example\\AppData\\Local\\Yune\\WindowsIme",
   "install_dir_exists": true,
@@ -51,7 +51,7 @@ Diagnostics bundle: synthetic.zip.
   "server_processes": []
 }
 "@
-    Write-EvidenceFile $EvidenceRoot "p2-win01-tsf-smoke\notepad-post-state.json" @"
+    Write-EvidenceFile $EvidenceRoot "m01\tsf-smoke\notepad-post-state.json" @"
 {
   "install_dir": "C:\\Users\\example\\AppData\\Local\\Yune\\WindowsIme",
   "install_dir_exists": true,
@@ -66,7 +66,7 @@ Diagnostics bundle: synthetic.zip.
 function Get-InstallGateStatus([string]$EvidenceRoot, [string]$Name) {
     $JsonPath = Join-Path $OutputDir "$Name\audit.json"
     $MarkdownPath = Join-Path $OutputDir "$Name\audit.md"
-    & (Join-Path $RepoRoot "tools\audit-p2-win01-closeout.ps1") `
+    & (Join-Path $RepoRoot "tools\audit-m01-closeout.ps1") `
         -EvidenceRoot $EvidenceRoot `
         -JsonPath $JsonPath `
         -MarkdownPath $MarkdownPath | Out-Null
@@ -90,7 +90,7 @@ if ($MissingStatus -ne "invalid") {
 
 $DirtyPreinstallEvidence = New-TestEvidenceRoot "dirty-preinstall"
 Write-InstallActivationEvidence $DirtyPreinstallEvidence
-Write-EvidenceFile $DirtyPreinstallEvidence "p2-win01-installer\pre-install-state.json" @"
+Write-EvidenceFile $DirtyPreinstallEvidence "m01\installer\pre-install-state.json" @"
 {
   "install_dir": "C:\\Users\\example\\AppData\\Local\\Yune\\WindowsIme",
   "install_dir_exists": true,
@@ -113,7 +113,7 @@ if ($DirtyStatus -ne "invalid") {
 
 $UnverifiedPreinstallEvidence = New-TestEvidenceRoot "unverified-preinstall"
 Write-InstallActivationEvidence $UnverifiedPreinstallEvidence
-Write-EvidenceFile $UnverifiedPreinstallEvidence "p2-win01-installer\pre-install-state.json" @"
+Write-EvidenceFile $UnverifiedPreinstallEvidence "m01\installer\pre-install-state.json" @"
 {
   "install_dir": "C:\\Users\\example\\AppData\\Local\\Yune\\WindowsIme",
   "install_dir_exists": false,

@@ -7,7 +7,7 @@ $ErrorActionPreference = "Stop"
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 if ($OutputDir -eq "") {
     $ProcessId = [System.Diagnostics.Process]::GetCurrentProcess().Id
-    $OutputDir = Join-Path $env:TEMP "yune-windows\p2-win01-tsf-$ProcessId"
+    $OutputDir = Join-Path $env:TEMP "yune-windows\m01-tsf-$ProcessId"
 }
 
 $BuildScript = Join-Path $RepoRoot "tools\build-tsf-shell.ps1"

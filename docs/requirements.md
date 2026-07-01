@@ -2,12 +2,12 @@
 
 ## Yune Windows Product Requirements
 
-**Status:** public rename baseline, P2-WIN02 product-owned server lifecycle,
-structured cleanup hardening, P2-WIN03 development inner-loop tooling, and
-P2-WIN04 candidate typing-quality implementation are complete. Fresh
+**Status:** public rename baseline, M02 product-owned server lifecycle,
+structured cleanup hardening, M03 development inner-loop tooling, and
+M04 candidate typing-quality implementation are complete. Fresh
 post-rename live evidence proves install/register, product-owned Notepad and
 Chromium typing, diagnostics, uninstall, and post-reboot no-residue cleanup on
-the installed IME. P2-WIN04 server-side behavior is runtime-verified; DLL-side
+the installed IME. M04 server-side behavior is runtime-verified; DLL-side
 typing behavior still needs holder-free live app proof.
 
 - [x] **WIN-01 - Product identity:** Product name, repo slug, install root,
@@ -37,8 +37,8 @@ typing behavior still needs holder-free live app proof.
   install target, TSF registration, profile activation, Notepad input,
   candidate display, candidate commit, Chromium text-field input, diagnostics
   export, uninstall, and cleanup under the Yune Windows names. Current evidence
-  covers the full path, and P2-WIN02 adds product-owned startup and structured
-  cleanup result support. The latest approved P2-WIN02 live attempt reached
+  covers the full path, and M02 adds product-owned startup and structured
+  cleanup result support. The latest approved M02 live attempt reached
   install/register, profile activation, Notepad, Chromium, diagnostics export,
   and structured uninstall. The installed Notepad and Chromium smokes both
   passed, committed `我係個`, and recorded product-owned server start/readiness
@@ -75,7 +75,7 @@ typing behavior still needs holder-free live app proof.
   use unique per-run pipes by default so concurrent scratch servers do not
   collide on the dev pipe mutex; fixed pipes remain available only through an
   explicit `-PipeName` override.
-- [ ] **WIN-14 - Daily typing quality:** P2-WIN04 implements candidate comment
+- [ ] **WIN-14 - Daily typing quality:** M04 implements candidate comment
   hygiene, larger candidate supply for client-side paging, PageUp/PageDown
   paging, read-session caret anchoring, owner/no-orphan candidate window
   lifecycle hardening, and punctuation/full-width forwarding through the

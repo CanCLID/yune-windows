@@ -4,7 +4,7 @@ $ErrorActionPreference = "Stop"
 
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $SupportPath = Join-Path $RepoRoot "tools\live-smoke-support.ps1"
-$OrchestratorPath = Join-Path $RepoRoot "tools\run-p2-win01-live-smoke.ps1"
+$OrchestratorPath = Join-Path $RepoRoot "tools\run-m01-live-smoke.ps1"
 $CleanupPath = Join-Path $RepoRoot "tools\clear-yune-windows-machine-residue.ps1"
 
 $SupportSource = Get-Content -Raw -LiteralPath $SupportPath
@@ -108,7 +108,7 @@ function Get-YuneWindowsMachineResidue {
     throw "machine residue detector executed before approval guard"
 }
 
-$TempRoot = Join-Path $env:TEMP "yune-windows\p2-win01-state-snapshot-approval-note"
+$TempRoot = Join-Path $env:TEMP "yune-windows\m01-state-snapshot-approval-note"
 if (Test-Path -LiteralPath $TempRoot) {
     Remove-Item -LiteralPath $TempRoot -Recurse -Force
 }

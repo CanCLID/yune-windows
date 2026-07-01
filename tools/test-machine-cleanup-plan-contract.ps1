@@ -39,8 +39,8 @@ foreach ($Forbidden in @(
     }
 }
 
-$OutputPath = Join-Path $env:TEMP "yune-windows\p2-win01-machine-cleanup-plan-test.json"
-$CurrentResiduePath = Join-Path $env:TEMP "yune-windows\p2-win01-machine-cleanup-plan-test-current-residue.json"
+$OutputPath = Join-Path $env:TEMP "yune-windows\m01-machine-cleanup-plan-test.json"
+$CurrentResiduePath = Join-Path $env:TEMP "yune-windows\m01-machine-cleanup-plan-test-current-residue.json"
 [ordered]@{
     machine_state_checked = $true
     machine_state_issues = @("PendingFileRenameOperations contains YuneWindows residue: \??\C:\Windows\System32\YuneWindows.dll.old.0")

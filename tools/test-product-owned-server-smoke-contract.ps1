@@ -9,7 +9,7 @@ foreach ($Entry in @(
         @{ Name = "Chromium"; Source = $ChromiumSmoke }
     )) {
     if ($Entry.Source -match 'start-yune-windows-server\.ps1') {
-        throw "$($Entry.Name) smoke must not manually start YuneWindowsServer.exe after P2-WIN02."
+        throw "$($Entry.Name) smoke must not manually start YuneWindowsServer.exe after M02."
     }
     foreach ($Pattern in @(
             'Assert-NoYuneWindowsServerProcess',

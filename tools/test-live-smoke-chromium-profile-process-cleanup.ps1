@@ -19,7 +19,7 @@ if ($ChromiumSource -notmatch 'finally\s*\{(?s:.*?)Stop-ProcessesUsingPathInComm
     throw "run-chromium-smoke.ps1 must stop Chromium processes using the temporary profile before retrying profile cleanup."
 }
 
-$TempRoot = Join-Path $env:TEMP ("yune-windows\p2-win01-chromium-profile-cleanup-test\" + [Guid]::NewGuid().ToString("N"))
+$TempRoot = Join-Path $env:TEMP ("yune-windows\m01-chromium-profile-cleanup-test\" + [Guid]::NewGuid().ToString("N"))
 $ProfileRoot = Join-Path $TempRoot "profile"
 New-Item -ItemType Directory -Force -Path $ProfileRoot | Out-Null
 

@@ -4,8 +4,8 @@ $ErrorActionPreference = "Stop"
 
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $FixtureScript = Join-Path $RepoRoot "tools\test-closeout-audit-complete-synthetic.ps1"
-$AuditScript = Join-Path $RepoRoot "tools\audit-p2-win01-closeout.ps1"
-$OutputDir = Join-Path $env:TEMP "yune-windows\p2-win01-audit-state-snapshot-timestamps-test"
+$AuditScript = Join-Path $RepoRoot "tools\audit-m01-closeout.ps1"
+$OutputDir = Join-Path $env:TEMP "yune-windows\m01-audit-state-snapshot-timestamps-test"
 $EvidenceRoot = Join-Path $OutputDir "evidence"
 $JsonPath = Join-Path $OutputDir "audit-under-test.json"
 $MarkdownPath = Join-Path $OutputDir "audit-under-test.md"
@@ -54,12 +54,12 @@ function Expect-GateStatus([object]$Audit, [string]$GateId, [string]$ExpectedSta
 New-CompleteFixture
 $StaleCapturedAt = "2026-06-25T08:59:59.0000000-07:00"
 foreach ($SnapshotPath in @(
-        "p2-win01-installer\pre-install-state.json",
-        "p2-win01-installer\post-install-state.json",
-        "p2-win01-tsf-smoke\notepad-post-state.json",
-        "p2-win01-tsf-smoke\chromium-post-state.json",
-        "p2-win01-settings\diagnostics-pre-state.json",
-        "p2-win01-installer\post-cleanup-state.json"
+        "m01\installer\pre-install-state.json",
+        "m01\installer\post-install-state.json",
+        "m01\tsf-smoke\notepad-post-state.json",
+        "m01\tsf-smoke\chromium-post-state.json",
+        "m01\settings\diagnostics-pre-state.json",
+        "m01\installer\post-cleanup-state.json"
     )) {
     Set-SnapshotCapturedAt -RelativePath $SnapshotPath -CapturedAt $StaleCapturedAt
 }
@@ -72,7 +72,7 @@ Expect-GateStatus -Audit $StaleAudit -GateId "diagnostics-export" -ExpectedStatu
 Expect-GateStatus -Audit $StaleAudit -GateId "uninstall-cleanup" -ExpectedStatus "invalid"
 
 New-CompleteFixture
-Remove-SnapshotCapturedAt -RelativePath "p2-win01-installer\post-install-state.json"
+Remove-SnapshotCapturedAt -RelativePath "m01\installer\post-install-state.json"
 $MissingTimestampAudit = Invoke-CloseoutAudit
 Expect-GateStatus `
     -Audit $MissingTimestampAudit `

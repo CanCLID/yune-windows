@@ -6,7 +6,7 @@ $ErrorActionPreference = "Stop"
 
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 if ($OutputDir -eq "") {
-    $OutputDir = Join-Path $env:TEMP "yune-windows\p2-win01-audit-status-line-quality-test"
+    $OutputDir = Join-Path $env:TEMP "yune-windows\m01-audit-status-line-quality-test"
 }
 $OutputDir = [System.IO.Path]::GetFullPath($OutputDir)
 $AllowedRoot = [System.IO.Path]::GetFullPath((Join-Path $env:TEMP "yune-windows"))
@@ -47,7 +47,7 @@ function Assert-GateRejectsWeakStatusLine {
     $SafeGateId = $GateId -replace '[^A-Za-z0-9_-]', '-'
     $JsonPath = Join-Path $OutputDir "audit-status-line-quality-$SafeGateId.json"
     $MarkdownPath = Join-Path $OutputDir "audit-status-line-quality-$SafeGateId.md"
-    & (Join-Path $RepoRoot "tools\audit-p2-win01-closeout.ps1") `
+    & (Join-Path $RepoRoot "tools\audit-m01-closeout.ps1") `
         -EvidenceRoot $EvidenceRoot `
         -JsonPath $JsonPath `
         -MarkdownPath $MarkdownPath | Out-Null
@@ -67,15 +67,15 @@ function Assert-GateRejectsWeakStatusLine {
 
 Assert-GateRejectsWeakStatusLine `
     -GateId "tsf-notepad-smoke" `
-    -RelativePath "p2-win01-tsf-smoke\notepad-smoke-result.md"
+    -RelativePath "m01\tsf-smoke\notepad-smoke-result.md"
 Assert-GateRejectsWeakStatusLine `
     -GateId "chromium-text-field-smoke" `
-    -RelativePath "p2-win01-tsf-smoke\chromium-smoke-result.md"
+    -RelativePath "m01\tsf-smoke\chromium-smoke-result.md"
 Assert-GateRejectsWeakStatusLine `
     -GateId "fresh-install-registration-activation" `
-    -RelativePath "p2-win01-installer\result.md"
+    -RelativePath "m01\installer\result.md"
 Assert-GateRejectsWeakStatusLine `
     -GateId "uninstall-cleanup" `
-    -RelativePath "p2-win01-installer\cleanup-result.md"
+    -RelativePath "m01\installer\cleanup-result.md"
 
 Write-Host "Closeout audit rejects weak result status-line evidence."

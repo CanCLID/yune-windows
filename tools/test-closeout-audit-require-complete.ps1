@@ -3,12 +3,12 @@ param()
 $ErrorActionPreference = "Stop"
 
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
-$AuditPath = Join-Path $RepoRoot "tools\audit-p2-win01-closeout.ps1"
+$AuditPath = Join-Path $RepoRoot "tools\audit-m01-closeout.ps1"
 if (-not (Test-Path -LiteralPath $AuditPath)) {
     throw "missing closeout audit script: $AuditPath"
 }
 
-$TempRoot = Join-Path $env:TEMP "yune-windows\p2-win01-audit-require-complete-test"
+$TempRoot = Join-Path $env:TEMP "yune-windows\m01-audit-require-complete-test"
 if (Test-Path -LiteralPath $TempRoot) {
     Remove-Item -LiteralPath $TempRoot -Recurse -Force
 }
@@ -46,7 +46,7 @@ $Audit = Get-Content -Raw -LiteralPath $JsonPath | ConvertFrom-Json
 if ($Audit.status -ne "incomplete") {
     throw "expected incomplete synthetic audit status, got $($Audit.status)"
 }
-if (($Output | Out-String) -notmatch "P2-WIN01 closeout audit incomplete") {
+if (($Output | Out-String) -notmatch "M01 closeout audit incomplete") {
     throw "closeout audit -RequireComplete should name incomplete status in its error"
 }
 

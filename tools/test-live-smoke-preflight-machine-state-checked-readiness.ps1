@@ -14,7 +14,7 @@ function Test-IsAdministrator {
     return $true
 }
 
-$TempDir = Join-Path $env:TEMP "yune-windows\p2-win01-live-preflight-machine-state-checked-test"
+$TempDir = Join-Path $env:TEMP "yune-windows\m01-live-preflight-machine-state-checked-test"
 if (Test-Path -LiteralPath $TempDir) {
     Remove-Item -LiteralPath $TempDir -Recurse -Force
 }
@@ -36,7 +36,7 @@ $UncheckedResiduePath = Join-Path $TempDir "unchecked-current-residue.json"
     filesystem_leftovers = @()
 } | ConvertTo-Json -Depth 6 | Out-File -LiteralPath $UncheckedResiduePath -Encoding utf8
 
-$Report = New-P2Win01PreflightReport `
+$Report = New-M01PreflightReport `
     -YuneRoot $YuneRoot `
     -InstallDir $InstallDir `
     -CurrentResiduePath $UncheckedResiduePath
@@ -55,7 +55,7 @@ $CheckedResiduePath = Join-Path $TempDir "checked-current-residue.json"
     filesystem_leftovers = @()
 } | ConvertTo-Json -Depth 6 | Out-File -LiteralPath $CheckedResiduePath -Encoding utf8
 
-$CheckedReport = New-P2Win01PreflightReport `
+$CheckedReport = New-M01PreflightReport `
     -YuneRoot $YuneRoot `
     -InstallDir $InstallDir `
     -CurrentResiduePath $CheckedResiduePath

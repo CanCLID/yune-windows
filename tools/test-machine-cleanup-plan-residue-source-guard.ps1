@@ -32,7 +32,7 @@ if ($DetectorIndex -lt $RefreshIndex) {
     throw "machine-cleanup plan must not call Get-YuneWindowsMachineResidue before the explicit refresh branch."
 }
 
-$TempDir = Join-Path $env:TEMP "yune-windows\p2-win01-machine-cleanup-plan-residue-source-guard-test"
+$TempDir = Join-Path $env:TEMP "yune-windows\m01-machine-cleanup-plan-residue-source-guard-test"
 New-Item -ItemType Directory -Force $TempDir | Out-Null
 $ResiduePath = Join-Path $TempDir "current-residue.json"
 $OutputPath = Join-Path $TempDir "machine-cleanup-plan.json"

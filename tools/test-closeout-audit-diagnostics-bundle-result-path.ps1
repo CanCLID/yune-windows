@@ -3,7 +3,7 @@ param()
 $ErrorActionPreference = "Stop"
 
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
-$OutputDir = Join-Path $env:TEMP "yune-windows\p2-win01-audit-diagnostics-bundle-result-path-test"
+$OutputDir = Join-Path $env:TEMP "yune-windows\m01-audit-diagnostics-bundle-result-path-test"
 if (Test-Path -LiteralPath $OutputDir) {
     Remove-Item -LiteralPath $OutputDir -Recurse -Force
 }
@@ -12,7 +12,7 @@ if (Test-Path -LiteralPath $OutputDir) {
     -OutputDir $OutputDir | Out-Null
 
 $EvidenceRoot = Join-Path $OutputDir "evidence"
-$InstallResultPath = Join-Path $EvidenceRoot "p2-win01-installer\result.md"
+$InstallResultPath = Join-Path $EvidenceRoot "m01\installer\result.md"
 $InstallResult = Get-Content -Raw -LiteralPath $InstallResultPath
 $WeakDiagnosticsBlock = "Diagnostics bundle:`r`n`r`n````text`r`nsynthetic.zip`r`n````"
 if ($InstallResult -match 'Diagnostics bundle:\s*`{2,4}text\s*.*?\s*`{2,4}') {
@@ -35,7 +35,7 @@ $WeakenedInstallResult | Out-File -LiteralPath $InstallResultPath -Encoding utf8
 
 $JsonPath = Join-Path $OutputDir "audit-vague-diagnostics-bundle.json"
 $MarkdownPath = Join-Path $OutputDir "audit-vague-diagnostics-bundle.md"
-& (Join-Path $RepoRoot "tools\audit-p2-win01-closeout.ps1") `
+& (Join-Path $RepoRoot "tools\audit-m01-closeout.ps1") `
     -EvidenceRoot $EvidenceRoot `
     -JsonPath $JsonPath `
     -MarkdownPath $MarkdownPath | Out-Null

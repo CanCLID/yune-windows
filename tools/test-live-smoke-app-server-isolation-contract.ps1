@@ -27,7 +27,7 @@ foreach ($RelativePath in @(
         throw "$RelativePath must check for stale YuneWindowsServer.exe before product-owned server startup is exercised."
     }
     if ($Source -match 'start-yune-windows-server\.ps1') {
-        throw "$RelativePath must not manually start YuneWindowsServer.exe after P2-WIN02."
+        throw "$RelativePath must not manually start YuneWindowsServer.exe after M02."
     }
     if ($Source -notmatch '\$CurrentStage = "server-preflight"(?s:.*?)Assert-NoYuneWindowsServerProcess') {
         throw "$RelativePath must record a server-preflight stage before refusing stale shared-server processes."

@@ -6,7 +6,7 @@ $ErrorActionPreference = "Stop"
 
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 if ($OutputDir -eq "") {
-    $OutputDir = Join-Path $env:TEMP "yune-windows\p2-win01-audit-text-smoke-profile-state-test"
+    $OutputDir = Join-Path $env:TEMP "yune-windows\m01-audit-text-smoke-profile-state-test"
 }
 if (Test-Path -LiteralPath $OutputDir) {
     Remove-Item -LiteralPath $OutputDir -Recurse -Force
@@ -46,7 +46,7 @@ function New-TestPngBytes([System.Drawing.Color]$Color) {
 
 function Write-PassingTextSmoke([string]$Name, [string]$Title) {
     $ExpectedCommit = -join ([char[]](0x6211, 0x4fc2, 0x500b))
-    Write-EvidenceFile "p2-win01-tsf-smoke\$Name-smoke-result.md" @"
+    Write-EvidenceFile "m01\tsf-smoke\$Name-smoke-result.md" @"
 # $Title
 
 Observed clipboard text after select-all/copy:
@@ -66,12 +66,12 @@ $CommitPng = New-TestPngBytes ([System.Drawing.Color]::LightGray)
 
 Write-PassingTextSmoke "notepad" "Notepad Smoke"
 Write-PassingTextSmoke "chromium" "Chromium Smoke"
-Write-EvidenceBytes "p2-win01-tsf-smoke\candidate-display-notepad.png" $CandidatePng
-Write-EvidenceBytes "p2-win01-tsf-smoke\notepad-commit.png" $CommitPng
-Write-EvidenceBytes "p2-win01-tsf-smoke\candidate-display-chromium.png" $CandidatePng
-Write-EvidenceBytes "p2-win01-tsf-smoke\chromium-commit.png" $CommitPng
+Write-EvidenceBytes "m01\tsf-smoke\candidate-display-notepad.png" $CandidatePng
+Write-EvidenceBytes "m01\tsf-smoke\notepad-commit.png" $CommitPng
+Write-EvidenceBytes "m01\tsf-smoke\candidate-display-chromium.png" $CandidatePng
+Write-EvidenceBytes "m01\tsf-smoke\chromium-commit.png" $CommitPng
 
-Write-EvidenceFile "p2-win01-tsf-smoke\chromium-post-state.json" @"
+Write-EvidenceFile "m01\tsf-smoke\chromium-post-state.json" @"
 {
   "install_dir": "C:\\Users\\example\\AppData\\Local\\YuneWindows\\WindowsIme",
   "install_dir_exists": true,
@@ -84,7 +84,7 @@ Write-EvidenceFile "p2-win01-tsf-smoke\chromium-post-state.json" @"
 
 $JsonPath = Join-Path $OutputDir "audit.json"
 $MarkdownPath = Join-Path $OutputDir "audit.md"
-& (Join-Path $RepoRoot "tools\audit-p2-win01-closeout.ps1") `
+& (Join-Path $RepoRoot "tools\audit-m01-closeout.ps1") `
     -EvidenceRoot $EvidenceRoot `
     -JsonPath $JsonPath `
     -MarkdownPath $MarkdownPath | Out-Null
@@ -109,8 +109,8 @@ Write-Host "Closeout audit rejects text-smoke evidence without app-specific acti
 & (Join-Path $RepoRoot "tools\test-closeout-audit-complete-synthetic.ps1") `
     -OutputDir $OutputDir
 
-$NotepadPostStatePath = Join-Path $EvidenceRoot "p2-win01-tsf-smoke\notepad-post-state.json"
-$ChromiumPostStatePath = Join-Path $EvidenceRoot "p2-win01-tsf-smoke\chromium-post-state.json"
+$NotepadPostStatePath = Join-Path $EvidenceRoot "m01\tsf-smoke\notepad-post-state.json"
+$ChromiumPostStatePath = Join-Path $EvidenceRoot "m01\tsf-smoke\chromium-post-state.json"
 $NotepadPostState = Get-Content -Raw -LiteralPath $NotepadPostStatePath | ConvertFrom-Json
 $ChromiumPostState = Get-Content -Raw -LiteralPath $ChromiumPostStatePath | ConvertFrom-Json
 $NotepadPostState.captured_at = "2026-06-25T09:11:00.0000000-07:00"
@@ -120,7 +120,7 @@ $ChromiumPostState | ConvertTo-Json -Depth 8 | Out-File -LiteralPath $ChromiumPo
 
 $JsonPath = Join-Path $OutputDir "audit-with-post-state-after-result.json"
 $MarkdownPath = Join-Path $OutputDir "audit-with-post-state-after-result.md"
-& (Join-Path $RepoRoot "tools\audit-p2-win01-closeout.ps1") `
+& (Join-Path $RepoRoot "tools\audit-m01-closeout.ps1") `
     -EvidenceRoot $EvidenceRoot `
     -JsonPath $JsonPath `
     -MarkdownPath $MarkdownPath | Out-Null
@@ -142,8 +142,8 @@ Write-Host "Closeout audit rejects text-smoke evidence when app post-state is ne
     -OutputDir $OutputDir
 
 foreach ($RelativePath in @(
-        "p2-win01-tsf-smoke\notepad-smoke-result.md",
-        "p2-win01-tsf-smoke\chromium-smoke-result.md"
+        "m01\tsf-smoke\notepad-smoke-result.md",
+        "m01\tsf-smoke\chromium-smoke-result.md"
     )) {
     $Path = Join-Path $EvidenceRoot $RelativePath
     $Text = Get-Content -Raw -LiteralPath $Path
@@ -153,7 +153,7 @@ foreach ($RelativePath in @(
 
 $JsonPath = Join-Path $OutputDir "audit-without-active-profile-result-proof.json"
 $MarkdownPath = Join-Path $OutputDir "audit-without-active-profile-result-proof.md"
-& (Join-Path $RepoRoot "tools\audit-p2-win01-closeout.ps1") `
+& (Join-Path $RepoRoot "tools\audit-m01-closeout.ps1") `
     -EvidenceRoot $EvidenceRoot `
     -JsonPath $JsonPath `
     -MarkdownPath $MarkdownPath | Out-Null

@@ -1,0 +1,49 @@
+{
+  "milestone": "M01",
+  "title": "Windows Product Baseline",
+  "status": "complete",
+  "evidence_policy": "compact-summary-only",
+  "raw_artifacts_pruned": [
+    "live transcripts",
+    "screenshots",
+    "diagnostic archives",
+    "state snapshots",
+    "failed-run leftovers"
+  ],
+  "proven": [
+    "packaged Yune host smoke",
+    "TSF shell build",
+    "server IPC smoke",
+    "native candidate-window smoke",
+    "approved live closeout path",
+    "Windows 11 x64 compatibility target",
+    "defer-production-signing decision"
+  ],
+  "compatibility": {
+    "target_id": "M01-WIN11-X64",
+    "live_status": "covered-by-m02-summary",
+    "live_closeout_evidence": "docs/evidence/m02/summary.json",
+    "tested_paths": [
+      "fresh install",
+      "TSF registration",
+      "profile activation",
+      "Notepad",
+      "Chromium",
+      "diagnostics export",
+      "uninstall",
+      "cleanup verification"
+    ]
+  },
+  "signing": {
+    "decision": "defer-production-signing",
+    "unsigned_local_dogfood_only": true,
+    "production_distribution_blocked": true
+  },
+  "regeneration_commands": [
+    "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\test-yune-host-smoke.ps1",
+    "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\test-yune-server-ipc-smoke.ps1",
+    "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\test-candidate-window-smoke.ps1",
+    "powershell -STA -NoProfile -ExecutionPolicy Bypass -File tools\\run-m01-live-smoke.ps1"
+  ],
+  "live_machine_state_required": true
+}

@@ -24,7 +24,7 @@ if (-not (Test-Path -LiteralPath $RimeDll)) {
 }
 if (-not (Test-Path -LiteralPath $SharedDataDir)) {
     $SourceSchemaDir = Join-Path $YuneRoot "apps\yune-web\public\schema"
-    $SharedDataDir = Join-Path $env:TEMP "yune-windows\p2-win01-start-server-schema"
+    $SharedDataDir = Join-Path $env:TEMP "yune-windows\m01-start-server-schema"
 }
 if (-not (Test-Path -LiteralPath $RimeDll)) {
     throw "missing Yune runtime: $RimeDll"

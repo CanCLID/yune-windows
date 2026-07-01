@@ -4,8 +4,8 @@ $ErrorActionPreference = "Stop"
 
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $FixtureScript = Join-Path $RepoRoot "tools\test-closeout-audit-complete-synthetic.ps1"
-$AuditScript = Join-Path $RepoRoot "tools\audit-p2-win01-closeout.ps1"
-$OutputDir = Join-Path $env:TEMP "yune-windows\p2-win01-audit-state-snapshot-schema-test"
+$AuditScript = Join-Path $RepoRoot "tools\audit-m01-closeout.ps1"
+$OutputDir = Join-Path $env:TEMP "yune-windows\m01-audit-state-snapshot-schema-test"
 $EvidenceRoot = Join-Path $OutputDir "evidence"
 $JsonPath = Join-Path $OutputDir "audit-under-test.json"
 $MarkdownPath = Join-Path $OutputDir "audit-under-test.md"
@@ -42,7 +42,7 @@ function Set-SnapshotProperty([string]$RelativePath, [string]$Name, [object]$Val
 
 New-CompleteFixture
 Set-SnapshotProperty `
-    -RelativePath "p2-win01-installer\post-install-state.json" `
+    -RelativePath "m01\installer\post-install-state.json" `
     -Name "machine_registration_checked" `
     -Value "true"
 $StringMachineRegistrationAudit = Invoke-CloseoutAudit
@@ -53,11 +53,11 @@ Expect-GateStatus `
 
 New-CompleteFixture
 Set-SnapshotProperty `
-    -RelativePath "p2-win01-tsf-smoke\notepad-post-state.json" `
+    -RelativePath "m01\tsf-smoke\notepad-post-state.json" `
     -Name "profile_state_verified" `
     -Value "true"
 Set-SnapshotProperty `
-    -RelativePath "p2-win01-tsf-smoke\chromium-post-state.json" `
+    -RelativePath "m01\tsf-smoke\chromium-post-state.json" `
     -Name "profile_state_verified" `
     -Value "true"
 $StringProfileVerifiedAudit = Invoke-CloseoutAudit
@@ -68,11 +68,11 @@ Expect-GateStatus `
 
 New-CompleteFixture
 Set-SnapshotProperty `
-    -RelativePath "p2-win01-tsf-smoke\notepad-post-state.json" `
+    -RelativePath "m01\tsf-smoke\notepad-post-state.json" `
     -Name "profile_state" `
     -Value '{"registered":"true","active":"true"}'
 Set-SnapshotProperty `
-    -RelativePath "p2-win01-tsf-smoke\chromium-post-state.json" `
+    -RelativePath "m01\tsf-smoke\chromium-post-state.json" `
     -Name "profile_state" `
     -Value '{"registered":"true","active":"true"}'
 $StringProfileStateAudit = Invoke-CloseoutAudit
@@ -83,7 +83,7 @@ Expect-GateStatus `
 
 New-CompleteFixture
 Set-SnapshotProperty `
-    -RelativePath "p2-win01-installer\post-cleanup-state.json" `
+    -RelativePath "m01\installer\post-cleanup-state.json" `
     -Name "machine_state_checked" `
     -Value "true"
 $StringCleanupSnapshotAudit = Invoke-CloseoutAudit

@@ -6,7 +6,7 @@ $ErrorActionPreference = "Stop"
 
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 if ($OutputDir -eq "") {
-    $OutputDir = Join-Path $env:TEMP "yune-windows\p2-win01-audit-diagnostics-log-privacy-test"
+    $OutputDir = Join-Path $env:TEMP "yune-windows\m01-audit-diagnostics-log-privacy-test"
 }
 if (Test-Path -LiteralPath $OutputDir) {
     Remove-Item -LiteralPath $OutputDir -Recurse -Force
@@ -15,7 +15,7 @@ if (Test-Path -LiteralPath $OutputDir) {
 $EvidenceRoot = Join-Path $OutputDir "evidence"
 $JsonPath = Join-Path $OutputDir "diagnostics-log-privacy-audit.json"
 $MarkdownPath = Join-Path $OutputDir "diagnostics-log-privacy-audit.md"
-$DiagnosticsZip = Join-Path $EvidenceRoot "p2-win01-settings\registered-session-diagnostics\synthetic.zip"
+$DiagnosticsZip = Join-Path $EvidenceRoot "m01\settings\registered-session-diagnostics\synthetic.zip"
 $ExpectedCommit = -join ([char[]](0x6211, 0x4fc2, 0x500b))
 
 function Invoke-CompleteSynthetic {
@@ -24,7 +24,7 @@ function Invoke-CompleteSynthetic {
 }
 
 function Invoke-Audit {
-    & (Join-Path $RepoRoot "tools\audit-p2-win01-closeout.ps1") `
+    & (Join-Path $RepoRoot "tools\audit-m01-closeout.ps1") `
         -EvidenceRoot $EvidenceRoot `
         -JsonPath $JsonPath `
         -MarkdownPath $MarkdownPath | Out-Null

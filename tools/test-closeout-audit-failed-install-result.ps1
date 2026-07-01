@@ -6,7 +6,7 @@ $ErrorActionPreference = "Stop"
 
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 if ($OutputDir -eq "") {
-    $OutputDir = Join-Path $env:TEMP "yune-windows\p2-win01-audit-failed-install-result-test"
+    $OutputDir = Join-Path $env:TEMP "yune-windows\m01-audit-failed-install-result-test"
 }
 if (Test-Path -LiteralPath $OutputDir) {
     Remove-Item -LiteralPath $OutputDir -Recurse -Force
@@ -16,7 +16,7 @@ if (Test-Path -LiteralPath $OutputDir) {
     -OutputDir $OutputDir
 
 $EvidenceRoot = Join-Path $OutputDir "evidence"
-$InstallResultPath = Join-Path $EvidenceRoot "p2-win01-installer\result.md"
+$InstallResultPath = Join-Path $EvidenceRoot "m01\installer\result.md"
 if (-not (Test-Path -LiteralPath $InstallResultPath)) {
     throw "missing synthetic install result.md"
 }
@@ -30,7 +30,7 @@ $Text | Out-File -LiteralPath $InstallResultPath -Encoding utf8
 
 $JsonPath = Join-Path $OutputDir "audit-failed-install.json"
 $MarkdownPath = Join-Path $OutputDir "audit-failed-install.md"
-& (Join-Path $RepoRoot "tools\audit-p2-win01-closeout.ps1") `
+& (Join-Path $RepoRoot "tools\audit-m01-closeout.ps1") `
     -EvidenceRoot $EvidenceRoot `
     -JsonPath $JsonPath `
     -MarkdownPath $MarkdownPath

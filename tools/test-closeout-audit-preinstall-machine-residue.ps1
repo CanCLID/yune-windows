@@ -5,7 +5,7 @@ param(
 $ErrorActionPreference = "Stop"
 
 if ($OutputDir -eq "") {
-    $OutputDir = Join-Path $env:TEMP "yune-windows\p2-win01-audit-preinstall-machine-residue-test"
+    $OutputDir = Join-Path $env:TEMP "yune-windows\m01-audit-preinstall-machine-residue-test"
 }
 if (Test-Path -LiteralPath $OutputDir) {
     Remove-Item -LiteralPath $OutputDir -Recurse -Force
@@ -22,14 +22,14 @@ function New-CompleteFixture([string]$Name) {
 }
 
 function Write-PreinstallState([string]$EvidenceRoot, [string]$Json) {
-    $Path = Join-Path $EvidenceRoot "p2-win01-installer\pre-install-state.json"
+    $Path = Join-Path $EvidenceRoot "m01\installer\pre-install-state.json"
     $Json | Out-File -LiteralPath $Path -Encoding utf8
 }
 
 function Get-InstallGateStatus([string]$EvidenceRoot, [string]$Name) {
     $JsonPath = Join-Path $OutputDir "$Name.json"
     $MarkdownPath = Join-Path $OutputDir "$Name.md"
-    & (Join-Path $RepoRoot "tools\audit-p2-win01-closeout.ps1") `
+    & (Join-Path $RepoRoot "tools\audit-m01-closeout.ps1") `
         -EvidenceRoot $EvidenceRoot `
         -JsonPath $JsonPath `
         -MarkdownPath $MarkdownPath | Out-Null

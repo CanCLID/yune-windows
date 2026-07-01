@@ -6,7 +6,7 @@ $ErrorActionPreference = "Stop"
 
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 if ($OutputDir -eq "") {
-    $OutputDir = Join-Path $env:TEMP "yune-windows\p2-win01-audit-command-test"
+    $OutputDir = Join-Path $env:TEMP "yune-windows\m01-audit-command-test"
 }
 if (Test-Path -LiteralPath $OutputDir) {
     Remove-Item -LiteralPath $OutputDir -Recurse -Force
@@ -21,20 +21,20 @@ function Write-EvidenceFile([string]$RelativePath, [string]$Content) {
     $Content | Out-File -LiteralPath $Path -Encoding utf8
 }
 
-Write-EvidenceFile "p2-win01-bootstrap\repo-state.md" "repo state"
-Write-EvidenceFile "p2-win01-bootstrap\reference-audit.md" "reference audit"
-Write-EvidenceFile "p2-win01-bootstrap\process-model.md" "process model"
-Write-EvidenceFile "p2-win01-bootstrap\first-smoke-target.md" "first smoke"
-Write-EvidenceFile "p2-win01-yune-host\result.json" '{"status":{"schema_id":"jyut6ping3"}}'
-Write-EvidenceFile "p2-win01-tsf-smoke\server-ipc-smoke.md" "server ipc smoke"
-Write-EvidenceFile "p2-win01-candidate-window\build-preflight.md" "candidate preflight"
-Write-EvidenceFile "p2-win01-settings\diagnostics-export.md" "diagnostics preflight"
-Write-EvidenceFile "p2-win01-settings\webview2-spike.md" 'Decision: `defer-settings`'
-Write-EvidenceFile "p2-win01-tsf-smoke\machine-state-gates.md" "approval gates"
-Write-EvidenceFile "p2-win01-installer\live-preflight.json" '{"machine_state_changed":false}'
-Write-EvidenceFile "p2-win01-installer\install-preflight.json" '{"machine_state_changed":false}'
-Write-EvidenceFile "p2-win01-installer\post-install-state.json" '{"profile_state_verified":true}'
-Write-EvidenceFile "p2-win01-installer\result.md" @"
+Write-EvidenceFile "m01\bootstrap\repo-state.md" "repo state"
+Write-EvidenceFile "m01\bootstrap\reference-audit.md" "reference audit"
+Write-EvidenceFile "m01\bootstrap\process-model.md" "process model"
+Write-EvidenceFile "m01\bootstrap\first-smoke-target.md" "first smoke"
+Write-EvidenceFile "m01\yune-host\result.json" '{"status":{"schema_id":"jyut6ping3"}}'
+Write-EvidenceFile "m01\tsf-smoke\server-ipc-smoke.md" "server ipc smoke"
+Write-EvidenceFile "m01\candidate-window\build-preflight.md" "candidate preflight"
+Write-EvidenceFile "m01\settings\diagnostics-export.md" "diagnostics preflight"
+Write-EvidenceFile "m01\settings\webview2-spike.md" 'Decision: `defer-settings`'
+Write-EvidenceFile "m01\tsf-smoke\machine-state-gates.md" "approval gates"
+Write-EvidenceFile "m01\installer\live-preflight.json" '{"machine_state_changed":false}'
+Write-EvidenceFile "m01\installer\install-preflight.json" '{"machine_state_changed":false}'
+Write-EvidenceFile "m01\installer\post-install-state.json" '{"profile_state_verified":true}'
+Write-EvidenceFile "m01\installer\result.md" @"
 # Install And Smoke Result
 
 Fresh install: attempted through tools.
@@ -42,7 +42,7 @@ Notepad smoke: see notepad result.
 Chromium smoke: see chromium result.
 Diagnostics bundle: synthetic.zip
 "@
-Write-EvidenceFile "p2-win01-installer\commands.txt" @"
+Write-EvidenceFile "m01\installer\commands.txt" @"
 tools\install-yune-windows-ime.ps1
 tools\run-notepad-smoke.ps1
 tools\run-chromium-smoke.ps1
@@ -51,7 +51,7 @@ tools\uninstall-yune-windows-ime.ps1
 
 $JsonPath = Join-Path $OutputDir "audit.json"
 $MarkdownPath = Join-Path $OutputDir "audit.md"
-& (Join-Path $RepoRoot "tools\audit-p2-win01-closeout.ps1") `
+& (Join-Path $RepoRoot "tools\audit-m01-closeout.ps1") `
     -EvidenceRoot $EvidenceRoot `
     -JsonPath $JsonPath `
     -MarkdownPath $MarkdownPath
@@ -70,7 +70,7 @@ $CompleteFixtureDir = Join-Path $OutputDir "complete-fixture"
     -OutputDir $CompleteFixtureDir | Out-Null
 
 $CompleteEvidenceRoot = Join-Path $CompleteFixtureDir "evidence"
-$CompleteCommandsPath = Join-Path $CompleteEvidenceRoot "p2-win01-installer\commands.txt"
+$CompleteCommandsPath = Join-Path $CompleteEvidenceRoot "m01\installer\commands.txt"
 if (-not (Test-Path -LiteralPath $CompleteCommandsPath)) {
     throw "complete synthetic fixture did not write commands.txt"
 }
@@ -80,7 +80,7 @@ if (-not (Test-Path -LiteralPath $CompleteCommandsPath)) {
 
 $ApprovalNoteJsonPath = Join-Path $OutputDir "audit-missing-approval-note.json"
 $ApprovalNoteMarkdownPath = Join-Path $OutputDir "audit-missing-approval-note.md"
-& (Join-Path $RepoRoot "tools\audit-p2-win01-closeout.ps1") `
+& (Join-Path $RepoRoot "tools\audit-m01-closeout.ps1") `
     -EvidenceRoot $CompleteEvidenceRoot `
     -JsonPath $ApprovalNoteJsonPath `
     -MarkdownPath $ApprovalNoteMarkdownPath | Out-Null
@@ -108,7 +108,7 @@ $EmptyApprovalNoteFixtureDir = Join-Path $OutputDir "empty-approval-note-fixture
     -OutputDir $EmptyApprovalNoteFixtureDir | Out-Null
 
 $EmptyApprovalNoteEvidenceRoot = Join-Path $EmptyApprovalNoteFixtureDir "evidence"
-$EmptyApprovalNoteCommandsPath = Join-Path $EmptyApprovalNoteEvidenceRoot "p2-win01-installer\commands.txt"
+$EmptyApprovalNoteCommandsPath = Join-Path $EmptyApprovalNoteEvidenceRoot "m01\installer\commands.txt"
 if (-not (Test-Path -LiteralPath $EmptyApprovalNoteCommandsPath)) {
     throw "empty approval-note fixture did not write commands.txt"
 }
@@ -118,7 +118,7 @@ if (-not (Test-Path -LiteralPath $EmptyApprovalNoteCommandsPath)) {
 
 $EmptyApprovalNoteJsonPath = Join-Path $OutputDir "audit-empty-approval-note.json"
 $EmptyApprovalNoteMarkdownPath = Join-Path $OutputDir "audit-empty-approval-note.md"
-& (Join-Path $RepoRoot "tools\audit-p2-win01-closeout.ps1") `
+& (Join-Path $RepoRoot "tools\audit-m01-closeout.ps1") `
     -EvidenceRoot $EmptyApprovalNoteEvidenceRoot `
     -JsonPath $EmptyApprovalNoteJsonPath `
     -MarkdownPath $EmptyApprovalNoteMarkdownPath | Out-Null
@@ -146,7 +146,7 @@ $MismatchedApprovalNoteFixtureDir = Join-Path $OutputDir "mismatched-approval-no
     -OutputDir $MismatchedApprovalNoteFixtureDir | Out-Null
 
 $MismatchedApprovalNoteEvidenceRoot = Join-Path $MismatchedApprovalNoteFixtureDir "evidence"
-$MismatchedApprovalNoteCommandsPath = Join-Path $MismatchedApprovalNoteEvidenceRoot "p2-win01-installer\commands.txt"
+$MismatchedApprovalNoteCommandsPath = Join-Path $MismatchedApprovalNoteEvidenceRoot "m01\installer\commands.txt"
 if (-not (Test-Path -LiteralPath $MismatchedApprovalNoteCommandsPath)) {
     throw "mismatched approval-note fixture did not write commands.txt"
 }
@@ -158,7 +158,7 @@ if (-not (Test-Path -LiteralPath $MismatchedApprovalNoteCommandsPath)) {
 
 $MismatchedApprovalNoteJsonPath = Join-Path $OutputDir "audit-mismatched-approval-note.json"
 $MismatchedApprovalNoteMarkdownPath = Join-Path $OutputDir "audit-mismatched-approval-note.md"
-& (Join-Path $RepoRoot "tools\audit-p2-win01-closeout.ps1") `
+& (Join-Path $RepoRoot "tools\audit-m01-closeout.ps1") `
     -EvidenceRoot $MismatchedApprovalNoteEvidenceRoot `
     -JsonPath $MismatchedApprovalNoteJsonPath `
     -MarkdownPath $MismatchedApprovalNoteMarkdownPath | Out-Null

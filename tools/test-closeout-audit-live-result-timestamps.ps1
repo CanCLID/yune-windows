@@ -6,7 +6,7 @@ $ErrorActionPreference = "Stop"
 
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 if ($OutputDir -eq "") {
-    $OutputDir = Join-Path $env:TEMP "yune-windows\p2-win01-audit-live-result-timestamps-test"
+    $OutputDir = Join-Path $env:TEMP "yune-windows\m01-audit-live-result-timestamps-test"
 }
 if (Test-Path -LiteralPath $OutputDir) {
     Remove-Item -LiteralPath $OutputDir -Recurse -Force
@@ -20,7 +20,7 @@ $JsonPath = Join-Path $OutputDir "timestamp-audit.json"
 $MarkdownPath = Join-Path $OutputDir "timestamp-audit.md"
 
 function Invoke-Audit {
-    & (Join-Path $RepoRoot "tools\audit-p2-win01-closeout.ps1") `
+    & (Join-Path $RepoRoot "tools\audit-m01-closeout.ps1") `
         -EvidenceRoot $EvidenceRoot `
         -JsonPath $JsonPath `
         -MarkdownPath $MarkdownPath | Out-Null
@@ -54,19 +54,19 @@ function Set-StaleResultDate([string]$RelativePath) {
 
 $Cases = @(
     @{
-        path = "p2-win01-tsf-smoke\notepad-smoke-result.md"
+        path = "m01\tsf-smoke\notepad-smoke-result.md"
         gates = @("tsf-notepad-smoke", "candidate-display-live")
     },
     @{
-        path = "p2-win01-tsf-smoke\chromium-smoke-result.md"
+        path = "m01\tsf-smoke\chromium-smoke-result.md"
         gates = @("chromium-text-field-smoke", "candidate-display-live")
     },
     @{
-        path = "p2-win01-installer\result.md"
+        path = "m01\installer\result.md"
         gates = @("fresh-install-registration-activation")
     },
     @{
-        path = "p2-win01-installer\cleanup-result.md"
+        path = "m01\installer\cleanup-result.md"
         gates = @("uninstall-cleanup")
     }
 )

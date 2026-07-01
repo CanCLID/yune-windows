@@ -6,7 +6,7 @@ $ErrorActionPreference = "Stop"
 
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 if ($OutputDir -eq "") {
-    $OutputDir = Join-Path $env:TEMP "yune-windows\p2-win01-audit-approval-evidence-test"
+    $OutputDir = Join-Path $env:TEMP "yune-windows\m01-audit-approval-evidence-test"
 }
 $OutputDir = [System.IO.Path]::GetFullPath($OutputDir)
 $AllowedRoot = [System.IO.Path]::GetFullPath((Join-Path $env:TEMP "yune-windows"))
@@ -61,7 +61,7 @@ function Write-MachineCleanupPlanEvidence {
         residue_groups = $ResidueGroups
     }
     Write-EvidenceFile `
-        "p2-win01-installer\machine-cleanup-plan.json" `
+        "m01\installer\machine-cleanup-plan.json" `
         ($Plan | ConvertTo-Json -Depth 8)
 }
 
@@ -98,7 +98,7 @@ function Write-OverbroadMachineCleanupPlanEvidence {
         )
     }
     Write-EvidenceFile `
-        "p2-win01-installer\machine-cleanup-plan.json" `
+        "m01\installer\machine-cleanup-plan.json" `
         ($Plan | ConvertTo-Json -Depth 8)
 }
 
@@ -132,12 +132,12 @@ function Write-UnactionableMachineCleanupPlanEvidence {
         )
     }
     Write-EvidenceFile `
-        "p2-win01-installer\machine-cleanup-plan.json" `
+        "m01\installer\machine-cleanup-plan.json" `
         ($Plan | ConvertTo-Json -Depth 8)
 }
 
 function Write-MachineCleanupSnapshotEvidence {
-    Write-EvidenceFile "p2-win01-installer\machine-cleanup-before.json" @'
+    Write-EvidenceFile "m01\installer\machine-cleanup-before.json" @'
 {
   "captured_at": "2026-06-25T08:50:00.0000000-07:00",
   "machine_state_checked": true,
@@ -152,7 +152,7 @@ function Write-MachineCleanupSnapshotEvidence {
 }
 '@
 
-    Write-EvidenceFile "p2-win01-installer\machine-cleanup-after.json" @'
+    Write-EvidenceFile "m01\installer\machine-cleanup-after.json" @'
 {
   "captured_at": "2026-06-25T08:55:00.0000000-07:00",
   "machine_state_checked": true,
@@ -163,7 +163,7 @@ function Write-MachineCleanupSnapshotEvidence {
 }
 
 function Write-CleanBeforeMachineCleanupSnapshotEvidence {
-    Write-EvidenceFile "p2-win01-installer\machine-cleanup-before.json" @'
+    Write-EvidenceFile "m01\installer\machine-cleanup-before.json" @'
 {
   "captured_at": "2026-06-25T08:50:00.0000000-07:00",
   "machine_state_checked": true,
@@ -172,7 +172,7 @@ function Write-CleanBeforeMachineCleanupSnapshotEvidence {
 }
 '@
 
-    Write-EvidenceFile "p2-win01-installer\machine-cleanup-after.json" @'
+    Write-EvidenceFile "m01\installer\machine-cleanup-after.json" @'
 {
   "captured_at": "2026-06-25T08:55:00.0000000-07:00",
   "machine_state_checked": true,
@@ -183,7 +183,7 @@ function Write-CleanBeforeMachineCleanupSnapshotEvidence {
 }
 
 function Write-MismatchedBeforeMachineCleanupSnapshotEvidence {
-    Write-EvidenceFile "p2-win01-installer\machine-cleanup-before.json" @'
+    Write-EvidenceFile "m01\installer\machine-cleanup-before.json" @'
 {
   "captured_at": "2026-06-25T08:50:00.0000000-07:00",
   "machine_state_checked": true,
@@ -192,7 +192,7 @@ function Write-MismatchedBeforeMachineCleanupSnapshotEvidence {
 }
 '@
 
-    Write-EvidenceFile "p2-win01-installer\machine-cleanup-after.json" @'
+    Write-EvidenceFile "m01\installer\machine-cleanup-after.json" @'
 {
   "captured_at": "2026-06-25T08:55:00.0000000-07:00",
   "machine_state_checked": true,
@@ -205,7 +205,7 @@ function Write-MismatchedBeforeMachineCleanupSnapshotEvidence {
 function Invoke-TestAudit([string]$Name) {
     $JsonPath = Join-Path $OutputDir "$Name.json"
     $MarkdownPath = Join-Path $OutputDir "$Name.md"
-    & (Join-Path $RepoRoot "tools\audit-p2-win01-closeout.ps1") `
+    & (Join-Path $RepoRoot "tools\audit-m01-closeout.ps1") `
         -EvidenceRoot $EvidenceRoot `
         -JsonPath $JsonPath `
         -MarkdownPath $MarkdownPath | Out-Null
@@ -215,19 +215,19 @@ function Invoke-TestAudit([string]$Name) {
     return Get-Content -Raw -LiteralPath $JsonPath | ConvertFrom-Json
 }
 
-Write-EvidenceFile "p2-win01-bootstrap\repo-state.md" "repo state"
-Write-EvidenceFile "p2-win01-bootstrap\reference-audit.md" "reference audit"
-Write-EvidenceFile "p2-win01-bootstrap\process-model.md" "process model"
-Write-EvidenceFile "p2-win01-bootstrap\first-smoke-target.md" "first smoke"
-Write-EvidenceFile "p2-win01-yune-host\result.json" '{"status":{"schema_id":"jyut6ping3"}}'
-Write-EvidenceFile "p2-win01-tsf-smoke\server-ipc-smoke.md" "server ipc smoke"
-Write-EvidenceFile "p2-win01-candidate-window\build-preflight.md" "candidate preflight"
-Write-EvidenceFile "p2-win01-settings\diagnostics-export.md" "diagnostics preflight"
-Write-EvidenceFile "p2-win01-settings\webview2-spike.md" 'Decision: `defer-settings`'
-Write-EvidenceFile "p2-win01-installer\live-preflight.json" '{"machine_state_changed":false}'
-Write-EvidenceFile "p2-win01-installer\install-preflight.json" '{"machine_state_changed":false}'
+Write-EvidenceFile "m01\bootstrap\repo-state.md" "repo state"
+Write-EvidenceFile "m01\bootstrap\reference-audit.md" "reference audit"
+Write-EvidenceFile "m01\bootstrap\process-model.md" "process model"
+Write-EvidenceFile "m01\bootstrap\first-smoke-target.md" "first smoke"
+Write-EvidenceFile "m01\yune-host\result.json" '{"status":{"schema_id":"jyut6ping3"}}'
+Write-EvidenceFile "m01\tsf-smoke\server-ipc-smoke.md" "server ipc smoke"
+Write-EvidenceFile "m01\candidate-window\build-preflight.md" "candidate preflight"
+Write-EvidenceFile "m01\settings\diagnostics-export.md" "diagnostics preflight"
+Write-EvidenceFile "m01\settings\webview2-spike.md" 'Decision: `defer-settings`'
+Write-EvidenceFile "m01\installer\live-preflight.json" '{"machine_state_changed":false}'
+Write-EvidenceFile "m01\installer\install-preflight.json" '{"machine_state_changed":false}'
 
-Write-EvidenceFile "p2-win01-tsf-smoke\machine-state-gates.md" @'
+Write-EvidenceFile "m01\tsf-smoke\machine-state-gates.md" @'
 # Machine-State Approval Gates
 
 Pass.
@@ -253,7 +253,7 @@ if ($WeakGate.status -ne "invalid") {
     throw "audit should mark approval evidence invalid when it omits Notepad, Chromium, and live sequence refusals; got $($WeakGate.status)"
 }
 
-Write-EvidenceFile "p2-win01-tsf-smoke\machine-state-gates.md" @'
+Write-EvidenceFile "m01\tsf-smoke\machine-state-gates.md" @'
 # Machine-State Approval Gates
 
 Pass.
@@ -271,7 +271,7 @@ Machine-state approval gates refused unapproved install, uninstall, Notepad smok
 - `tools\clear-yune-windows-machine-residue.ps1`
 - `tools\run-notepad-smoke.ps1`
 - `tools\run-chromium-smoke.ps1`
-- `tools\run-p2-win01-live-smoke.ps1`
+- `tools\run-m01-live-smoke.ps1`
 
 The scripts were invoked without `-ApprovedMachineStateChange`; each refused
 before registration, uninstall, machine residue cleanup, profile activation,
@@ -288,7 +288,7 @@ if ($MissingBlankNoteRefusalGate.status -ne "invalid") {
     throw "audit should reject approval evidence that omits blank approval-note refusals, got $($MissingBlankNoteRefusalGate.status)"
 }
 
-Write-EvidenceFile "p2-win01-tsf-smoke\machine-state-gates.md" @'
+Write-EvidenceFile "m01\tsf-smoke\machine-state-gates.md" @'
 # Machine-State Approval Gates
 
 Pass.
@@ -306,7 +306,7 @@ Machine-state approval gates refused unapproved install, uninstall, Notepad smok
 - `tools\clear-yune-windows-machine-residue.ps1`
 - `tools\run-notepad-smoke.ps1`
 - `tools\run-chromium-smoke.ps1`
-- `tools\run-p2-win01-live-smoke.ps1`
+- `tools\run-m01-live-smoke.ps1`
 
 The scripts were invoked without `-ApprovedMachineStateChange`; each refused
 before registration, uninstall, machine residue cleanup, profile activation,
@@ -328,7 +328,7 @@ if ($MissingLiveBlankNoteRefusalGate.status -ne "invalid") {
     throw "audit should reject approval evidence that omits the full live blank approval-note refusal, got $($MissingLiveBlankNoteRefusalGate.status)"
 }
 
-Write-EvidenceFile "p2-win01-tsf-smoke\machine-state-gates.md" @'
+Write-EvidenceFile "m01\tsf-smoke\machine-state-gates.md" @'
 # Machine-State Approval Gates
 
 Pass.
@@ -346,7 +346,7 @@ Machine-state approval gates refused unapproved install, uninstall, Notepad smok
 - `tools\clear-yune-windows-machine-residue.ps1`
 - `tools\run-notepad-smoke.ps1`
 - `tools\run-chromium-smoke.ps1`
-- `tools\run-p2-win01-live-smoke.ps1`
+- `tools\run-m01-live-smoke.ps1`
 
 The scripts were invoked without `-ApprovedMachineStateChange`; each refused
 before registration, uninstall, machine residue cleanup, profile activation,
@@ -379,8 +379,8 @@ if ($MissingApprovalNoteGate.notes -notmatch "Complete approval-discipline close
     throw "preflight approval-discipline notes must say approved live evidence is still required"
 }
 
-Write-EvidenceFile "p2-win01-installer\approval-brief.md" @'
-# P2-WIN01 Approval Brief
+Write-EvidenceFile "m01\installer\approval-brief.md" @'
+# M01 Approval Brief
 
 Date: 2026-06-25T09:00:00.0000000-07:00
 
@@ -388,7 +388,7 @@ Current residue source: C:\tmp\current-residue.json
 
 Prep validation status: prep-preflight-ready
 '@
-Write-EvidenceFile "p2-win01-installer\elevated-live-smoke-prep-validation-result.json" @'
+Write-EvidenceFile "m01\installer\elevated-live-smoke-prep-validation-result.json" @'
 {
   "generated_at": "2026-06-25T09:05:00.0000000-07:00",
   "status": "prep-preflight-invalid",
@@ -406,8 +406,8 @@ if ($StaleApprovalBriefGate.notes -notmatch "approval brief is stale relative to
     throw "approval-discipline notes must call out stale approval-brief prep evidence, got: $($StaleApprovalBriefGate.notes)"
 }
 
-Write-EvidenceFile "p2-win01-installer\approval-brief.md" @'
-# P2-WIN01 Approval Brief
+Write-EvidenceFile "m01\installer\approval-brief.md" @'
+# M01 Approval Brief
 
 Date: 2026-06-25T09:10:00.0000000-07:00
 
@@ -415,7 +415,7 @@ Current residue source: Get-YuneWindowsMachineResidue
 
 Prep validation status: prep-preflight-ready
 '@
-Write-EvidenceFile "p2-win01-installer\elevated-live-smoke-prep-validation-result.json" @'
+Write-EvidenceFile "m01\installer\elevated-live-smoke-prep-validation-result.json" @'
 {
   "generated_at": "2026-06-25T09:09:00.0000000-07:00",
   "status": "prep-preflight-ready",
@@ -436,8 +436,8 @@ if ($StringTypedPrepValidationGate.notes -notmatch "latest prep-validation boole
     throw "approval-discipline notes must call out malformed prep-validation boolean schema, got: $($StringTypedPrepValidationGate.notes)"
 }
 
-Write-EvidenceFile "p2-win01-installer\approval-brief.md" @'
-# P2-WIN01 Approval Brief
+Write-EvidenceFile "m01\installer\approval-brief.md" @'
+# M01 Approval Brief
 
 Date: 2026-06-25T09:10:00.0000000-07:00
 
@@ -449,7 +449,7 @@ Launcher status: elevation-canceled
 Elevated process started: False
 Fresh approval required before retry: True
 '@
-Write-EvidenceFile "p2-win01-installer\elevated-live-smoke-launch-result.json" @'
+Write-EvidenceFile "m01\installer\elevated-live-smoke-launch-result.json" @'
 {
   "generated_at": "2026-06-25T09:09:00.0000000-07:00",
   "status": "elevation-canceled",
@@ -471,8 +471,8 @@ if ($CanceledLauncherGate.notes -notmatch "latest single-UAC launcher did not st
     throw "approval-discipline notes must call out no-start launcher approval expiry, got: $($CanceledLauncherGate.notes)"
 }
 
-Write-EvidenceFile "p2-win01-installer\approval-brief.md" @'
-# P2-WIN01 Approval Brief
+Write-EvidenceFile "m01\installer\approval-brief.md" @'
+# M01 Approval Brief
 
 Date: 2026-06-25T09:12:00.0000000-07:00
 
@@ -484,7 +484,7 @@ Launcher status: elevation-canceled
 Elevated process started: False
 Fresh approval required before retry: True
 '@
-Write-EvidenceFile "p2-win01-installer\elevated-live-smoke-launch-result.json" @'
+Write-EvidenceFile "m01\installer\elevated-live-smoke-launch-result.json" @'
 {
   "generated_at": "2026-06-25T09:13:00.0000000-07:00",
   "status": "elevation-canceled",
@@ -506,7 +506,7 @@ if ($StaleLauncherBriefGate.notes -notmatch "approval brief is stale relative to
     throw "approval-discipline notes must call out stale approval-brief launcher evidence, got: $($StaleLauncherBriefGate.notes)"
 }
 
-Write-EvidenceFile "p2-win01-installer\elevated-live-smoke-launch-result.json" @'
+Write-EvidenceFile "m01\installer\elevated-live-smoke-launch-result.json" @'
 {
   "generated_at": "2026-06-25T09:14:00.0000000-07:00",
   "status": "failed",
@@ -529,7 +529,7 @@ if ($StartedMissingTranscriptGate.notes -notmatch "latest single-UAC launcher st
     throw "approval-discipline notes must call out started launcher missing transcript evidence, got: $($StartedMissingTranscriptGate.notes)"
 }
 
-Write-EvidenceFile "p2-win01-installer\elevated-live-smoke-launch-result.json" @'
+Write-EvidenceFile "m01\installer\elevated-live-smoke-launch-result.json" @'
 {
   "generated_at": "2026-06-25T09:15:00.0000000-07:00",
   "status": "elevation-canceled",
@@ -555,7 +555,7 @@ if ($StringTypedLauncherGate.notes -notmatch "latest single-UAC launcher did not
     throw "approval-discipline notes must still require fresh approval after malformed no-start launcher evidence, got: $($StringTypedLauncherGate.notes)"
 }
 
-Write-EvidenceFile "p2-win01-installer\machine-cleanup-result.md" @'
+Write-EvidenceFile "m01\installer\machine-cleanup-result.md" @'
 # Approved Machine Cleanup Result
 
 Date: 2026-06-25T08:30:00.0000000-07:00
@@ -572,7 +572,7 @@ if ($MissingCleanupApprovalGate.status -ne "invalid") {
     throw "audit should reject machine-cleanup result evidence without cleanup approval evidence, got $($MissingCleanupApprovalGate.status)"
 }
 
-Write-EvidenceFile "p2-win01-installer\machine-cleanup-approval.md" @"
+Write-EvidenceFile "m01\installer\machine-cleanup-approval.md" @"
 # Machine Cleanup Approval
 
 Approval note: User approved elevated machine cleanup in this session.
@@ -595,7 +595,7 @@ if ($IncompleteCleanupApprovalGate.status -ne "invalid") {
     throw "audit should reject incomplete machine-cleanup approval evidence, got $($IncompleteCleanupApprovalGate.status)"
 }
 
-Write-EvidenceFile "p2-win01-installer\machine-cleanup-approval.md" @"
+Write-EvidenceFile "m01\installer\machine-cleanup-approval.md" @"
 # Machine Cleanup Approval
 
 Date: 2026-06-25T08:45:00.0000000-07:00
@@ -624,7 +624,7 @@ if ($NonStaCleanupApprovalGate.status -ne "invalid") {
     throw "audit should reject machine-cleanup approval evidence without STA=True, got $($NonStaCleanupApprovalGate.status)"
 }
 
-Write-EvidenceFile "p2-win01-installer\machine-cleanup-approval.md" @"
+Write-EvidenceFile "m01\installer\machine-cleanup-approval.md" @"
 # Machine Cleanup Approval
 
 Date: 2026-06-25T08:45:00.0000000-07:00
@@ -653,7 +653,7 @@ if ($AutoDetectCleanupApprovalGate.status -ne "invalid") {
     throw "audit should reject machine-cleanup approval evidence that records Browser path as auto-detect instead of an actual path, got $($AutoDetectCleanupApprovalGate.status)"
 }
 
-Write-EvidenceFile "p2-win01-installer\machine-cleanup-approval.md" @"
+Write-EvidenceFile "m01\installer\machine-cleanup-approval.md" @"
 # Machine Cleanup Approval
 
 Date: 2026-06-25T08:45:00.0000000-07:00
@@ -682,7 +682,7 @@ if ($NonExeCleanupApprovalGate.status -ne "invalid") {
     throw "audit should reject machine-cleanup approval evidence whose Browser path is not an .exe, got $($NonExeCleanupApprovalGate.status)"
 }
 
-Write-EvidenceFile "p2-win01-installer\machine-cleanup-approval.md" @"
+Write-EvidenceFile "m01\installer\machine-cleanup-approval.md" @"
 # Machine Cleanup Approval
 
 Date: 2026-06-25T08:45:00.0000000-07:00
@@ -711,7 +711,7 @@ if ($RelativePathCleanupApprovalGate.status -ne "invalid") {
     throw "audit should reject machine-cleanup approval evidence that records relative install or Yune paths, got $($RelativePathCleanupApprovalGate.status)"
 }
 
-Write-EvidenceFile "p2-win01-installer\machine-cleanup-approval.md" @"
+Write-EvidenceFile "m01\installer\machine-cleanup-approval.md" @"
 # Machine Cleanup Approval
 
 Date: 2026-06-25T08:45:00.0000000-07:00
@@ -740,7 +740,7 @@ if ($MissingBrowserCleanupApprovalGate.status -ne "invalid") {
     throw "audit should reject machine-cleanup approval evidence whose Browser path does not exist, got $($MissingBrowserCleanupApprovalGate.status)"
 }
 
-Write-EvidenceFile "p2-win01-installer\machine-cleanup-approval.md" @"
+Write-EvidenceFile "m01\installer\machine-cleanup-approval.md" @"
 # Machine Cleanup Approval
 
 Date: 2026-06-25T08:45:00.0000000-07:00
@@ -769,14 +769,14 @@ if ($StaleCleanupApprovalGate.status -ne "invalid") {
     throw "audit should reject machine-cleanup result evidence dated before cleanup approval evidence, got $($StaleCleanupApprovalGate.status)"
 }
 
-Write-EvidenceFile "p2-win01-installer\machine-cleanup-result.md" @'
+Write-EvidenceFile "m01\installer\machine-cleanup-result.md" @'
 # Approved Machine Cleanup Result
 
 Date: 2026-06-25T09:00:00.0000000-07:00
 
 Status: passed
 '@
-Write-EvidenceFile "p2-win01-installer\machine-cleanup-result.json" @'
+Write-EvidenceFile "m01\installer\machine-cleanup-result.json" @'
 {
   "generated_at": "2026-06-25T09:00:00.0000000-07:00",
   "status": "passed",
@@ -784,7 +784,7 @@ Write-EvidenceFile "p2-win01-installer\machine-cleanup-result.json" @'
 }
 '@
 
-Write-EvidenceFile "p2-win01-installer\machine-cleanup-approval.md" @"
+Write-EvidenceFile "m01\installer\machine-cleanup-approval.md" @"
 # Machine Cleanup Approval
 
 Date: 2026-06-25T08:45:00.0000000-07:00
@@ -813,7 +813,7 @@ if ($PlaceholderCleanupApprovalGate.status -ne "invalid") {
     throw "audit should reject placeholder machine-cleanup approval-note evidence, got $($PlaceholderCleanupApprovalGate.status)"
 }
 
-Write-EvidenceFile "p2-win01-installer\machine-cleanup-approval.md" @"
+Write-EvidenceFile "m01\installer\machine-cleanup-approval.md" @"
 # Machine Cleanup Approval
 
 Date: 2026-06-25T08:45:00.0000000-07:00
@@ -842,7 +842,7 @@ if ($StaleCleanupCoverageGate.status -ne "invalid") {
     throw "audit should reject machine-cleanup result evidence that did not cover current residue, got $($StaleCleanupCoverageGate.status)"
 }
 
-Write-EvidenceFile "p2-win01-installer\machine-cleanup-result.json" @'
+Write-EvidenceFile "m01\installer\machine-cleanup-result.json" @'
 {
   "generated_at": "2026-06-25T08:30:00.0000000-07:00",
   "status": "passed",
@@ -859,7 +859,7 @@ if ($StaleCleanupResultJsonGate.status -ne "invalid") {
     throw "audit should reject machine-cleanup result JSON generated before cleanup approval, got $($StaleCleanupResultJsonGate.status)"
 }
 
-Write-EvidenceFile "p2-win01-installer\machine-cleanup-result.json" @'
+Write-EvidenceFile "m01\installer\machine-cleanup-result.json" @'
 {
   "generated_at": "2026-06-25T09:00:00.0000000-07:00",
   "status": "passed",
@@ -876,7 +876,7 @@ if ($MissingCleanupPlanProvenanceGate.status -ne "invalid") {
     throw "audit should reject machine-cleanup result JSON without cleanup-plan provenance, got $($MissingCleanupPlanProvenanceGate.status)"
 }
 
-Write-EvidenceFile "p2-win01-installer\machine-cleanup-result.json" @'
+Write-EvidenceFile "m01\installer\machine-cleanup-result.json" @'
 {
   "generated_at": "2026-06-25T09:00:00.0000000-07:00",
   "status": "passed",
@@ -897,11 +897,11 @@ if ($MismatchedCleanupPlanPathGate.status -ne "invalid") {
     throw "audit should reject machine-cleanup result JSON tied to a different cleanup-plan path, got $($MismatchedCleanupPlanPathGate.status)"
 }
 
-Write-EvidenceFile "p2-win01-installer\machine-cleanup-result.json" @'
+Write-EvidenceFile "m01\installer\machine-cleanup-result.json" @'
 {
   "generated_at": "2026-06-25T09:00:00.0000000-07:00",
   "status": "passed",
-  "cleanup_plan": "docs\\evidence\\p2-win01-installer\\machine-cleanup-plan.json",
+  "cleanup_plan": "docs\\evidence\\m01\\installer\\machine-cleanup-plan.json",
   "cleanup_plan_generated_at": "2026-06-25T08:20:00.0000000-07:00",
   "cleanup_plan_residue_detector": "Get-YuneWindowsMachineResidue",
   "cleanup_plan_residue_group_count": 2,
@@ -959,11 +959,11 @@ if ($MismatchedCleanupPlanInstallDirGate.status -ne "invalid") {
 }
 
 Write-MachineCleanupPlanEvidence -GeneratedAt "2026-06-25T09:30:00.0000000-07:00"
-Write-EvidenceFile "p2-win01-installer\machine-cleanup-result.json" @'
+Write-EvidenceFile "m01\installer\machine-cleanup-result.json" @'
 {
   "generated_at": "2026-06-25T09:00:00.0000000-07:00",
   "status": "passed",
-  "cleanup_plan": "docs\\evidence\\p2-win01-installer\\machine-cleanup-plan.json",
+  "cleanup_plan": "docs\\evidence\\m01\\installer\\machine-cleanup-plan.json",
   "cleanup_plan_generated_at": "2026-06-25T09:30:00.0000000-07:00",
   "cleanup_plan_residue_detector": "Get-YuneWindowsMachineResidue",
   "cleanup_plan_residue_group_count": 2,
@@ -981,11 +981,11 @@ if ($FutureCleanupPlanGate.status -ne "invalid") {
 }
 
 Write-MachineCleanupPlanEvidence
-Write-EvidenceFile "p2-win01-installer\machine-cleanup-result.json" @'
+Write-EvidenceFile "m01\installer\machine-cleanup-result.json" @'
 {
   "generated_at": "2026-06-25T09:00:00.0000000-07:00",
   "status": "passed",
-  "cleanup_plan": "docs\\evidence\\p2-win01-installer\\machine-cleanup-plan.json",
+  "cleanup_plan": "docs\\evidence\\m01\\installer\\machine-cleanup-plan.json",
   "cleanup_plan_generated_at": "2026-06-25T08:20:00.0000000-07:00",
   "cleanup_plan_residue_detector": "Get-YuneWindowsMachineResidue",
   "cleanup_plan_residue_group_count": "2",
@@ -1002,11 +1002,11 @@ if ($StringCleanupPlanCountGate.status -ne "invalid") {
     throw "audit should reject machine-cleanup result JSON whose cleanup-plan residue group count is a string, got $($StringCleanupPlanCountGate.status)"
 }
 
-Write-EvidenceFile "p2-win01-installer\machine-cleanup-result.json" @'
+Write-EvidenceFile "m01\installer\machine-cleanup-result.json" @'
 {
   "generated_at": "2026-06-25T09:00:00.0000000-07:00",
   "status": "passed",
-  "cleanup_plan": "docs\\evidence\\p2-win01-installer\\machine-cleanup-plan.json",
+  "cleanup_plan": "docs\\evidence\\m01\\installer\\machine-cleanup-plan.json",
   "cleanup_plan_generated_at": "2026-06-25T08:20:00.0000000-07:00",
   "cleanup_plan_residue_detector": "Get-YuneWindowsMachineResidue",
   "cleanup_plan_residue_group_count": 2,
@@ -1023,11 +1023,11 @@ if ($StringCleanupCoverageGate.status -ne "invalid") {
     throw "audit should reject machine-cleanup result JSON whose current-residue coverage flag is a string, got $($StringCleanupCoverageGate.status)"
 }
 
-Write-EvidenceFile "p2-win01-installer\machine-cleanup-result.json" @'
+Write-EvidenceFile "m01\installer\machine-cleanup-result.json" @'
 {
   "generated_at": "2026-06-25T09:00:00.0000000-07:00",
   "status": "passed",
-  "cleanup_plan": "docs\\evidence\\p2-win01-installer\\machine-cleanup-plan.json",
+  "cleanup_plan": "docs\\evidence\\m01\\installer\\machine-cleanup-plan.json",
   "cleanup_plan_generated_at": "2026-06-25T08:20:00.0000000-07:00",
   "cleanup_plan_residue_detector": "Get-YuneWindowsMachineResidue",
   "cleanup_plan_residue_group_count": 2,
@@ -1046,11 +1046,11 @@ if ($ChangedBeforeApprovalResultGate.status -ne "invalid") {
     throw "audit should reject machine-cleanup result JSON that records machine-state change before approval evidence, got $($ChangedBeforeApprovalResultGate.status)"
 }
 
-Write-EvidenceFile "p2-win01-installer\machine-cleanup-result.json" @'
+Write-EvidenceFile "m01\installer\machine-cleanup-result.json" @'
 {
   "generated_at": "2026-06-25T09:00:00.0000000-07:00",
   "status": "passed",
-  "cleanup_plan": "docs\\evidence\\p2-win01-installer\\machine-cleanup-plan.json",
+  "cleanup_plan": "docs\\evidence\\m01\\installer\\machine-cleanup-plan.json",
   "cleanup_plan_generated_at": "2026-06-25T08:20:00.0000000-07:00",
   "cleanup_plan_residue_detector": "Get-YuneWindowsMachineResidue",
   "cleanup_plan_residue_group_count": 2,
@@ -1069,11 +1069,11 @@ if ($MissingApprovalRequiredResultGate.status -ne "invalid") {
     throw "audit should reject machine-cleanup result JSON that does not record approval_required=true, got $($MissingApprovalRequiredResultGate.status)"
 }
 
-Write-EvidenceFile "p2-win01-installer\machine-cleanup-result.json" @'
+Write-EvidenceFile "m01\installer\machine-cleanup-result.json" @'
 {
   "generated_at": "2026-06-25T09:00:00.0000000-07:00",
   "status": "passed",
-  "cleanup_plan": "docs\\evidence\\p2-win01-installer\\machine-cleanup-plan.json",
+  "cleanup_plan": "docs\\evidence\\m01\\installer\\machine-cleanup-plan.json",
   "cleanup_plan_generated_at": "2026-06-25T08:20:00.0000000-07:00",
   "cleanup_plan_residue_detector": "Get-YuneWindowsMachineResidue",
   "cleanup_plan_residue_group_count": 2,
@@ -1095,11 +1095,11 @@ if ($RemainingMachineResidueResultGate.status -ne "invalid") {
     throw "audit should reject machine-cleanup result JSON with remaining machine-state issues, got $($RemainingMachineResidueResultGate.status)"
 }
 
-Write-EvidenceFile "p2-win01-installer\machine-cleanup-result.json" @'
+Write-EvidenceFile "m01\installer\machine-cleanup-result.json" @'
 {
   "generated_at": "2026-06-25T09:00:00.0000000-07:00",
   "status": "passed",
-  "cleanup_plan": "docs\\evidence\\p2-win01-installer\\machine-cleanup-plan.json",
+  "cleanup_plan": "docs\\evidence\\m01\\installer\\machine-cleanup-plan.json",
   "cleanup_plan_generated_at": "2026-06-25T08:20:00.0000000-07:00",
   "cleanup_plan_residue_detector": "Get-YuneWindowsMachineResidue",
   "cleanup_plan_residue_group_count": 2,
@@ -1121,11 +1121,11 @@ if ($RemainingFilesystemResidueResultGate.status -ne "invalid") {
     throw "audit should reject machine-cleanup result JSON with remaining filesystem leftovers, got $($RemainingFilesystemResidueResultGate.status)"
 }
 
-Write-EvidenceFile "p2-win01-installer\machine-cleanup-result.json" @'
+Write-EvidenceFile "m01\installer\machine-cleanup-result.json" @'
 {
   "generated_at": "2026-06-25T09:00:00.0000000-07:00",
   "status": "passed",
-  "cleanup_plan": "docs\\evidence\\p2-win01-installer\\machine-cleanup-plan.json",
+  "cleanup_plan": "docs\\evidence\\m01\\installer\\machine-cleanup-plan.json",
   "cleanup_plan_generated_at": "2026-06-25T08:20:00.0000000-07:00",
   "cleanup_plan_residue_detector": "Get-YuneWindowsMachineResidue",
   "cleanup_plan_residue_group_count": 2,
@@ -1147,11 +1147,11 @@ if ($CleanupErrorResultGate.status -ne "invalid") {
     throw "audit should reject machine-cleanup result JSON with cleanup errors, got $($CleanupErrorResultGate.status)"
 }
 
-Write-EvidenceFile "p2-win01-installer\machine-cleanup-result.json" @'
+Write-EvidenceFile "m01\installer\machine-cleanup-result.json" @'
 {
   "generated_at": "2026-06-25T09:00:00.0000000-07:00",
   "status": "passed",
-  "cleanup_plan": "docs\\evidence\\p2-win01-installer\\machine-cleanup-plan.json",
+  "cleanup_plan": "docs\\evidence\\m01\\installer\\machine-cleanup-plan.json",
   "cleanup_plan_generated_at": "2026-06-25T08:20:00.0000000-07:00",
   "cleanup_plan_residue_detector": "Get-YuneWindowsMachineResidue",
   "cleanup_plan_residue_group_count": 2,
@@ -1175,19 +1175,19 @@ if ($MissingCleanupSnapshotsGate.status -ne "invalid") {
 
 Write-MachineCleanupSnapshotEvidence
 
-Write-EvidenceFile "p2-win01-installer\machine-cleanup-result.json" @'
+Write-EvidenceFile "m01\installer\machine-cleanup-result.json" @'
 {
   "generated_at": "2026-06-25T09:00:00.0000000-07:00",
   "status": "passed",
-  "cleanup_plan": "docs\\evidence\\p2-win01-installer\\machine-cleanup-plan.json",
+  "cleanup_plan": "docs\\evidence\\m01\\installer\\machine-cleanup-plan.json",
   "cleanup_plan_generated_at": "2026-06-25T08:20:00.0000000-07:00",
   "cleanup_plan_residue_detector": "Get-YuneWindowsMachineResidue",
   "cleanup_plan_residue_group_count": 2,
   "cleanup_plan_current_residue_covered": true,
   "machine_state_changed_before_approval": false,
   "approval_required": true,
-  "before_snapshot": "docs\\evidence\\p2-win01-installer\\machine-cleanup-before.json",
-  "after_snapshot": "docs\\evidence\\p2-win01-installer\\machine-cleanup-after.json",
+  "before_snapshot": "docs\\evidence\\m01\\installer\\machine-cleanup-before.json",
+  "after_snapshot": "docs\\evidence\\m01\\installer\\machine-cleanup-after.json",
   "remaining_machine_state_issues": [],
   "remaining_filesystem_leftovers": [],
   "errors": []
@@ -1239,7 +1239,7 @@ if ($OverbroadCleanupPlanGate.status -ne "invalid") {
 
 Write-MachineCleanupPlanEvidence
 
-Write-EvidenceFile "p2-win01-installer\machine-cleanup-approval.md" @"
+Write-EvidenceFile "m01\installer\machine-cleanup-approval.md" @"
 # Machine Cleanup Approval
 
 Date: 2026-06-25T08:45:00.0000000-07:00
@@ -1259,7 +1259,7 @@ Yune root: C:\Users\example\Documents\GitHub\yune
 Browser path: $ExistingBrowserPath
 "@
 
-Write-EvidenceFile "p2-win01-installer\machine-cleanup-result.md" @'
+Write-EvidenceFile "m01\installer\machine-cleanup-result.md" @'
 # Approved Machine Cleanup Result
 
 Date: 2026-06-25T09:00:00.0000000-07:00
@@ -1276,7 +1276,7 @@ if ($FailedCleanupResultMarkdownGate.status -ne "invalid") {
     throw "audit should reject machine-cleanup result markdown with failed status, got $($FailedCleanupResultMarkdownGate.status)"
 }
 
-Write-EvidenceFile "p2-win01-installer\machine-cleanup-result.md" @'
+Write-EvidenceFile "m01\installer\machine-cleanup-result.md" @'
 # Approved Machine Cleanup Result
 
 Date: 2026-06-25T08:59:59.0000000-07:00
@@ -1293,7 +1293,7 @@ if ($StaleCleanupResultMarkdownGate.status -ne "invalid") {
     throw "audit should reject machine-cleanup result markdown dated before cleanup result JSON, got $($StaleCleanupResultMarkdownGate.status)"
 }
 
-Write-EvidenceFile "p2-win01-installer\machine-cleanup-result.md" @'
+Write-EvidenceFile "m01\installer\machine-cleanup-result.md" @'
 # Approved Machine Cleanup Result
 
 Date: 2026-06-25T09:00:00.0000000-07:00
@@ -1310,7 +1310,7 @@ if ($CompleteCleanupApprovalGate.status -ne "preflight") {
     throw "audit should accept complete machine-cleanup approval while still waiting for live approval evidence, got $($CompleteCleanupApprovalGate.status)"
 }
 
-Write-EvidenceFile "p2-win01-installer\machine-cleanup-approval.md" @"
+Write-EvidenceFile "m01\installer\machine-cleanup-approval.md" @"
 # Machine Cleanup Approval
 
 Date: 2026-06-25T08:45:00.0000000-07:00
@@ -1339,7 +1339,7 @@ if ($MissingBrowserCompleteCleanupApprovalGate.status -ne "invalid") {
     throw "audit should reject otherwise complete machine-cleanup approval whose Browser path does not exist, got $($MissingBrowserCompleteCleanupApprovalGate.status)"
 }
 
-Write-EvidenceFile "p2-win01-installer\machine-cleanup-approval.md" @"
+Write-EvidenceFile "m01\installer\machine-cleanup-approval.md" @"
 # Machine Cleanup Approval
 
 Date: 2026-06-25T08:45:00.0000000-07:00
@@ -1359,7 +1359,7 @@ Yune root: C:\Users\example\Documents\GitHub\yune
 Browser path: $ExistingBrowserPath
 "@
 
-Write-EvidenceFile "p2-win01-installer\approval.md" @'
+Write-EvidenceFile "m01\installer\approval.md" @'
 # Live Smoke Approval
 
 Approval note: User approved elevated live smoke in this session.
@@ -1380,7 +1380,7 @@ if ($IncompleteApprovalNoteGate.status -ne "invalid") {
     throw "audit should reject incomplete live approval-note evidence, got $($IncompleteApprovalNoteGate.status)"
 }
 
-Write-EvidenceFile "p2-win01-installer\approval.md" @"
+Write-EvidenceFile "m01\installer\approval.md" @"
 # Live Smoke Approval
 
 Approval note: User approved elevated live smoke in this session.
@@ -1403,7 +1403,7 @@ if ($MissingApprovalTimestampGate.status -ne "invalid") {
     throw "audit should reject live approval-note evidence without a Date timestamp, got $($MissingApprovalTimestampGate.status)"
 }
 
-Write-EvidenceFile "p2-win01-installer\approval.md" @'
+Write-EvidenceFile "m01\installer\approval.md" @'
 # Live Smoke Approval
 
 Date: 2026-06-25Tnot-a-valid-time
@@ -1432,7 +1432,7 @@ if ($MalformedApprovalTimestampGate.status -ne "invalid") {
     throw "audit should reject live approval-note evidence with a malformed Date timestamp, got $($MalformedApprovalTimestampGate.status)"
 }
 
-Write-EvidenceFile "p2-win01-installer\approval.md" @'
+Write-EvidenceFile "m01\installer\approval.md" @'
 # Live Smoke Approval
 
 Date: 2026-06-25T09:00:00.0000000-07:00
@@ -1457,7 +1457,7 @@ if ($MissingApprovalContextGate.status -ne "invalid") {
     throw "audit should reject live approval-note evidence without administrator and STA context, got $($MissingApprovalContextGate.status)"
 }
 
-Write-EvidenceFile "p2-win01-installer\approval.md" @'
+Write-EvidenceFile "m01\installer\approval.md" @'
 # Live Smoke Approval
 
 Date: 2026-06-25T09:00:00.0000000-07:00
@@ -1486,7 +1486,7 @@ if ($AutoDetectBrowserApprovalGate.status -ne "invalid") {
     throw "audit should reject live approval-note evidence that records Browser path as auto-detect instead of an actual path, got $($AutoDetectBrowserApprovalGate.status)"
 }
 
-Write-EvidenceFile "p2-win01-installer\approval.md" @'
+Write-EvidenceFile "m01\installer\approval.md" @'
 # Live Smoke Approval
 
 Date: 2026-06-25T09:00:00.0000000-07:00
@@ -1515,7 +1515,7 @@ if ($NonExeBrowserApprovalGate.status -ne "invalid") {
     throw "audit should reject live approval-note evidence whose Browser path is not an .exe, got $($NonExeBrowserApprovalGate.status)"
 }
 
-Write-EvidenceFile "p2-win01-installer\approval.md" @"
+Write-EvidenceFile "m01\installer\approval.md" @"
 # Live Smoke Approval
 
 Date: 2026-06-25T09:00:00.0000000-07:00
@@ -1544,7 +1544,7 @@ if ($RelativePathLiveApprovalGate.status -ne "invalid") {
     throw "audit should reject live approval-note evidence that records relative install or Yune paths, got $($RelativePathLiveApprovalGate.status)"
 }
 
-Write-EvidenceFile "p2-win01-installer\approval.md" @"
+Write-EvidenceFile "m01\installer\approval.md" @"
 # Live Smoke Approval
 
 Date: 2026-06-25T09:00:00.0000000-07:00
@@ -1573,7 +1573,7 @@ if ($MissingBrowserApprovalGate.status -ne "invalid") {
     throw "audit should reject live approval-note evidence whose Browser path does not exist, got $($MissingBrowserApprovalGate.status)"
 }
 
-Write-EvidenceFile "p2-win01-installer\approval.md" @"
+Write-EvidenceFile "m01\installer\approval.md" @"
 # Live Smoke Approval
 
 Date: 2026-06-25T09:00:00.0000000-07:00
@@ -1602,7 +1602,7 @@ if ($PlaceholderLiveApprovalGate.status -ne "invalid") {
     throw "audit should reject placeholder live approval-note evidence, got $($PlaceholderLiveApprovalGate.status)"
 }
 
-Write-EvidenceFile "p2-win01-installer\approval.md" @"
+Write-EvidenceFile "m01\installer\approval.md" @"
 # Live Smoke Approval
 
 Date: 2026-06-25T09:00:00.0000000-07:00

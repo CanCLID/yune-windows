@@ -3,7 +3,7 @@ param()
 $ErrorActionPreference = "Stop"
 
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
-$OutputDir = Join-Path $env:TEMP "yune-windows\p2-win01-tsf-export-contract"
+$OutputDir = Join-Path $env:TEMP "yune-windows\m01-tsf-export-contract"
 if (Test-Path -LiteralPath $OutputDir) {
     Remove-Item -LiteralPath $OutputDir -Recurse -Force
 }

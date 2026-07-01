@@ -26,7 +26,7 @@ foreach ($Smoke in @(
     }
 }
 
-$OutputDir = Join-Path $env:TEMP "yune-windows\p2-win01-audit-candidate-window-failure-test"
+$OutputDir = Join-Path $env:TEMP "yune-windows\m01-audit-candidate-window-failure-test"
 if (Test-Path -LiteralPath $OutputDir) {
     Remove-Item -LiteralPath $OutputDir -Recurse -Force
 }
@@ -36,8 +36,8 @@ if (Test-Path -LiteralPath $OutputDir) {
 
 $EvidenceRoot = Join-Path $OutputDir "evidence"
 foreach ($RelativePath in @(
-        "p2-win01-tsf-smoke\notepad-smoke-result.md",
-        "p2-win01-tsf-smoke\chromium-smoke-result.md"
+        "m01\tsf-smoke\notepad-smoke-result.md",
+        "m01\tsf-smoke\chromium-smoke-result.md"
     )) {
     $Path = Join-Path $EvidenceRoot $RelativePath
     $Text = Get-Content -Raw -LiteralPath $Path
@@ -50,7 +50,7 @@ foreach ($RelativePath in @(
 
 $JsonPath = Join-Path $OutputDir "audit-without-candidate-window-failure-proof.json"
 $MarkdownPath = Join-Path $OutputDir "audit-without-candidate-window-failure-proof.md"
-& (Join-Path $RepoRoot "tools\audit-p2-win01-closeout.ps1") `
+& (Join-Path $RepoRoot "tools\audit-m01-closeout.ps1") `
     -EvidenceRoot $EvidenceRoot `
     -JsonPath $JsonPath `
     -MarkdownPath $MarkdownPath

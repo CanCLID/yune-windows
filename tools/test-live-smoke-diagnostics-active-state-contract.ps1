@@ -3,7 +3,7 @@ param()
 $ErrorActionPreference = "Stop"
 
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
-$OrchestratorPath = Join-Path $RepoRoot "tools\run-p2-win01-live-smoke.ps1"
+$OrchestratorPath = Join-Path $RepoRoot "tools\run-m01-live-smoke.ps1"
 $Source = Get-Content -Raw -LiteralPath $OrchestratorPath
 
 function Require-OrderedText {
@@ -18,10 +18,10 @@ function Require-OrderedText {
 
     $Index = $Source.IndexOf($Needle, $PreviousIndex.Value + 1)
     if ($Index -lt 0) {
-        throw "tools\run-p2-win01-live-smoke.ps1 is missing $Reason."
+        throw "tools\run-m01-live-smoke.ps1 is missing $Reason."
     }
     if ($Index -le $PreviousIndex.Value) {
-        throw "tools\run-p2-win01-live-smoke.ps1 records $Reason out of order."
+        throw "tools\run-m01-live-smoke.ps1 records $Reason out of order."
     }
     $PreviousIndex.Value = $Index
 }

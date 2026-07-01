@@ -6,7 +6,7 @@ $ErrorActionPreference = "Stop"
 
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 if ($OutputDir -eq "") {
-    $OutputDir = Join-Path $env:TEMP "yune-windows\p2-win01-audit-cleanup-validation-timestamps-test"
+    $OutputDir = Join-Path $env:TEMP "yune-windows\m01-audit-cleanup-validation-timestamps-test"
 }
 if (Test-Path -LiteralPath $OutputDir) {
     Remove-Item -LiteralPath $OutputDir -Recurse -Force
@@ -22,7 +22,7 @@ function Invoke-CompleteSynthetic {
 
 function Invoke-Audit {
     $EvidenceRoot = Join-Path $OutputDir "evidence"
-    & (Join-Path $RepoRoot "tools\audit-p2-win01-closeout.ps1") `
+    & (Join-Path $RepoRoot "tools\audit-m01-closeout.ps1") `
         -EvidenceRoot $EvidenceRoot `
         -JsonPath $JsonPath `
         -MarkdownPath $MarkdownPath | Out-Null
@@ -46,7 +46,7 @@ function Assert-CleanupGateInvalid([object]$Audit, [string]$Context) {
 
 function Set-CleanupValidation([hashtable]$Properties) {
     $EvidenceRoot = Join-Path $OutputDir "evidence"
-    $ValidationPath = Join-Path $EvidenceRoot "p2-win01-installer\cleanup-validation.json"
+    $ValidationPath = Join-Path $EvidenceRoot "m01\installer\cleanup-validation.json"
     $Properties |
         ConvertTo-Json -Depth 4 |
         Out-File -LiteralPath $ValidationPath -Encoding utf8
@@ -54,7 +54,7 @@ function Set-CleanupValidation([hashtable]$Properties) {
 
 function Set-PostCleanupStateCapturedAt([string]$CapturedAt) {
     $EvidenceRoot = Join-Path $OutputDir "evidence"
-    $StatePath = Join-Path $EvidenceRoot "p2-win01-installer\post-cleanup-state.json"
+    $StatePath = Join-Path $EvidenceRoot "m01\installer\post-cleanup-state.json"
     $State = Get-Content -Raw -LiteralPath $StatePath | ConvertFrom-Json
     $State.captured_at = $CapturedAt
     $State |

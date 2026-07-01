@@ -6,7 +6,7 @@ $ErrorActionPreference = "Stop"
 
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 if ($OutputDir -eq "") {
-    $OutputDir = Join-Path $env:TEMP "yune-windows\p2-win01-audit-preflight-schema-test"
+    $OutputDir = Join-Path $env:TEMP "yune-windows\m01-audit-preflight-schema-test"
 }
 $OutputDir = [System.IO.Path]::GetFullPath($OutputDir)
 $AllowedRoot = [System.IO.Path]::GetFullPath((Join-Path $env:TEMP "yune-windows"))
@@ -27,7 +27,7 @@ function Invoke-CompleteSynthetic {
 }
 
 function Invoke-Audit {
-    & (Join-Path $RepoRoot "tools\audit-p2-win01-closeout.ps1") `
+    & (Join-Path $RepoRoot "tools\audit-m01-closeout.ps1") `
         -EvidenceRoot $EvidenceRoot `
         -JsonPath $JsonPath `
         -MarkdownPath $MarkdownPath | Out-Null
@@ -62,14 +62,14 @@ function Assert-LivePreflightGateStatus([string]$ExpectedStatus, [string]$CaseNa
 Invoke-CompleteSynthetic
 Assert-LivePreflightGateStatus "complete" "baseline"
 Set-PreflightServerProcessCount `
-    -RelativePath "p2-win01-installer\live-preflight.json" `
+    -RelativePath "m01\installer\live-preflight.json" `
     -Value "0"
 Assert-LivePreflightGateStatus "invalid" "string live server_process_count"
 
 Invoke-CompleteSynthetic
 Assert-LivePreflightGateStatus "complete" "install baseline"
 Set-PreflightServerProcessCount `
-    -RelativePath "p2-win01-installer\install-preflight.json" `
+    -RelativePath "m01\installer\install-preflight.json" `
     -Value "0"
 Assert-LivePreflightGateStatus "invalid" "string install server_process_count"
 

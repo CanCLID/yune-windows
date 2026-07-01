@@ -6,7 +6,7 @@ $ErrorActionPreference = "Stop"
 
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 if ($OutputDir -eq "") {
-    $OutputDir = Join-Path $env:TEMP "yune-windows\p2-win01-audit-diagnostics-output-dir-test"
+    $OutputDir = Join-Path $env:TEMP "yune-windows\m01-audit-diagnostics-output-dir-test"
 }
 if (Test-Path -LiteralPath $OutputDir) {
     Remove-Item -LiteralPath $OutputDir -Recurse -Force
@@ -15,7 +15,7 @@ if (Test-Path -LiteralPath $OutputDir) {
 $EvidenceRoot = [System.IO.Path]::GetFullPath((Join-Path $OutputDir "evidence"))
 $JsonPath = Join-Path $OutputDir "audit.json"
 $MarkdownPath = Join-Path $OutputDir "audit.md"
-$CommandsPath = Join-Path $EvidenceRoot "p2-win01-installer\commands.txt"
+$CommandsPath = Join-Path $EvidenceRoot "m01\installer\commands.txt"
 
 & (Join-Path $RepoRoot "tools\test-closeout-audit-complete-synthetic.ps1") `
     -OutputDir $OutputDir | Out-Null
@@ -24,7 +24,7 @@ $Commands = Get-Content -Raw -LiteralPath $CommandsPath
 $Commands = $Commands -replace "\s-OutputDir\s+'[^']*registered-session-diagnostics'", ""
 $Commands | Out-File -LiteralPath $CommandsPath -Encoding utf8
 
-& (Join-Path $RepoRoot "tools\audit-p2-win01-closeout.ps1") `
+& (Join-Path $RepoRoot "tools\audit-m01-closeout.ps1") `
     -EvidenceRoot $EvidenceRoot `
     -JsonPath $JsonPath `
     -MarkdownPath $MarkdownPath | Out-Null

@@ -4,7 +4,7 @@ $ErrorActionPreference = "Stop"
 
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $SupportScript = Join-Path $RepoRoot "tools\live-smoke-support.ps1"
-$OrchestratorScript = Join-Path $RepoRoot "tools\run-p2-win01-live-smoke.ps1"
+$OrchestratorScript = Join-Path $RepoRoot "tools\run-m01-live-smoke.ps1"
 $StandaloneMachineStateScripts = @(
     "tools\install-yune-windows-ime.ps1",
     "tools\uninstall-yune-windows-ime.ps1",
@@ -115,7 +115,7 @@ foreach ($Required in @(
 $InstallPathNormalizationIndex = $OrchestratorSource.IndexOf('$InstallDir = [System.IO.Path]::GetFullPath($InstallDir)')
 $YuneRootNormalizationIndex = $OrchestratorSource.IndexOf('$YuneRoot = [System.IO.Path]::GetFullPath($YuneRoot)')
 $ApprovalEvidenceIndex = $OrchestratorSource.IndexOf('Write-LiveSmokeApprovalEvidence')
-$LivePreflightCommandIndex = $OrchestratorSource.IndexOf('$LivePreflightCommand = "tools\run-p2-win01-live-smoke.ps1')
+$LivePreflightCommandIndex = $OrchestratorSource.IndexOf('$LivePreflightCommand = "tools\run-m01-live-smoke.ps1')
 $InstallCommandIndex = $OrchestratorSource.IndexOf('$InstallCommand = "tools\install-yune-windows-ime.ps1')
 $NotepadCommandIndex = $OrchestratorSource.IndexOf('$NotepadCommand = "tools\run-notepad-smoke.ps1')
 $ChromiumCommandIndex = $OrchestratorSource.IndexOf('$ChromiumCommand = "tools\run-chromium-smoke.ps1')
@@ -129,15 +129,15 @@ foreach ($RequiredIndex in @(
         @{ Name = "Chromium transcript"; Index = $ChromiumCommandIndex }
     )) {
     if ($RequiredIndex.Index -lt 0) {
-        throw "run-p2-win01-live-smoke.ps1 is missing path-consistency step: $($RequiredIndex.Name)"
+        throw "run-m01-live-smoke.ps1 is missing path-consistency step: $($RequiredIndex.Name)"
     }
 }
 foreach ($TranscriptIndex in @($ApprovalEvidenceIndex, $LivePreflightCommandIndex, $InstallCommandIndex, $NotepadCommandIndex, $ChromiumCommandIndex)) {
     if ($InstallPathNormalizationIndex -ge $TranscriptIndex) {
-        throw "run-p2-win01-live-smoke.ps1 must normalize InstallDir before approval evidence and transcript command construction."
+        throw "run-m01-live-smoke.ps1 must normalize InstallDir before approval evidence and transcript command construction."
     }
     if ($YuneRootNormalizationIndex -ge $TranscriptIndex) {
-        throw "run-p2-win01-live-smoke.ps1 must normalize YuneRoot before approval evidence and transcript command construction."
+        throw "run-m01-live-smoke.ps1 must normalize YuneRoot before approval evidence and transcript command construction."
     }
 }
 
@@ -196,12 +196,12 @@ $Sequence = @(
 )
 foreach ($Step in $Sequence) {
     if ($Step.Index -lt 0) {
-        throw "run-p2-win01-live-smoke.ps1 is missing sequence step: $($Step.Name)"
+        throw "run-m01-live-smoke.ps1 is missing sequence step: $($Step.Name)"
     }
 }
 for ($Index = 1; $Index -lt $Sequence.Count; $Index++) {
     if ($Sequence[$Index].Index -le $Sequence[$Index - 1].Index) {
-        throw "run-p2-win01-live-smoke.ps1 must place '$($Sequence[$Index].Name)' after '$($Sequence[$Index - 1].Name)'."
+        throw "run-m01-live-smoke.ps1 must place '$($Sequence[$Index].Name)' after '$($Sequence[$Index - 1].Name)'."
     }
 }
 

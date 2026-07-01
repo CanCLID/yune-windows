@@ -4,9 +4,9 @@ $ErrorActionPreference = "Stop"
 
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $SupportPath = Join-Path $RepoRoot "tools\live-smoke-support.ps1"
-$LiveSmokePath = Join-Path $RepoRoot "tools\run-p2-win01-live-smoke.ps1"
+$LiveSmokePath = Join-Path $RepoRoot "tools\run-m01-live-smoke.ps1"
 $InstallPath = Join-Path $RepoRoot "tools\install-yune-windows-ime.ps1"
-$BriefPath = Join-Path $RepoRoot "tools\write-p2-win01-approval-brief.ps1"
+$BriefPath = Join-Path $RepoRoot "tools\write-m01-approval-brief.ps1"
 
 $SupportSource = Get-Content -Raw -LiteralPath $SupportPath
 $LiveSmokeSource = Get-Content -Raw -LiteralPath $LiveSmokePath
@@ -28,7 +28,7 @@ foreach ($Required in @(
 }
 
 foreach ($Script in @(
-        @{ Name = "run-p2-win01-live-smoke.ps1"; Source = $LiveSmokeSource },
+        @{ Name = "run-m01-live-smoke.ps1"; Source = $LiveSmokeSource },
         @{ Name = "install-yune-windows-ime.ps1"; Source = $InstallSource }
     )) {
     foreach ($Required in @(
@@ -74,7 +74,7 @@ if ($DetectorIndex -lt $RefreshIndex) {
 
 . $SupportPath
 
-$TempDir = Join-Path $env:TEMP "yune-windows\p2-win01-live-preflight-residue-source-guard-test"
+$TempDir = Join-Path $env:TEMP "yune-windows\m01-live-preflight-residue-source-guard-test"
 New-Item -ItemType Directory -Force $TempDir | Out-Null
 $ResiduePath = Join-Path $TempDir "current-residue.json"
 $Residue = [ordered]@{
@@ -84,7 +84,7 @@ $Residue = [ordered]@{
 } | ConvertTo-Json -Depth 6
 $Residue | Out-File -LiteralPath $ResiduePath -Encoding utf8
 
-$Report = New-P2Win01PreflightReport `
+$Report = New-M01PreflightReport `
     -YuneRoot (Join-Path $TempDir "missing-yune") `
     -InstallDir (Join-Path $TempDir "install-target") `
     -CurrentResiduePath $ResiduePath
@@ -108,7 +108,7 @@ $StringTypedResiduePath = Join-Path $TempDir "string-typed-current-residue.json"
 
 $StringTypedResidueThrew = $false
 try {
-    New-P2Win01PreflightReport `
+    New-M01PreflightReport `
         -YuneRoot (Join-Path $TempDir "missing-yune") `
         -InstallDir (Join-Path $TempDir "install-target") `
         -CurrentResiduePath $StringTypedResiduePath | Out-Null
@@ -128,7 +128,7 @@ $MissingCheckedResiduePath = Join-Path $TempDir "missing-checked-current-residue
 
 $MissingCheckedResidueThrew = $false
 try {
-    New-P2Win01PreflightReport `
+    New-M01PreflightReport `
         -YuneRoot (Join-Path $TempDir "missing-yune") `
         -InstallDir (Join-Path $TempDir "install-target") `
         -CurrentResiduePath $MissingCheckedResiduePath | Out-Null
@@ -142,7 +142,7 @@ if (-not $MissingCheckedResidueThrew) {
 
 $GuardFailed = $false
 try {
-    New-P2Win01PreflightReport `
+    New-M01PreflightReport `
         -YuneRoot (Join-Path $TempDir "missing-yune") `
         -InstallDir (Join-Path $TempDir "install-target") | Out-Null
 }
@@ -155,7 +155,7 @@ if (-not $GuardFailed) {
 
 $RefreshWithoutNoteFailed = $false
 try {
-    New-P2Win01PreflightReport `
+    New-M01PreflightReport `
         -YuneRoot (Join-Path $TempDir "missing-yune") `
         -InstallDir (Join-Path $TempDir "install-target") `
         -RefreshCurrentResidue | Out-Null
@@ -178,7 +178,7 @@ function Get-YuneWindowsMachineResidue {
     }
 }
 
-$RefreshReport = New-P2Win01PreflightReport `
+$RefreshReport = New-M01PreflightReport `
     -YuneRoot (Join-Path $TempDir "missing-yune") `
     -InstallDir (Join-Path $TempDir "install-target") `
     -RefreshCurrentResidue `
@@ -206,7 +206,7 @@ $SelfReferentialPreflightPath = Join-Path $TempDir "self-referential-live-prefli
 
 $SelfReferentialPreflightFailed = $false
 try {
-    Write-P2Win01PreflightReport `
+    Write-M01PreflightReport `
         -Path $SelfReferentialPreflightPath `
         -YuneRoot (Join-Path $TempDir "missing-yune") `
         -InstallDir (Join-Path $TempDir "install-target") `

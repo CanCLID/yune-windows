@@ -3,7 +3,7 @@ param()
 $ErrorActionPreference = "Stop"
 
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
-$OrchestratorPath = Join-Path $RepoRoot "tools\run-p2-win01-live-smoke.ps1"
+$OrchestratorPath = Join-Path $RepoRoot "tools\run-m01-live-smoke.ps1"
 if (-not (Test-Path -LiteralPath $OrchestratorPath)) {
     throw "missing live smoke orchestrator: $OrchestratorPath"
 }
@@ -136,7 +136,7 @@ if ($Source -notmatch 'try\s*\{(?s:.*?)\$DiagnosticsBundleText\s*=\s*\(\$Diagnos
     throw "diagnostics bundle validation failures must record diagnostics FAIL in commands.txt before the live sequence reports failure"
 }
 
-if ($Source -notmatch 'if\s*\(\s*\$LiveSmokeSucceeded\s*\)\s*\{(?s:.*?)Write-LiveSmokeResult(?s:.*?)-Status\s+"passed"(?s:.*?)\$CurrentStage\s*=\s*"closeout-audit"(?s:.*?)try\s*\{(?s:.*?)audit-p2-win01-closeout\.ps1(?s:.*?)-RequireComplete(?s:.*?)\}\s*catch\s*\{(?s:.*?)Write-LiveSmokeResult(?s:.*?)-Status\s+"failed"(?s:.*?)-FailureStage\s+\$CurrentStage') {
+if ($Source -notmatch 'if\s*\(\s*\$LiveSmokeSucceeded\s*\)\s*\{(?s:.*?)Write-LiveSmokeResult(?s:.*?)-Status\s+"passed"(?s:.*?)\$CurrentStage\s*=\s*"closeout-audit"(?s:.*?)try\s*\{(?s:.*?)audit-m01-closeout\.ps1(?s:.*?)-RequireComplete(?s:.*?)\}\s*catch\s*\{(?s:.*?)Write-LiveSmokeResult(?s:.*?)-Status\s+"failed"(?s:.*?)-FailureStage\s+\$CurrentStage') {
     throw "closeout audit failure must rewrite result.md only after cleanup succeeded and the live sequence has otherwise passed"
 }
 

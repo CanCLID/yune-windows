@@ -5,7 +5,7 @@ param(
 $ErrorActionPreference = "Stop"
 
 if ($OutputDir -eq "") {
-    $OutputDir = Join-Path $env:TEMP "yune-windows\p2-win01-audit-cleanup-machine-residue-test"
+    $OutputDir = Join-Path $env:TEMP "yune-windows\m01-audit-cleanup-machine-residue-test"
 }
 if (Test-Path -LiteralPath $OutputDir) {
     Remove-Item -LiteralPath $OutputDir -Recurse -Force
@@ -18,7 +18,7 @@ $FixtureDir = Join-Path $OutputDir "complete-fixture"
     -OutputDir $FixtureDir | Out-Null
 
 $EvidenceRoot = Join-Path $FixtureDir "evidence"
-$PostCleanupStatePath = Join-Path $EvidenceRoot "p2-win01-installer\post-cleanup-state.json"
+$PostCleanupStatePath = Join-Path $EvidenceRoot "m01\installer\post-cleanup-state.json"
 $PostCleanupState = Get-Content -Raw -LiteralPath $PostCleanupStatePath | ConvertFrom-Json
 $PostCleanupState | Add-Member -NotePropertyName machine_state_checked -NotePropertyValue $true -Force
 $PostCleanupState | Add-Member -NotePropertyName machine_state_issues -NotePropertyValue @("COM CLSID registry key remains") -Force
@@ -27,7 +27,7 @@ $PostCleanupState | ConvertTo-Json -Depth 6 | Out-File -LiteralPath $PostCleanup
 
 $JsonPath = Join-Path $OutputDir "audit-dirty-machine.json"
 $MarkdownPath = Join-Path $OutputDir "audit-dirty-machine.md"
-& (Join-Path $RepoRoot "tools\audit-p2-win01-closeout.ps1") `
+& (Join-Path $RepoRoot "tools\audit-m01-closeout.ps1") `
     -EvidenceRoot $EvidenceRoot `
     -JsonPath $JsonPath `
     -MarkdownPath $MarkdownPath
@@ -44,7 +44,7 @@ $PostCleanupState | ConvertTo-Json -Depth 6 | Out-File -LiteralPath $PostCleanup
 
 $JsonPath = Join-Path $OutputDir "audit-dirty-filesystem.json"
 $MarkdownPath = Join-Path $OutputDir "audit-dirty-filesystem.md"
-& (Join-Path $RepoRoot "tools\audit-p2-win01-closeout.ps1") `
+& (Join-Path $RepoRoot "tools\audit-m01-closeout.ps1") `
     -EvidenceRoot $EvidenceRoot `
     -JsonPath $JsonPath `
     -MarkdownPath $MarkdownPath

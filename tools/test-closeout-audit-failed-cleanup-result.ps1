@@ -6,7 +6,7 @@ $ErrorActionPreference = "Stop"
 
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 if ($OutputDir -eq "") {
-    $OutputDir = Join-Path $env:TEMP "yune-windows\p2-win01-audit-failed-cleanup-result-test"
+    $OutputDir = Join-Path $env:TEMP "yune-windows\m01-audit-failed-cleanup-result-test"
 }
 if (Test-Path -LiteralPath $OutputDir) {
     Remove-Item -LiteralPath $OutputDir -Recurse -Force
@@ -16,7 +16,7 @@ if (Test-Path -LiteralPath $OutputDir) {
     -OutputDir $OutputDir
 
 $EvidenceRoot = Join-Path $OutputDir "evidence"
-$CleanupResultPath = Join-Path $EvidenceRoot "p2-win01-installer\cleanup-result.md"
+$CleanupResultPath = Join-Path $EvidenceRoot "m01\installer\cleanup-result.md"
 if (-not (Test-Path -LiteralPath $CleanupResultPath)) {
     throw "missing synthetic cleanup-result.md"
 }
@@ -30,7 +30,7 @@ $Text | Out-File -LiteralPath $CleanupResultPath -Encoding utf8
 
 $JsonPath = Join-Path $OutputDir "audit-failed-cleanup.json"
 $MarkdownPath = Join-Path $OutputDir "audit-failed-cleanup.md"
-& (Join-Path $RepoRoot "tools\audit-p2-win01-closeout.ps1") `
+& (Join-Path $RepoRoot "tools\audit-m01-closeout.ps1") `
     -EvidenceRoot $EvidenceRoot `
     -JsonPath $JsonPath `
     -MarkdownPath $MarkdownPath

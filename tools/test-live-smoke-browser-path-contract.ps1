@@ -3,7 +3,7 @@ param()
 $ErrorActionPreference = "Stop"
 
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
-$OrchestratorPath = Join-Path $RepoRoot "tools\run-p2-win01-live-smoke.ps1"
+$OrchestratorPath = Join-Path $RepoRoot "tools\run-m01-live-smoke.ps1"
 $Source = Get-Content -Raw -LiteralPath $OrchestratorPath
 $ChromiumSmokePath = Join-Path $RepoRoot "tools\run-chromium-smoke.ps1"
 $ChromiumSmokeSource = Get-Content -Raw -LiteralPath $ChromiumSmokePath
@@ -20,10 +20,10 @@ function Require-OrderedText {
 
     $Index = $Source.IndexOf($Needle, $PreviousIndex.Value + 1)
     if ($Index -lt 0) {
-        throw "tools\run-p2-win01-live-smoke.ps1 is missing $Reason."
+        throw "tools\run-m01-live-smoke.ps1 is missing $Reason."
     }
     if ($Index -le $PreviousIndex.Value) {
-        throw "tools\run-p2-win01-live-smoke.ps1 records $Reason out of order."
+        throw "tools\run-m01-live-smoke.ps1 records $Reason out of order."
     }
     $PreviousIndex.Value = $Index
 }
@@ -33,17 +33,17 @@ Require-OrderedText '$ResolvedBrowserPath = Find-ChromiumBrowserPath -RequestedP
 Require-OrderedText 'Assert-ConcreteChromiumBrowserPath' "concrete Chromium browser path gate before approval evidence" $PreviousIndex
 Require-OrderedText 'Write-LiveSmokeApprovalEvidence' "approval evidence write" $PreviousIndex
 Require-OrderedText '-BrowserPath $ResolvedBrowserPath' "resolved browser path in approval evidence" $PreviousIndex
-Require-OrderedText '$LivePreflightCommand = "tools\run-p2-win01-live-smoke.ps1' "live preflight command construction" $PreviousIndex
+Require-OrderedText '$LivePreflightCommand = "tools\run-m01-live-smoke.ps1' "live preflight command construction" $PreviousIndex
 Require-OrderedText '$LivePreflightCommand += " -BrowserPath $(Format-CommandValue $ResolvedBrowserPath)"' "resolved browser path in live preflight transcript" $PreviousIndex
 Require-OrderedText '-BrowserPath $ResolvedBrowserPath' "resolved browser path in live preflight report" $PreviousIndex
 Require-OrderedText '$ChromiumCommand += " -BrowserPath $(Format-CommandValue $ResolvedBrowserPath)"' "resolved browser path in Chromium transcript" $PreviousIndex
 Require-OrderedText '"-BrowserPath", $ResolvedBrowserPath' "resolved browser path passed to Chromium smoke" $PreviousIndex
 
 if ($Source -match 'if \(\$ResolvedBrowserPath\)\s*\{') {
-    throw "tools\run-p2-win01-live-smoke.ps1 still makes resolved browser path evidence optional."
+    throw "tools\run-m01-live-smoke.ps1 still makes resolved browser path evidence optional."
 }
 if ($Source -match 'if \(\$BrowserPath\)\s*\{\s*\$ChromiumArgs\.BrowserPath = \$BrowserPath') {
-    throw "tools\run-p2-win01-live-smoke.ps1 still ties Chromium smoke browser evidence to the raw BrowserPath parameter."
+    throw "tools\run-m01-live-smoke.ps1 still ties Chromium smoke browser evidence to the raw BrowserPath parameter."
 }
 if ($ChromiumSmokeSource -match 'if \(\$RequestedPath -and \(Test-Path -LiteralPath \$RequestedPath\)\)') {
     throw "tools\run-chromium-smoke.ps1 still falls back from a missing explicitly requested Chromium browser path."
@@ -69,7 +69,7 @@ foreach ($RequiredChromiumSmokeText in @(
 $SupportPath = Join-Path $RepoRoot "tools\live-smoke-support.ps1"
 . $SupportPath
 
-$TempDir = Join-Path $env:TEMP "yune-windows\p2-win01-approval-browser-path-test"
+$TempDir = Join-Path $env:TEMP "yune-windows\m01-approval-browser-path-test"
 if (Test-Path -LiteralPath $TempDir) {
     Remove-Item -LiteralPath $TempDir -Recurse -Force
 }

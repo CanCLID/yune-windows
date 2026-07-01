@@ -6,7 +6,7 @@ $ErrorActionPreference = "Stop"
 
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 if ($OutputDir -eq "") {
-    $OutputDir = Join-Path $env:TEMP "yune-windows\p2-win01-audit-failed-app-smoke-result-test"
+    $OutputDir = Join-Path $env:TEMP "yune-windows\m01-audit-failed-app-smoke-result-test"
 }
 if (Test-Path -LiteralPath $OutputDir) {
     Remove-Item -LiteralPath $OutputDir -Recurse -Force
@@ -49,7 +49,7 @@ function Invoke-FailedAppSmokeCase {
 
     $JsonPath = Join-Path $CaseDir "audit-failed-app-smoke.json"
     $MarkdownPath = Join-Path $CaseDir "audit-failed-app-smoke.md"
-    & (Join-Path $RepoRoot "tools\audit-p2-win01-closeout.ps1") `
+    & (Join-Path $RepoRoot "tools\audit-m01-closeout.ps1") `
         -EvidenceRoot $EvidenceRoot `
         -JsonPath $JsonPath `
         -MarkdownPath $MarkdownPath
@@ -69,12 +69,12 @@ function Invoke-FailedAppSmokeCase {
 
 Invoke-FailedAppSmokeCase `
     -Name "notepad" `
-    -RelativeResultPath "p2-win01-tsf-smoke\notepad-smoke-result.md" `
+    -RelativeResultPath "m01\tsf-smoke\notepad-smoke-result.md" `
     -GateId "tsf-notepad-smoke"
 
 Invoke-FailedAppSmokeCase `
     -Name "chromium" `
-    -RelativeResultPath "p2-win01-tsf-smoke\chromium-smoke-result.md" `
+    -RelativeResultPath "m01\tsf-smoke\chromium-smoke-result.md" `
     -GateId "chromium-text-field-smoke"
 
 Write-Host "Closeout audit rejects failed app-smoke result evidence even when pass markers remain."

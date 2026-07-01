@@ -8,7 +8,7 @@ $InstallerScript = Join-Path $RepoRoot "tools\install-yune-windows-ime.ps1"
 $UninstallerScript = Join-Path $RepoRoot "tools\uninstall-yune-windows-ime.ps1"
 $NotepadSmokeScript = Join-Path $RepoRoot "tools\run-notepad-smoke.ps1"
 $ChromiumSmokeScript = Join-Path $RepoRoot "tools\run-chromium-smoke.ps1"
-$LiveSmokeScript = Join-Path $RepoRoot "tools\run-p2-win01-live-smoke.ps1"
+$LiveSmokeScript = Join-Path $RepoRoot "tools\run-m01-live-smoke.ps1"
 
 foreach ($Path in @($SupportScript, $InstallerScript, $UninstallerScript, $NotepadSmokeScript, $ChromiumSmokeScript, $LiveSmokeScript)) {
     if (-not (Test-Path -LiteralPath $Path)) {

@@ -14,16 +14,16 @@ $ErrorActionPreference = "Stop"
 
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 if ($CleanupPlanPath -eq "") {
-    $CleanupPlanPath = Join-Path $RepoRoot "docs\evidence\p2-win01-installer\machine-cleanup-plan.json"
+    $CleanupPlanPath = Join-Path $RepoRoot "docs\evidence\m01\installer\machine-cleanup-plan.json"
 }
 if ($EvidenceDir -eq "") {
-    $EvidenceDir = Join-Path $RepoRoot "docs\evidence\p2-win01-installer"
+    $EvidenceDir = Join-Path $RepoRoot "docs\evidence\m01\installer"
 }
 
 $machine_state_changed_before_approval = $false
 Require-ApprovedMachineStateChange `
     -Approved $ApprovedMachineStateChange.IsPresent `
-    -Action "clear YuneWindows machine residue before the P2-WIN01 live smoke"
+    -Action "clear YuneWindows machine residue before the M01 live smoke"
 Require-LiveSmokeApprovalNote -ApprovalNote $ApprovalNote
 Require-ApprovedMachineCleanupContext
 

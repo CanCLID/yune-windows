@@ -6,7 +6,7 @@ $ErrorActionPreference = "Stop"
 
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 if ($OutputDir -eq "") {
-    $OutputDir = Join-Path $env:TEMP "yune-windows\p2-win01-audit-final-result-timestamps-test"
+    $OutputDir = Join-Path $env:TEMP "yune-windows\m01-audit-final-result-timestamps-test"
 }
 if (Test-Path -LiteralPath $OutputDir) {
     Remove-Item -LiteralPath $OutputDir -Recurse -Force
@@ -22,7 +22,7 @@ function Invoke-CompleteSynthetic {
 
 function Invoke-Audit {
     $EvidenceRoot = Join-Path $OutputDir "evidence"
-    & (Join-Path $RepoRoot "tools\audit-p2-win01-closeout.ps1") `
+    & (Join-Path $RepoRoot "tools\audit-m01-closeout.ps1") `
         -EvidenceRoot $EvidenceRoot `
         -JsonPath $JsonPath `
         -MarkdownPath $MarkdownPath | Out-Null
@@ -31,7 +31,7 @@ function Invoke-Audit {
 
 function Set-InstallerResultDate([string]$Date) {
     $EvidenceRoot = Join-Path $OutputDir "evidence"
-    $ResultPath = Join-Path $EvidenceRoot "p2-win01-installer\result.md"
+    $ResultPath = Join-Path $EvidenceRoot "m01\installer\result.md"
     $Text = Get-Content -Raw -LiteralPath $ResultPath
     if ($Text -notmatch "(?m)^Date:\s*\S+\s*$") {
         throw "synthetic result.md should contain a Date line"

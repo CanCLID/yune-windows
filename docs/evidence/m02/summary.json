@@ -1,0 +1,34 @@
+{
+  "milestone": "M02",
+  "title": "Server Lifecycle And Cleanup Hardening",
+  "status": "complete",
+  "evidence_policy": "compact-summary-only",
+  "raw_artifacts_pruned": [
+    "closeout transcripts",
+    "duplicate live closeout notes",
+    "cleanup snapshots"
+  ],
+  "proven": [
+    "product-owned server startup",
+    "pipe-scoped single-instance guard",
+    "bounded IPC failure logging",
+    "structured uninstall cleanup result",
+    "post-reboot no-residue cleanup validation",
+    "Notepad live smoke",
+    "Chromium live smoke",
+    "diagnostics export",
+    "profile activation before typing"
+  ],
+  "closeout": {
+    "live_status": "covered-by-m02-summary",
+    "no_residue_after_reboot": true,
+    "product_owned_server_start_observed": true,
+    "profile_active_verified_before_typing": true
+  },
+  "regeneration_commands": [
+    "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\test-product-owned-server-smoke-contract.ps1",
+    "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\test-yune-server-single-instance-contract.ps1",
+    "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\test-uninstall-structured-cleanup-result-contract.ps1"
+  ],
+  "live_machine_state_required": false
+}

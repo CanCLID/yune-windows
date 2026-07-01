@@ -49,7 +49,7 @@ evidence, then implementation continues or the gate stays open.
 
 The shared server model remains the default. The first product-owned lifecycle
 path is on-demand `YuneWindowsServer.exe` launch from the installed TSF DLL, with
-bounded IPC failure behavior and structural diagnostics. The current P2-WIN02
+bounded IPC failure behavior and structural diagnostics. The current M02
 implementation uses a bounded synchronous cold-start readiness wait in the TSF
 key path (`kServerLaunchReadyWaitMs = 15000`), so the first cold keystroke can
 block the foreground app while the product-owned server starts. A session-scoped
@@ -60,14 +60,14 @@ or AV/EDR policy make in-host launch insufficient.
 ### D-09 - Dogfood uninstall must preserve user data deliberately
 
 The current uninstaller removes the install tree, including `user-data`, unless
-`-KeepFiles` is used. That is acceptable for the P2-WIN02 live closeout, but
+`-KeepFiles` is used. That is acceptable for the M02 live closeout, but
 dogfood package hardening must decide and verify a user-data preservation or
 migration policy before repeated reinstall loops can be considered safe for
 learned dictionary or personalization data.
 
 ### D-10 - Dev inner loop remains non-elevated
 
-The P2-WIN03 development loop may rebuild, stop exact-path user processes, copy
+The M03 development loop may rebuild, stop exact-path user processes, copy
 files under the per-user install root, and relaunch a dev-owned disposable test
 window. It must not perform TSF registration, registry edits, delayed-delete
 cleanup, verifier setup, or canonical install/uninstall loops. Installed-path
@@ -79,7 +79,7 @@ or signing out, and is not part of the normal dev loop.
 
 ### D-11 - Candidate typing fixes stay Windows-side unless engine APIs change explicitly
 
-P2-WIN04 keeps candidate-display and input-quality fixes in Yune Windows when
+M04 keeps candidate-display and input-quality fixes in Yune Windows when
 the existing packaged Yune ABI is sufficient. Raw `jyut6ping3` candidate
 comments are simplified in the Windows server for display, candidate paging is
 client-side over a larger candidate list, and punctuation commits use the
@@ -93,7 +93,7 @@ changing that live-proof boundary.
 
 ## Last Updated
 
-2026-07-01 - P2-WIN04 Candidate Window And Typing Quality implementation and
+2026-07-01 - M04 Candidate Window And Typing Quality implementation and
 review follow-up completed with server-side/runtime harness evidence and
 DLL-side static/build/smoke evidence. Live app proof for caret placement,
 no-orphan behavior, paging keys, and full-sentence punctuation remains blocked

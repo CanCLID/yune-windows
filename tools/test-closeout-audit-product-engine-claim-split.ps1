@@ -6,7 +6,7 @@ $ErrorActionPreference = "Stop"
 
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 if ($OutputDir -eq "") {
-    $OutputDir = Join-Path $env:TEMP "yune-windows\p2-win01-audit-product-engine-claim-test"
+    $OutputDir = Join-Path $env:TEMP "yune-windows\m01-audit-product-engine-claim-test"
 }
 if (Test-Path -LiteralPath $OutputDir) {
     Remove-Item -LiteralPath $OutputDir -Recurse -Force
@@ -24,14 +24,14 @@ function Write-EvidenceFile([string]$RelativePath, [string]$Content) {
 function Invoke-TestAudit([string]$Name) {
     $JsonPath = Join-Path $OutputDir "$Name.json"
     $MarkdownPath = Join-Path $OutputDir "$Name.md"
-    & (Join-Path $RepoRoot "tools\audit-p2-win01-closeout.ps1") `
+    & (Join-Path $RepoRoot "tools\audit-m01-closeout.ps1") `
         -EvidenceRoot $EvidenceRoot `
         -JsonPath $JsonPath `
         -MarkdownPath $MarkdownPath | Out-Null
     return Get-Content -Raw -LiteralPath $JsonPath | ConvertFrom-Json
 }
 
-Write-EvidenceFile "p2-win01-installer\result.md" @'
+Write-EvidenceFile "m01\installer\result.md" @'
 # Synthetic Bad Claim
 
 Status: passed
@@ -48,7 +48,7 @@ if ($BadGate.status -ne "invalid") {
     throw "audit should reject evidence claiming Windows product proof closes Yune M38, got $($BadGate.status)"
 }
 
-Write-EvidenceFile "p2-win01-installer\result.md" @'
+Write-EvidenceFile "m01\installer\result.md" @'
 # Synthetic Allowed Claim
 
 Status: passed

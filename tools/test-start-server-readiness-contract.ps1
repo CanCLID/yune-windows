@@ -7,7 +7,7 @@ $ErrorActionPreference = "Stop"
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $ProcessId = [System.Diagnostics.Process]::GetCurrentProcess().Id
 if ($OutputDir -eq "") {
-    $OutputDir = Join-Path $env:TEMP "yune-windows\p2-win01-server-readiness-$ProcessId"
+    $OutputDir = Join-Path $env:TEMP "yune-windows\m01-server-readiness-$ProcessId"
 }
 
 $StartScript = Join-Path $RepoRoot "tools\start-yune-windows-server.ps1"

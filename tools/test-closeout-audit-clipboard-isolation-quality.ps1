@@ -6,7 +6,7 @@ $ErrorActionPreference = "Stop"
 
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 if ($OutputDir -eq "") {
-    $OutputDir = Join-Path $env:TEMP "yune-windows\p2-win01-audit-clipboard-isolation-test"
+    $OutputDir = Join-Path $env:TEMP "yune-windows\m01-audit-clipboard-isolation-test"
 }
 if (Test-Path -LiteralPath $OutputDir) {
     Remove-Item -LiteralPath $OutputDir -Recurse -Force
@@ -17,8 +17,8 @@ if (Test-Path -LiteralPath $OutputDir) {
 
 $EvidenceRoot = Join-Path $OutputDir "evidence"
 foreach ($RelativePath in @(
-        "p2-win01-tsf-smoke\notepad-smoke-result.md",
-        "p2-win01-tsf-smoke\chromium-smoke-result.md"
+        "m01\tsf-smoke\notepad-smoke-result.md",
+        "m01\tsf-smoke\chromium-smoke-result.md"
     )) {
     $Path = Join-Path $EvidenceRoot $RelativePath
     $Text = Get-Content -Raw -LiteralPath $Path
@@ -28,7 +28,7 @@ foreach ($RelativePath in @(
 
 $JsonPath = Join-Path $OutputDir "audit-without-clipboard-reset.json"
 $MarkdownPath = Join-Path $OutputDir "audit-without-clipboard-reset.md"
-& (Join-Path $RepoRoot "tools\audit-p2-win01-closeout.ps1") `
+& (Join-Path $RepoRoot "tools\audit-m01-closeout.ps1") `
     -EvidenceRoot $EvidenceRoot `
     -JsonPath $JsonPath `
     -MarkdownPath $MarkdownPath
@@ -50,8 +50,8 @@ Write-Host "Closeout audit rejects text-smoke evidence without clipboard-reset p
     -OutputDir $OutputDir
 
 foreach ($RelativePath in @(
-        "p2-win01-tsf-smoke\notepad-smoke-result.md",
-        "p2-win01-tsf-smoke\chromium-smoke-result.md"
+        "m01\tsf-smoke\notepad-smoke-result.md",
+        "m01\tsf-smoke\chromium-smoke-result.md"
     )) {
     $Path = Join-Path $EvidenceRoot $RelativePath
     $Text = Get-Content -Raw -LiteralPath $Path
@@ -61,7 +61,7 @@ foreach ($RelativePath in @(
 
 $JsonPath = Join-Path $OutputDir "audit-without-clipboard-final-clear.json"
 $MarkdownPath = Join-Path $OutputDir "audit-without-clipboard-final-clear.md"
-& (Join-Path $RepoRoot "tools\audit-p2-win01-closeout.ps1") `
+& (Join-Path $RepoRoot "tools\audit-m01-closeout.ps1") `
     -EvidenceRoot $EvidenceRoot `
     -JsonPath $JsonPath `
     -MarkdownPath $MarkdownPath

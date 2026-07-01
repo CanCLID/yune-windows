@@ -13,7 +13,7 @@ if ([Threading.Thread]::CurrentThread.ApartmentState -ne "STA") {
 
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 if ($OutputPath -eq "") {
-    $OutputPath = Join-Path $RepoRoot "docs\evidence\p2-win01-tsf-smoke\chromium-input-probe.json"
+    $OutputPath = Join-Path $RepoRoot "docs\evidence\m01\tsf-smoke\chromium-input-probe.json"
 }
 $OutputPath = [System.IO.Path]::GetFullPath($OutputPath)
 New-Item -ItemType Directory -Force (Split-Path -Parent $OutputPath) | Out-Null

@@ -3,12 +3,12 @@ param()
 $ErrorActionPreference = "Stop"
 
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
-$BriefScript = Join-Path $RepoRoot "tools\write-p2-win01-approval-brief.ps1"
+$BriefScript = Join-Path $RepoRoot "tools\write-m01-approval-brief.ps1"
 if (-not (Test-Path -LiteralPath $BriefScript)) {
-    throw "missing approval brief writer: tools\write-p2-win01-approval-brief.ps1"
+    throw "missing approval brief writer: tools\write-m01-approval-brief.ps1"
 }
 
-$TempDir = Join-Path $env:TEMP "yune-windows\p2-win01-approval-brief-browser-path-schema-test"
+$TempDir = Join-Path $env:TEMP "yune-windows\m01-approval-brief-browser-path-schema-test"
 if (Test-Path -LiteralPath $TempDir) {
     Remove-Item -LiteralPath $TempDir -Recurse -Force
 }

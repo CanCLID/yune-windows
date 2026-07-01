@@ -6,7 +6,7 @@ $ErrorActionPreference = "Stop"
 
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 if ($OutputDir -eq "") {
-    $OutputDir = Join-Path $env:TEMP "yune-windows\p2-win01-audit-notepad-command-transcript-test"
+    $OutputDir = Join-Path $env:TEMP "yune-windows\m01-audit-notepad-command-transcript-test"
 }
 if (Test-Path -LiteralPath $OutputDir) {
     Remove-Item -LiteralPath $OutputDir -Recurse -Force
@@ -17,7 +17,7 @@ $FixtureDir = Join-Path $OutputDir "complete-fixture"
     -OutputDir $FixtureDir | Out-Null
 
 $EvidenceRoot = [System.IO.Path]::GetFullPath((Join-Path $FixtureDir "evidence"))
-$CommandsPath = Join-Path $EvidenceRoot "p2-win01-installer\commands.txt"
+$CommandsPath = Join-Path $EvidenceRoot "m01\installer\commands.txt"
 if (-not (Test-Path -LiteralPath $CommandsPath)) {
     throw "complete fixture did not write commands.txt"
 }
@@ -28,7 +28,7 @@ if (-not (Test-Path -LiteralPath $CommandsPath)) {
 
 $JsonPath = Join-Path $OutputDir "audit-missing-notepad-transcript.json"
 $MarkdownPath = Join-Path $OutputDir "audit-missing-notepad-transcript.md"
-& (Join-Path $RepoRoot "tools\audit-p2-win01-closeout.ps1") `
+& (Join-Path $RepoRoot "tools\audit-m01-closeout.ps1") `
     -EvidenceRoot $EvidenceRoot `
     -JsonPath $JsonPath `
     -MarkdownPath $MarkdownPath | Out-Null

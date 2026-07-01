@@ -15,20 +15,20 @@ if ($PackageDir -eq "") {
 $SourceSchemaDir = Join-Path $YuneRoot "apps\yune-web\public\schema"
 $PrepareProductData = $false
 if ($SharedDataDir -eq "") {
-    $SharedDataDir = Join-Path $env:TEMP "yune-windows\p2-win01-yune-host\schema"
+    $SharedDataDir = Join-Path $env:TEMP "yune-windows\m01\yune-host\schema"
     $PrepareProductData = $true
 }
 if ($OutputDir -eq "") {
-    $OutputDir = Join-Path $RepoRoot "docs\evidence\p2-win01-yune-host"
+    $OutputDir = Join-Path $env:TEMP "yune-windows\m01\yune-host\evidence"
 }
 if ($UserDataDir -eq "") {
-    $UserDataDir = Join-Path $env:TEMP "yune-windows\p2-win01-yune-host\user"
+    $UserDataDir = Join-Path $env:TEMP "yune-windows\m01\yune-host\user"
 }
 
 $RimeDll = Join-Path $PackageDir "lib\rime.dll"
 $IncludeDir = Join-Path $PackageDir "include"
 $Source = Join-Path $RepoRoot "src\host\yune_host_smoke.cpp"
-$BuildDir = Join-Path $env:TEMP "yune-windows\p2-win01-yune-host\build"
+$BuildDir = Join-Path $env:TEMP "yune-windows\m01\yune-host\build"
 $Exe = Join-Path $BuildDir "yune_host_smoke.exe"
 $Obj = Join-Path $BuildDir "yune_host_smoke.obj"
 $ResultPath = Join-Path $OutputDir "result.json"

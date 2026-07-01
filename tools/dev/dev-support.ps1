@@ -1,6 +1,9 @@
 $ErrorActionPreference = "Stop"
 
 $script:YuneWindowsDevDefaultPipeName = "\\.\pipe\yune-windows-ime-dev"
+$script:YuneWindowsDevDefaultInstallDir = Join-Path $env:LOCALAPPDATA "Yune\WindowsIme"
+$script:YuneWindowsDevDefaultStateRoot = Join-Path $env:TEMP "yune-windows"
+$script:YuneWindowsDevDefaultTestWindowStatePath = Join-Path $script:YuneWindowsDevDefaultStateRoot "dev-test-window.json"
 
 function Resolve-YuneWindowsDevFullPath {
     param([Parameter(Mandatory = $true)][string]$Path)
@@ -29,6 +32,39 @@ function Test-YuneWindowsDevPath {
     }
 }
 
+function New-YuneWindowsDevTimestamp {
+    return (Get-Date).ToString("yyyyMMdd-HHmmss")
+}
+
+function New-YuneWindowsDevScratchRoot {
+    param(
+        [Parameter(Mandatory = $true)][string]$Purpose,
+        [string]$ScratchRoot = ""
+    )
+
+    if ([string]::IsNullOrWhiteSpace($ScratchRoot)) {
+        $ScratchRoot = Join-Path $script:YuneWindowsDevDefaultStateRoot (
+            "{0}-{1}-{2}" -f $Purpose, $PID, [Guid]::NewGuid().ToString("N").Substring(0, 8))
+    }
+    $ScratchRoot = Resolve-YuneWindowsDevFullPath $ScratchRoot
+    New-Item -Path $ScratchRoot -ItemType Directory -Force | Out-Null
+    return $ScratchRoot
+}
+
+function Get-YuneWindowsDevInstallPaths {
+    param([string]$InstallDir = $script:YuneWindowsDevDefaultInstallDir)
+
+    $InstallRoot = Resolve-YuneWindowsDevFullPath $InstallDir
+    return [pscustomobject]@{
+        install_dir = $InstallRoot
+        server_exe = Join-Path $InstallRoot "YuneWindowsServer.exe"
+        tsf_dll = Join-Path $InstallRoot "YuneWindowsTSF.dll"
+        rime_dll = Join-Path $InstallRoot "rime.dll"
+        schema_dir = Join-Path $InstallRoot "schema"
+        user_data_dir = Join-Path $InstallRoot "user-data"
+    }
+}
+
 function Get-YuneWindowsDevPackage {
     param([string]$YuneRoot = "C:\Users\laubonghaudoi\Documents\GitHub\yune")
 
@@ -50,6 +86,10 @@ function Get-YuneWindowsDevPackage {
     Test-YuneWindowsDevPath `
         -Path (Join-Path $SchemaSourceDir "jyut6ping3_mobile.schema.yaml") `
         -Description "Yune Windows runtime schema source" `
+        -PathType Leaf
+    Test-YuneWindowsDevPath `
+        -Path (Join-Path $SchemaSourceDir "build\jyut6ping3_mobile.schema.yaml") `
+        -Description "prebuilt Yune Windows runtime schema source" `
         -PathType Leaf
 
     return [pscustomobject]@{
@@ -189,6 +229,132 @@ function Get-YuneWindowsDevProcessesUsingModule {
     }
 
     return @($Holders)
+}
+
+function Get-YuneWindowsDevProcessesByPath {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [string]$ProcessName = ""
+    )
+
+    $ExpectedPath = Resolve-YuneWindowsDevFullPath $Path
+    $Candidates = if ([string]::IsNullOrWhiteSpace($ProcessName)) {
+        @(Get-Process -ErrorAction SilentlyContinue)
+    }
+    else {
+        @(Get-Process -Name $ProcessName -ErrorAction SilentlyContinue)
+    }
+
+    $Matches = [System.Collections.Generic.List[object]]::new()
+    foreach ($Process in $Candidates) {
+        try {
+            $ProcessPath = [string]$Process.Path
+            if ([string]::IsNullOrWhiteSpace($ProcessPath)) {
+                continue
+            }
+            $ProcessPath = Resolve-YuneWindowsDevFullPath $ProcessPath
+            if ([string]::Equals($ProcessPath, $ExpectedPath, [System.StringComparison]::OrdinalIgnoreCase)) {
+                $StartedAt = $null
+                try {
+                    $StartedAt = $Process.StartTime
+                }
+                catch {
+                }
+                $Matches.Add([pscustomobject]@{
+                        process_id = [int]$Process.Id
+                        process_name = [string]$Process.ProcessName
+                        process_path = $ProcessPath
+                        started_at = $StartedAt
+                    }) | Out-Null
+            }
+        }
+        catch {
+        }
+    }
+
+    return @($Matches)
+}
+
+function Wait-YuneWindowsDevProcessExit {
+    param(
+        [Parameter(Mandatory = $true)][int]$ProcessId,
+        [int]$TimeoutMs = 10000,
+        [switch]$RequireExit
+    )
+
+    $Deadline = [DateTime]::UtcNow.AddMilliseconds($TimeoutMs)
+    while ([DateTime]::UtcNow -lt $Deadline) {
+        $Process = Get-Process -Id $ProcessId -ErrorAction SilentlyContinue
+        if (-not $Process) {
+            return $true
+        }
+        Start-Sleep -Milliseconds 100
+    }
+
+    if ($RequireExit) {
+        throw "process $ProcessId did not exit within $TimeoutMs ms"
+    }
+    return $false
+}
+
+function Stop-YuneWindowsDevProcessesByPath {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [string]$ProcessName = "",
+        [int]$TimeoutMs = 10000
+    )
+
+    $Processes = @(Get-YuneWindowsDevProcessesByPath -Path $Path -ProcessName $ProcessName)
+    foreach ($Process in $Processes) {
+        Stop-Process -Id ([int]$Process.process_id) -Force -ErrorAction SilentlyContinue
+        Wait-YuneWindowsDevProcessExit -ProcessId ([int]$Process.process_id) -TimeoutMs $TimeoutMs -RequireExit | Out-Null
+    }
+    return @($Processes)
+}
+
+function Format-YuneWindowsDevProcessSummary {
+    param([object[]]$Processes)
+
+    if (-not $Processes -or @($Processes).Count -eq 0) {
+        return "none"
+    }
+
+    return (@($Processes) | ForEach-Object {
+            $Path = [string]$_.process_path
+            if ([string]::IsNullOrWhiteSpace($Path)) {
+                "$($_.process_name)[$($_.process_id)]"
+            }
+            else {
+                "$($_.process_name)[$($_.process_id)] $Path"
+            }
+        }) -join "; "
+}
+
+function Read-YuneWindowsDevJsonFile {
+    param([Parameter(Mandatory = $true)][string]$Path)
+
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+        return $null
+    }
+    try {
+        return (Get-Content -Raw -LiteralPath $Path | ConvertFrom-Json)
+    }
+    catch {
+        throw "failed to parse dev state file: $Path"
+    }
+}
+
+function Write-YuneWindowsDevJsonFile {
+    param(
+        [Parameter(Mandatory = $true)][object]$Value,
+        [Parameter(Mandatory = $true)][string]$Path
+    )
+
+    $Parent = Split-Path -Parent $Path
+    if (-not [string]::IsNullOrWhiteSpace($Parent)) {
+        New-Item -Path $Parent -ItemType Directory -Force | Out-Null
+    }
+    $Value | ConvertTo-Json -Depth 6 | Out-File -LiteralPath $Path -Encoding utf8
 }
 
 function Stop-YuneWindowsDevStartedProcess {

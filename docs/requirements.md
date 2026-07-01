@@ -2,11 +2,11 @@
 
 ## Yune Windows Product Requirements
 
-**Status:** public rename baseline plus P2-WIN02 product-owned server lifecycle
-and structured cleanup hardening are complete. Fresh post-rename live evidence
-proves install/register, product-owned Notepad and Chromium typing,
-diagnostics, uninstall, and post-reboot no-residue cleanup on the installed
-IME.
+**Status:** public rename baseline, P2-WIN02 product-owned server lifecycle,
+structured cleanup hardening, and P2-WIN03 development inner-loop tooling are
+complete. Fresh post-rename live evidence proves install/register,
+product-owned Notepad and Chromium typing, diagnostics, uninstall, and
+post-reboot no-residue cleanup on the installed IME.
 
 - [x] **WIN-01 - Product identity:** Product name, repo slug, install root,
   TSF DLL, server, profile tool, candidate smoke, named pipe, and TSF
@@ -60,6 +60,16 @@ IME.
   (`kServerLaunchReadyWaitMs = 15000`), so the first cold keystroke can block
   the foreground app while the server starts. Non-blocking/asynchronous
   cold-start or broker launch remains a dogfood fast-follow, not a solved gate.
+- [x] **WIN-13 - Development inner loop:** Development tooling must support a
+  no-install engine REPL, installed-server reload, installed TSF DLL reload
+  through a dev-owned test window, and dry-run watch routing without elevation,
+  re-registration, registry edits, delayed-delete cleanup, or canonical live
+  install/uninstall loops. Static safety contracts and REPL smoke verification
+  cover the non-elevated path.
+- [ ] **WIN-14 - Daily typing quality:** Candidate paging/mouse selection,
+  punctuation/full-width behavior, learning/userdb, and candidate comment
+  hygiene remain open. P2-WIN03 exposed raw structured CSV-like candidate
+  comments in the dev REPL; fix that as a P2-WIN04 daily-typing issue.
 
 ## Non-Elevated Verification Gates
 

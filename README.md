@@ -26,8 +26,10 @@ evidence captured before the rename.
 Current development dogfood has product-owned shared-server startup in the TSF
 DLL and structured cleanup result support in the uninstaller. The approved live
 install/register/type/diagnostics/uninstall/cleanup closeout passed after
-post-reboot delayed-delete validation. The next product gate is dogfood package
-hardening and release evidence.
+post-reboot delayed-delete validation. P2-WIN03 added a non-elevated development
+inner loop for candidate debugging, installed-server reload, TSF DLL reload, and
+watch-mode routing. The next product gate is P2-WIN04 Daily Typing Quality
+unless dogfood package hardening is explicitly prioritized first.
 
 For dogfood package or production installer work, refresh live evidence under
 the Yune Windows names whenever package inputs or installer behavior change:
@@ -69,6 +71,23 @@ Then build the Windows IME shell:
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\build-tsf-shell.ps1 -YuneRoot C:\Users\laubonghaudoi\Documents\GitHub\yune
 ```
+
+## Development Inner Loop
+
+P2-WIN03 tooling keeps ordinary iteration non-elevated:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\dev\dev-repl.ps1 -InputText ngohaig -Once
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\dev\dev-reload-server.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\dev\dev-test-window.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\dev\dev-reload-tsf.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\dev\dev-watch.ps1
+```
+
+See [docs/dev/inner-loop.md](./docs/dev/inner-loop.md). The install/register
+setup remains approval-gated; the dev tools do not perform registration,
+registry edits, delayed-delete cleanup, verifier setup, or canonical live
+install/uninstall loops.
 
 ## Manual Dogfood
 

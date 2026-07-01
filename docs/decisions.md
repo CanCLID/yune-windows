@@ -65,11 +65,18 @@ dogfood package hardening must decide and verify a user-data preservation or
 migration policy before repeated reinstall loops can be considered safe for
 learned dictionary or personalization data.
 
+### D-10 - Dev inner loop remains non-elevated
+
+The P2-WIN03 development loop may rebuild, stop exact-path user processes, copy
+files under the per-user install root, and relaunch a dev-owned disposable test
+window. It must not perform TSF registration, registry edits, delayed-delete
+cleanup, verifier setup, or canonical install/uninstall loops. Installed-path
+reloads are development evidence only and do not close dogfood readiness.
+
 ## Last Updated
 
-2026-06-30 - P2-WIN02 live closeout passed after post-reboot delayed-delete
-cleanup validation. Product-owned server startup is proven in installed Notepad
-and Chromium smokes, with the known synchronous cold-start wait documented as a
-fast-follow limitation. Completed P2-WIN01 and P2-WIN02 plans moved to
-`docs/plans/history/`; the next product gate is dogfood package hardening,
-including deliberate user-data preservation behavior for reinstall loops.
+2026-07-01 - P2-WIN03 Development Inner Loop completed. The repo now has
+non-elevated dev REPL, installed-server reload, TSF DLL reload through a
+dev-owned test window, and dry-run watch tooling; the completed P2-WIN03 plan
+moved to `docs/plans/history/`. Candidate comment hygiene is recorded as a
+P2-WIN04 Daily Typing Quality follow-up.

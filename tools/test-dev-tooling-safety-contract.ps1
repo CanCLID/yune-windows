@@ -11,7 +11,11 @@ if (-not (Test-Path -LiteralPath $DevRoot -PathType Container)) {
 
 $RequiredDevScripts = @(
     "dev-support.ps1",
-    "dev-repl.ps1"
+    "dev-repl.ps1",
+    "dev-reload-server.ps1",
+    "dev-test-window.ps1",
+    "dev-reload-tsf.ps1",
+    "dev-watch.ps1"
 )
 foreach ($ScriptName in $RequiredDevScripts) {
     $ScriptPath = Join-Path $DevRoot $ScriptName

@@ -214,23 +214,23 @@ protocol. No new C++.
 **Files:**
 - Create: `tools\dev\dev-reload-server.ps1`
 
-- [ ] **Step 1: Rebuild the server** to a scratch build dir with
+- [x] **Step 1: Rebuild the server** to a scratch build dir with
   `build-tsf-shell.ps1 -OutputDir <scratch> -YuneRoot <root>`.
-- [ ] **Step 2: Stop the installed server** by matching processes whose `Path`
+- [x] **Step 2: Stop the installed server** by matching processes whose `Path`
   equals `<InstallDir>\YuneWindowsServer.exe`; wait for exit. During the swap
   window, a keystroke in a Yune-active field can trigger the product-owned
   auto-launch path and recreate the installed server, so hold the reload
   discipline by retrying stop/copy when the exe is briefly locked instead of
   assuming the server stays down.
-- [ ] **Step 3: Swap in the new server** by creating a timestamped backup of the
+- [x] **Step 3: Swap in the new server** by creating a timestamped backup of the
   installed `YuneWindowsServer.exe`, copying the scratch build into place, and
   restoring the backup if copy or readiness validation fails. With an optional
   `-RefreshSchema` switch, re-run `prepare-yune-product-data.ps1` into the
   install dir.
-- [ ] **Step 4: Restart** via `start-yune-windows-server.ps1 -InstallDir <dir>`
+- [x] **Step 4: Restart** via `start-yune-windows-server.ps1 -InstallDir <dir>`
   `-WaitForReady` so the next keystroke does not pay the cold-start wait. If
   readiness fails, roll back to the timestamped backup and report the failure.
-- [ ] **Step 5:** Print the new server PID and readiness. Non-elevated
+- [x] **Step 5:** Print the new server PID and readiness. Non-elevated
   throughout.
 
 ## Task 3: Disposable test app + TSF DLL swap
@@ -240,10 +240,10 @@ protocol. No new C++.
 - Create: `tools\dev\dev-reload-tsf.ps1`
 - Create: `tools\test-dev-reload-no-reregister-contract.ps1`
 
-- [ ] **Step 1: `dev-test-window.ps1`** launches a fresh Notepad the script owns
+- [x] **Step 1: `dev-test-window.ps1`** launches a fresh Notepad the script owns
   (records its PID) as the disposable test target, and prints how to select Yune
   (Win+Space). A custom titled edit window is a later nice-to-have.
-- [ ] **Step 2: `dev-reload-tsf.ps1`** rebuilds the DLL to a scratch dir (after
+- [x] **Step 2: `dev-reload-tsf.ps1`** rebuilds the DLL to a scratch dir (after
   the packaged-Yune preflight), enumerates holders of
   `<InstallDir>\YuneWindowsTSF.dll` via the read-only `dev-support.ps1` helper,
   closes the dev test app (and only that), waits for the DLL to unlock, creates a
@@ -251,10 +251,10 @@ protocol. No new C++.
   validates that the swap landed, rolls back to the backup if validation fails,
   and relaunches the test app. If a non-dev holder remains, it aborts cleanly
   with holder guidance rather than forcing a reboot.
-- [ ] **Step 3:** Holder policy: unsafe holders (not the dev test app) abort with
+- [x] **Step 3:** Holder policy: unsafe holders (not the dev test app) abort with
   a printed summary; `-RestartExplorer` is the only opt-in that may bounce
   explorer. Never re-register.
-- [ ] **Step 4: No-reregister contract (static)**
+- [x] **Step 4: No-reregister contract (static)**
   `test-dev-reload-no-reregister-contract.ps1` asserts `dev-reload-tsf.ps1`
   copies/overwrites the DLL and contains no `regsvr32` / `Register` call. RED then
   GREEN.
@@ -264,9 +264,9 @@ protocol. No new C++.
 **Files:**
 - Create: `tools\dev\dev-watch.ps1`
 
-- [ ] **Step 1:** `FileSystemWatcher` on `src\server`, `src\tsf`,
+- [x] **Step 1:** `FileSystemWatcher` on `src\server`, `src\tsf`,
   `src\candidate_window`, and the schema source; debounce changes.
-- [ ] **Step 2:** Route: `src\server\**` or schema -> `dev-reload-server.ps1`;
+- [x] **Step 2:** Route: `src\server\**` or schema -> `dev-reload-server.ps1`;
   `src\tsf\**` / `src\candidate_window\**` -> `dev-reload-tsf.ps1`.
   Default behavior is dry-run/print-only: print the reload command and reason
   without running it. Actual reloads require explicit `-AutoRun`; when `-AutoRun`
@@ -279,16 +279,16 @@ protocol. No new C++.
 - Create: `docs\dev\inner-loop.md`
 - Modify: `docs\roadmap.md` (slot P2-WIN03 as the chosen next milestone)
 
-- [ ] **Step 1:** Write `docs\dev\inner-loop.md`: the one-time approved
+- [x] **Step 1:** Write `docs\dev\inner-loop.md`: the one-time approved
   install/register, then the free inner loop (`dev-repl` for engine/candidate
   bugs; `dev-reload-server` for server/schema; `dev-reload-tsf` for TSF/candidate
   window; `dev-watch` to automate). State clearly that no step after setup needs
   elevation, approval, re-registration, or a reboot.
-- [ ] **Step 2:** Run the dev safety and no-reregister contracts plus
+- [x] **Step 2:** Run the dev safety and no-reregister contracts plus
   `git diff --check`. Run `dev-repl.ps1` end to end against a scratch server and
   confirm candidates for `ngohaig` include the expected commit. This is
   non-elevated and needs no install.
-- [ ] **Step 3:** Commit tooling and docs directly on `main` and push
+- [x] **Step 3:** Commit tooling and docs directly on `main` and push
   `origin/main`, preserving unrelated worktree changes and staging only the
   intended files.
 

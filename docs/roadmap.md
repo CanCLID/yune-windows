@@ -7,10 +7,10 @@ intentionally separate from Yune engine-performance work.
 
 | Lane | Current state | Next gate |
 | --- | --- | --- |
-| Product shell | Renamed public baseline with TSF DLL, shared server, native candidate window, diagnostics tooling, installer scripts, non-elevated contract tests, and P2-WIN02 product-owned server startup implementation. Latest approved live closeout reached install/register, profile activation, Notepad, Chromium, diagnostics export, uninstall, and post-reboot no-residue cleanup. Both text-field smokes passed from the installed path, committed `我係個`, and recorded product-owned server start/readiness plus profile-active-before-typing evidence. Cold start is still synchronous in the TSF key path for up to `kServerLaunchReadyWaitMs = 15000`. | Start P2-WIN03 Development Inner Loop before heavier dogfood and daily-typing work. |
+| Product shell | Renamed public baseline with TSF DLL, shared server, native candidate window, diagnostics tooling, installer scripts, non-elevated contract tests, P2-WIN02 product-owned server startup, and P2-WIN03 development inner-loop tooling. Latest approved live closeout reached install/register, profile activation, Notepad, Chromium, diagnostics export, uninstall, and post-reboot no-residue cleanup. Both text-field smokes passed from the installed path, committed the expected Cantonese text, and recorded product-owned server start/readiness plus profile-active-before-typing evidence. Cold start is still synchronous in the TSF key path for up to `kServerLaunchReadyWaitMs = 15000`. | Start P2-WIN04 Daily Typing Quality unless dogfood package hardening is explicitly prioritized first. |
 | Yune boundary | Windows consumes packaged Yune through `rime_get_api()` plus the opt-in `rime_get_yune_windows_profile_api()` surface. | Keep default `rime_get_api()` unchanged; send new engine needs to Yune as named proposals with tests. |
 | Reference code | Legacy Weasel-derived implementation is reference material only. | Extract no more code without a focused audit and smoke proof. |
-| Dogfood release | Public repo starts from clean initial history and omits old private evidence. Fresh post-rename live evidence exists, including Notepad, Chromium, diagnostics, recovered cleanup, compatibility matrix, signing decision, and complete closeout audit under the product-owned server contract. Compatibility matrix and signing decision are recorded; dogfood packaging, release signing, non-blocking cold-start, and user-data preservation remain open. | Start dogfood package hardening. |
+| Dogfood release | Public repo starts from clean initial history and omits old private evidence. Fresh post-rename live evidence exists, including Notepad, Chromium, diagnostics, recovered cleanup, compatibility matrix, signing decision, and complete closeout audit under the product-owned server contract. Compatibility matrix and signing decision are recorded; dogfood packaging, release signing, non-blocking cold-start, and user-data preservation remain open. | Start dogfood package hardening when selected. |
 
 ## Completed Sequence
 
@@ -34,11 +34,15 @@ intentionally separate from Yune engine-performance work.
    Both text-field smokes passed from the installed path without a manual server
    start and recorded product-owned server start/readiness evidence. The current
    cold-start readiness path is bounded but synchronous in the TSF key path, so
-   non-blocking launch remains a fast-follow. Cleanup
-   initially recorded `requires_reboot=true` with delayed-delete paths under the
-   install root because GUI processes kept `YuneWindowsTSF.dll` loaded, then
-   passed post-reboot validation with no residue; see
+   non-blocking launch remains a fast-follow. Cleanup initially recorded
+   `requires_reboot=true` with delayed-delete paths under the install root
+   because GUI processes kept `YuneWindowsTSF.dll` loaded, then passed
+   post-reboot validation with no residue; see
    `docs/evidence/p2-win02-server-lifecycle/live-closeout-20260630-203015.md`.
+6. **Development inner loop** - add non-elevated dev tooling for a no-install
+   REPL, installed-server hot reload with backup/rollback, installed TSF DLL
+   reload through a dev-owned test window, and dry-run watch routing. Historical
+   plan: `docs/plans/history/p2-win03-plan-dev-inner-loop.md`.
 
 ## Scope Ledger
 
@@ -66,9 +70,9 @@ The completed post-rename live evidence proves:
 - no install directory, TSF DLL, server process, TSF profile, or machine
   residue left behind.
 
-## Completed Milestone
+## Completed Milestones
 
-**P2-WIN02 - Server Lifecycle And Cleanup Hardening**
+### P2-WIN02 - Server Lifecycle And Cleanup Hardening
 
 Status: complete for product-owned server startup and recovered cleanup. The
 implementation adds on-demand TSF startup for the shared server, pipe-scoped
@@ -76,29 +80,40 @@ duplicate-server protection, product-owned smoke contracts, and structured
 uninstall cleanup results. The approved live closeout reached
 install/register, profile activation, Notepad, Chromium, diagnostics export,
 and structured uninstall. The installed Notepad and Chromium smokes both passed,
-committed `我係個`, and recorded product-owned server start/readiness evidence
-without per-smoke activation immediately before typing. Cleanup scheduled
-delayed delete for locked install-root files, then passed post-reboot
-cleanup validation and closeout audit with no residue. Known limitation: the
-first cold keystroke can block the foreground app while the server starts
-because TSF waits synchronously for up to `kServerLaunchReadyWaitMs = 15000`;
-async launch, broker launch, or another non-blocking cold-start path remains a
-dogfood fast-follow.
+committed the expected Cantonese text, and recorded product-owned server
+start/readiness evidence without per-smoke activation immediately before
+typing. Cleanup scheduled delayed delete for locked install-root files, then
+passed post-reboot cleanup validation and closeout audit with no residue. Known
+limitation: the first cold keystroke can block the foreground app while the
+server starts because TSF waits synchronously for up to
+`kServerLaunchReadyWaitMs = 15000`; async launch, broker launch, or another
+non-blocking cold-start path remains a dogfood fast-follow.
 
 Historical plan:
 `docs/plans/history/p2-win02-plan-server-lifecycle-cleanup-hardening.md`.
 
+### P2-WIN03 - Development Inner Loop
+
+Status: complete for non-elevated development tooling. The implementation adds
+`dev-repl.ps1`, `dev-reload-server.ps1`, `dev-test-window.ps1`,
+`dev-reload-tsf.ps1`, `dev-watch.ps1`, and static safety contracts. The
+installed-path reload scripts keep timestamped backups and roll back on
+validation failure; the watch wrapper defaults to dry-run and only runs reload
+commands with explicit `-AutoRun`. Installed-path reloads are development
+evidence only and do not close dogfood readiness.
+
+Historical plan:
+`docs/plans/history/p2-win03-plan-dev-inner-loop.md`.
+
 ## Candidate Next Milestones (for discussion)
 
-P2-WIN02 is complete. The chosen next milestone is **P2-WIN03 Development Inner
-Loop** (a fast dev kit; see
-`docs/plans/active/p2-win03-plan-dev-inner-loop.md`) because it is the multiplier
-on every other item below. The rest remain candidates under discussion.
+P2-WIN02 and P2-WIN03 are complete. The next candidate is **P2-WIN04 Daily
+Typing Quality** unless dogfood package hardening is explicitly prioritized
+first.
 
 | Candidate | Delivers | Rough size | Key dependency / risk |
 | --- | --- | --- | --- |
-| **P2-WIN03 - Development Inner Loop (chosen)** | A fast `type -> find bug -> fix -> takes effect` dev kit: server hot-restart, in-place TSF DLL swap without reboot or re-registration, and a no-install engine REPL. The multiplier on all work below. | M | Plan: `docs/plans/active/p2-win03-plan-dev-inner-loop.md`. Tooling only; one-time install/register stays approval-gated. |
-| **P2-WIN04 - Daily Typing Quality** | Candidate paging + mouse selection, punctuation/full-width input, and learning/userdb so the IME adapts. Turns the proven typing path into a daily-usable Cantonese IME. | L (three slices) | Learning is a protocol change, not a flag flip (see notes); every slice touches the latency-critical inline path (D-04). |
+| **P2-WIN04 - Daily Typing Quality** | Candidate paging + mouse selection, punctuation/full-width input, candidate comment hygiene, and learning/userdb so the IME adapts. Turns the proven typing path into a daily-usable Cantonese IME. | L (three slices) | Learning is a protocol change, not a flag flip (see notes); every slice touches the latency-critical inline path (D-04). |
 | **Non-blocking cold-start / per-user broker** | Removes the up-to-15s foreground freeze on the first cold keystroke and makes launch work in sandboxed/AppContainer hosts (UWP, WeChat, some Store/Electron). Reduces AV/EDR risk of spawning an unsigned exe from a browser. | M | Adds per-user autostart/broker state that install/uninstall must create and remove; documented P2-WIN02 fast-follow. |
 | **Dogfood package hardening (WIN-11)** | Self-contained install bundle decoupled from the local Yune source build, so a second machine can install without a Rust/Yune toolchain. | M | Production signing stays deferred; needs pre-staged `rime.dll` + schema + binaries + `install-info.json`. |
 | **User-data preservation (D-09)** | Preserve or migrate the learned dictionary / personalization across reinstall loops instead of deleting `user-data` on uninstall. | S | Decide backup vs. a `-PurgeUserData` switch; small but touches the uninstall path. |
@@ -125,6 +140,10 @@ and dogfoodable on its own:
    selections. Requires a persistent per-client session, a select-index/commit
    message, userdb persistence, and D-05 secure-context suppression proven with
    a fresh live privacy closeout.
+4. **Candidate comment hygiene**: the P2-WIN03 dev REPL showed candidate
+   comments can expose raw structured CSV-like blobs. This is a daily-typing
+   quality bug, not a dev-kit blocker; fix it in P2-WIN04 so comments are
+   useful, compact, and product-safe.
 
 ### Cross-cutting
 

@@ -2,10 +2,11 @@
 
 ## Yune Windows Product Requirements
 
-**Status:** public rename baseline complete enough for development dogfood.
-The source tree is renamed and uses the Yune Windows package/profile ABI.
-Fresh post-rename evidence exists, but repeatable dogfood still requires
-product-owned shared-server lifecycle and cleaner uninstall/unload behavior.
+**Status:** public rename baseline plus P2-WIN02 product-owned server lifecycle
+and structured cleanup hardening are complete. Fresh post-rename live evidence
+proves install/register, product-owned Notepad and Chromium typing,
+diagnostics, uninstall, and post-reboot no-residue cleanup on the installed
+IME.
 
 - [x] **WIN-01 - Product identity:** Product name, repo slug, install root,
   TSF DLL, server, profile tool, candidate smoke, named pipe, and TSF
@@ -30,19 +31,35 @@ product-owned shared-server lifecycle and cleaner uninstall/unload behavior.
   current-session approval before machine-state changes.
 - [x] **WIN-09 - Diagnostics privacy:** Diagnostics export must stay
   structural and avoid typed-content logs.
-- [ ] **WIN-10 - Post-rename live evidence:** Fresh evidence must prove clean
+- [x] **WIN-10 - Post-rename live evidence:** Fresh evidence must prove clean
   install target, TSF registration, profile activation, Notepad input,
   candidate display, candidate commit, Chromium text-field input, diagnostics
   export, uninstall, and cleanup under the Yune Windows names. Current evidence
-  covers the core path, but the closeout audit remains open because the manual
-  dogfood path still requires explicit shared-server start and cleanup needed
-  recovery after `YuneWindowsTSF.dll` stayed loaded.
-- [ ] **WIN-11 - Dogfood package:** Dogfood installer/package work starts only
-  after WIN-10 passes.
-- [ ] **WIN-12 - Product-owned server lifecycle:** The installed IME must start
+  covers the full path, and P2-WIN02 adds product-owned startup and structured
+  cleanup result support. The latest approved P2-WIN02 live attempt reached
+  install/register, profile activation, Notepad, Chromium, diagnostics export,
+  and structured uninstall. The installed Notepad and Chromium smokes both
+  passed, committed `我係個`, and recorded product-owned server start/readiness
+  plus profile-active-before-typing evidence. Cleanup initially recorded
+  `requires_reboot=true` with delayed-delete paths under the install root
+  because GUI processes kept `YuneWindowsTSF.dll` loaded; post-reboot
+  validation then passed with no install directory, TSF DLL, server process,
+  TSF profile, or machine residue. The closeout audit is complete.
+- [ ] **WIN-11 - Dogfood package:** Dogfood installer/package work is the next
+  open product gate now that WIN-10 has passed. It must decide and verify the
+  uninstall/reinstall user-data policy because the current uninstaller removes
+  the install tree, including `user-data`, unless `-KeepFiles` is used.
+- [x] **WIN-12 - Product-owned server lifecycle:** The installed IME must start
   or connect to `YuneWindowsServer.exe` without requiring the operator to run
   `tools\start-yune-windows-server.ps1` before typing. Failures must remain
-  bounded and structurally logged.
+  bounded and structurally logged. Implementation contracts are green, and
+  approved live Notepad and Chromium evidence proves product-owned startup on
+  the installed path. Post-reboot cleanup validation proves the scheduled
+  install-root delayed deletes are gone. Known limitation: cold start currently
+  uses a bounded synchronous TSF key-path wait
+  (`kServerLaunchReadyWaitMs = 15000`), so the first cold keystroke can block
+  the foreground app while the server starts. Non-blocking/asynchronous
+  cold-start or broker launch remains a dogfood fast-follow, not a solved gate.
 
 ## Non-Elevated Verification Gates
 

@@ -105,4 +105,40 @@ if ($AuditWithFailedCommand.status -eq "complete") {
     throw "audit should not report complete when commands.txt contains failed live command entries"
 }
 
-Write-Host "Closeout audit rejects live transcripts without command completion entries or with failed command entries."
+$FixtureWithRecoveredCleanupDir = Join-Path $OutputDir "complete-fixture-with-recovered-cleanup"
+& (Join-Path $RepoRoot "tools\test-closeout-audit-complete-synthetic.ps1") `
+    -OutputDir $FixtureWithRecoveredCleanupDir | Out-Null
+
+$EvidenceRootWithRecoveredCleanup = Join-Path $FixtureWithRecoveredCleanupDir "evidence"
+$CommandsWithRecoveredCleanupPath = Join-Path $EvidenceRootWithRecoveredCleanup "p2-win01-installer\commands.txt"
+if (-not (Test-Path -LiteralPath $CommandsWithRecoveredCleanupPath)) {
+    throw "complete synthetic fixture did not write commands.txt for recovered-cleanup case"
+}
+
+$CommandsWithRecoveredCleanup = @(
+    Get-Content -LiteralPath $CommandsWithRecoveredCleanupPath |
+        ForEach-Object {
+            if ($_ -match '^PASS\s+.*uninstall-yune-windows-ime\.ps1') {
+                $_ -replace '^PASS\s+', 'FAIL ' -replace '$', ' # install directory contains locked YuneWindowsTSF.dll module holders: explorer[1234]'
+            }
+            else {
+                $_
+            }
+        }
+)
+$CommandsWithRecoveredCleanup | Out-File -LiteralPath $CommandsWithRecoveredCleanupPath -Encoding utf8
+
+$RecoveredCleanupJsonPath = Join-Path $OutputDir "audit-with-recovered-cleanup.json"
+$RecoveredCleanupMarkdownPath = Join-Path $OutputDir "audit-with-recovered-cleanup.md"
+& (Join-Path $RepoRoot "tools\audit-p2-win01-closeout.ps1") `
+    -EvidenceRoot $EvidenceRootWithRecoveredCleanup `
+    -JsonPath $RecoveredCleanupJsonPath `
+    -MarkdownPath $RecoveredCleanupMarkdownPath | Out-Null
+
+$AuditWithRecoveredCleanup = Get-Content -Raw -LiteralPath $RecoveredCleanupJsonPath | ConvertFrom-Json
+if ($AuditWithRecoveredCleanup.status -ne "complete") {
+    $GateSummary = ($AuditWithRecoveredCleanup.gates | ForEach-Object { "$($_.id)=$($_.status)" }) -join ", "
+    throw "audit should accept recovered delayed-delete cleanup transcript when cleanup validation passes, got $($AuditWithRecoveredCleanup.status): $GateSummary"
+}
+
+Write-Host "Closeout audit rejects missing or unrecovered command completion and accepts recovered delayed-delete cleanup."

@@ -11,8 +11,6 @@ if ($OutputDir -eq "") {
 }
 
 $StartScript = Join-Path $RepoRoot "tools\start-yune-windows-server.ps1"
-$NotepadSmoke = Join-Path $RepoRoot "tools\run-notepad-smoke.ps1"
-$ChromiumSmoke = Join-Path $RepoRoot "tools\run-chromium-smoke.ps1"
 $OutputServer = Join-Path $OutputDir "YuneWindowsServer.exe"
 $PipeName = "\\.\pipe\yune-windows-ime-$ProcessId"
 
@@ -51,13 +49,6 @@ foreach ($Required in @(
 }
 if ($StartSource -match '\$Client\.Read\(') {
     throw "start server script must use a bounded async pipe read during readiness checks."
-}
-
-foreach ($SmokeScript in @($NotepadSmoke, $ChromiumSmoke)) {
-    $SmokeSource = Get-Content -Raw -LiteralPath $SmokeScript
-    if ($SmokeSource -notmatch 'start-yune-windows-server\.ps1(?s:.*?)`[\r\n]\s+-WaitForReady') {
-        throw "$(Split-Path -Leaf $SmokeScript) must start the server with -WaitForReady before typing."
-    }
 }
 
 & (Join-Path $RepoRoot "tools\build-tsf-shell.ps1") -OutputDir $OutputDir

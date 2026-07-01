@@ -34,6 +34,7 @@ if ($Snapshot.profile_state -notmatch '"registered":false') {
     throw "snapshot did not capture fake profile probe output"
 }
 
+$Snapshot["server_processes"] = @()
 $Validation = Test-YuneWindowsCleanupState -Snapshot $Snapshot -RequireProfileState
 if ($Validation.pass -ne $true) {
     throw "cleanup validation should pass with verified inactive profile state"

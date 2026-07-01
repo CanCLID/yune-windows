@@ -54,8 +54,9 @@ $Environment = [ordered]@{
     browser_path = $BrowserPath
     browser_available = $null -ne $BrowserPath
     approval_required_for_live_gates = $true
-    live_status = "pending-approved-live-run"
-    p2_win01_closes = $false
+    live_status = "covered-by-p2-win02-live-closeout"
+    live_closeout_evidence = "docs/evidence/p2-win02-server-lifecycle/live-closeout-20260630-203015.md"
+    p2_win01_closes = $true
 }
 
 New-Item -ItemType Directory -Force (Split-Path -Parent $OutputPath) | Out-Null

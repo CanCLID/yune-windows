@@ -35,9 +35,15 @@ constexpr const wchar_t* kTextServiceDesc = L"Yune Windows";
 constexpr const wchar_t* kThreadingModel = L"Apartment";
 constexpr const wchar_t* kPipeName = L"\\\\.\\pipe\\yune-windows-ime";
 constexpr DWORD kServerQueryTimeoutMs = 5000;
+constexpr DWORD kServerPipeReconnectWaitMs = 250;
+constexpr DWORD kServerLaunchReadyWaitMs = 15000;
+constexpr DWORD kServerLaunchMutexWaitMs = 250;
+constexpr DWORD kServerPipeMissingRetrySleepMs = 15;
+constexpr ULONGLONG kServerLaunchCooldownMs = 1500;
 
 HINSTANCE g_instance = nullptr;
 std::atomic<long> g_dll_refs = 0;
+std::atomic<unsigned long long> g_last_server_launch_attempt_ms = 0;
 std::atomic<unsigned long> g_structural_event_sequence = 0;
 std::mutex g_structural_log_mutex;
 
@@ -109,6 +115,12 @@ std::filesystem::path ModuleDirectory() {
     return std::filesystem::path(module_path).parent_path();
 }
 
+std::wstring QuoteCommandLineArgument(const std::filesystem::path& value);
+bool PathExists(const std::filesystem::path& value);
+bool WaitForSharedServerPipe(DWORD timeout_ms);
+bool CanLaunchSharedServerFromCurrentHost();
+bool RequestSharedServerLaunch();
+
 void WriteStructuralEvent(const char* event_name, int buffer_length = -1,
                           int candidate_count = -1) {
     try {
@@ -135,6 +147,198 @@ void WriteStructuralEvent(const char* event_name, int buffer_length = -1,
         log << "\n";
     } catch (...) {
     }
+}
+
+std::wstring QuoteCommandLineArgument(const std::filesystem::path& value) {
+    std::wstring input = value.wstring();
+    std::wstring output = L"\"";
+    size_t backslashes = 0;
+    for (wchar_t ch : input) {
+        if (ch == L'\\') {
+            ++backslashes;
+            continue;
+        }
+        if (ch == L'"') {
+            output.append(backslashes * 2 + 1, L'\\');
+            output.push_back(ch);
+            backslashes = 0;
+            continue;
+        }
+        output.append(backslashes, L'\\');
+        backslashes = 0;
+        output.push_back(ch);
+    }
+    output.append(backslashes * 2, L'\\');
+    output.push_back(L'"');
+    return output;
+}
+
+bool PathExists(const std::filesystem::path& value) {
+    std::error_code error;
+    return std::filesystem::exists(value, error);
+}
+
+bool WaitForSharedServerPipe(DWORD timeout_ms) {
+    const ULONGLONG deadline = GetTickCount64() + timeout_ms;
+    do {
+        const ULONGLONG now = GetTickCount64();
+        const DWORD wait_ms =
+            now >= deadline ? 0 : static_cast<DWORD>(deadline - now);
+        if (WaitNamedPipeW(kPipeName, wait_ms)) {
+            WriteStructuralEvent("server_launch_ready");
+            return true;
+        }
+        if (GetLastError() != ERROR_SEM_TIMEOUT &&
+            GetLastError() != ERROR_FILE_NOT_FOUND) {
+            break;
+        }
+        if (GetTickCount64() < deadline) {
+            Sleep(kServerPipeMissingRetrySleepMs);
+        }
+    } while (GetTickCount64() < deadline);
+    WriteStructuralEvent("server_launch_timeout");
+    return false;
+}
+
+bool CanLaunchSharedServerFromCurrentHost() {
+    HANDLE token = nullptr;
+    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &token)) {
+        return false;
+    }
+
+    DWORD is_app_container = 0;
+    DWORD returned = 0;
+    if (GetTokenInformation(token, TokenIsAppContainer, &is_app_container,
+                            sizeof(is_app_container), &returned) &&
+        is_app_container != 0) {
+        CloseHandle(token);
+        return false;
+    }
+
+    DWORD needed = 0;
+    (void)GetTokenInformation(token, TokenIntegrityLevel, nullptr, 0, &needed);
+    if (GetLastError() == ERROR_INSUFFICIENT_BUFFER && needed > 0) {
+        std::vector<unsigned char> buffer(needed);
+        if (GetTokenInformation(token, TokenIntegrityLevel, buffer.data(), needed,
+                                &needed)) {
+            const auto* label =
+                reinterpret_cast<const TOKEN_MANDATORY_LABEL*>(buffer.data());
+            const DWORD sub_authority_count =
+                *GetSidSubAuthorityCount(label->Label.Sid);
+            const DWORD integrity_rid =
+                *GetSidSubAuthority(label->Label.Sid, sub_authority_count - 1);
+            if (integrity_rid < SECURITY_MANDATORY_MEDIUM_RID) {
+                CloseHandle(token);
+                return false;
+            }
+        }
+    }
+
+    CloseHandle(token);
+    return true;
+}
+
+bool RequestSharedServerLaunch() {
+    if (!CanLaunchSharedServerFromCurrentHost()) {
+        WriteStructuralEvent("server_launch_skipped_restricted_host");
+        return false;
+    }
+
+    const ULONGLONG now = GetTickCount64();
+    const ULONGLONG last_attempt = g_last_server_launch_attempt_ms.load();
+    if (last_attempt != 0 && now - last_attempt < kServerLaunchCooldownMs) {
+        WriteStructuralEvent("server_launch_pending");
+        return false;
+    }
+
+    const std::filesystem::path module_dir = ModuleDirectory();
+    const std::filesystem::path server_exe = module_dir / L"YuneWindowsServer.exe";
+    const std::filesystem::path rime_dll = module_dir / L"rime.dll";
+    const std::filesystem::path shared_dir = module_dir / L"schema";
+    const std::filesystem::path user_dir = module_dir / L"user-data";
+    if (module_dir.empty() || !PathExists(server_exe) || !PathExists(rime_dll) ||
+        !PathExists(shared_dir) || !PathExists(user_dir)) {
+        WriteStructuralEvent("server_launch_failed");
+        return false;
+    }
+
+    HANDLE launch_mutex = CreateMutexW(
+        nullptr, FALSE,
+        L"Local\\YuneWindowsServerLaunch_1788DBA7_CC9A_49E2_9C4C_E9DBF0BE2567");
+    if (!launch_mutex) {
+        WriteStructuralEvent("server_launch_failed");
+        return false;
+    }
+
+    const DWORD wait_result = WaitForSingleObject(launch_mutex,
+                                                  kServerLaunchMutexWaitMs);
+    if (wait_result != WAIT_OBJECT_0 && wait_result != WAIT_ABANDONED) {
+        CloseHandle(launch_mutex);
+        WriteStructuralEvent("server_launch_pending");
+        return false;
+    }
+
+    bool owns_mutex = true;
+    if (WaitForSharedServerPipe(kServerPipeReconnectWaitMs)) {
+        ReleaseMutex(launch_mutex);
+        CloseHandle(launch_mutex);
+        return true;
+    }
+
+    g_last_server_launch_attempt_ms.store(now);
+    WriteStructuralEvent("server_launch_attempt");
+
+    std::wstring command_line = QuoteCommandLineArgument(server_exe) +
+                                L" --rime-dll " +
+                                QuoteCommandLineArgument(rime_dll) +
+                                L" --shared-dir " +
+                                QuoteCommandLineArgument(shared_dir) +
+                                L" --user-dir " +
+                                QuoteCommandLineArgument(user_dir) +
+                                L" --pipe " +
+                                QuoteCommandLineArgument(kPipeName);
+
+    STARTUPINFOW startup = {};
+    startup.cb = sizeof(startup);
+    startup.dwFlags = STARTF_USESHOWWINDOW;
+    startup.wShowWindow = SW_HIDE;
+    PROCESS_INFORMATION process = {};
+    const DWORD flags = CREATE_NO_WINDOW;
+    const BOOL launched = CreateProcessW(
+        server_exe.c_str(), command_line.data(), nullptr, nullptr, FALSE, flags,
+        nullptr, module_dir.c_str(), &startup, &process);
+    if (!launched) {
+        ReleaseMutex(launch_mutex);
+        owns_mutex = false;
+        CloseHandle(launch_mutex);
+        WriteStructuralEvent("server_launch_failed");
+        return false;
+    }
+
+    WriteStructuralEvent("server_launch_started");
+    if (WaitForSharedServerPipe(kServerLaunchReadyWaitMs)) {
+        CloseHandle(process.hThread);
+        CloseHandle(process.hProcess);
+        if (owns_mutex) {
+            ReleaseMutex(launch_mutex);
+        }
+        CloseHandle(launch_mutex);
+        return true;
+    }
+
+    DWORD exit_code = STILL_ACTIVE;
+    if (GetExitCodeProcess(process.hProcess, &exit_code) && exit_code != STILL_ACTIVE) {
+        WriteStructuralEvent("server_launch_exited");
+    } else {
+        WriteStructuralEvent("server_launch_pending");
+    }
+    CloseHandle(process.hThread);
+    CloseHandle(process.hProcess);
+    if (owns_mutex) {
+        ReleaseMutex(launch_mutex);
+    }
+    CloseHandle(launch_mutex);
+    return false;
 }
 
 std::string JsonStringValue(std::string_view json, std::string_view key) {
@@ -284,15 +488,37 @@ ServerResponse QueryServer(const std::wstring& input, bool commit) {
         return ok && read > 0;
     };
 
-    HANDLE pipe = CreateFileW(kPipeName, GENERIC_READ | GENERIC_WRITE, 0, nullptr,
-                              OPEN_EXISTING, FILE_FLAG_OVERLAPPED, nullptr);
+    auto connect_pipe = []() -> HANDLE {
+        return CreateFileW(kPipeName, GENERIC_READ | GENERIC_WRITE, 0, nullptr,
+                           OPEN_EXISTING, FILE_FLAG_OVERLAPPED, nullptr);
+    };
+
+    HANDLE pipe = connect_pipe();
     if (pipe == INVALID_HANDLE_VALUE) {
+        const DWORD connect_error = GetLastError();
+        if (connect_error == ERROR_PIPE_BUSY) {
+            WriteStructuralEvent("server_query_pipe_busy");
+            if (WaitForSharedServerPipe(kServerPipeReconnectWaitMs)) {
+                pipe = connect_pipe();
+            }
+        } else if (connect_error == ERROR_FILE_NOT_FOUND) {
+            if (WaitForSharedServerPipe(kServerPipeReconnectWaitMs)) {
+                pipe = connect_pipe();
+            }
+            if (pipe == INVALID_HANDLE_VALUE && RequestSharedServerLaunch()) {
+                pipe = connect_pipe();
+            }
+        }
+    }
+    if (pipe == INVALID_HANDLE_VALUE) {
+        WriteStructuralEvent("server_query_connect_failed");
         return ServerQueryFailure(input);
     }
 
     DWORD mode = PIPE_READMODE_MESSAGE;
     if (!SetNamedPipeHandleState(pipe, &mode, nullptr, nullptr)) {
         CloseHandle(pipe);
+        WriteStructuralEvent("server_query_connect_failed");
         return ServerQueryFailure(input);
     }
 
@@ -301,6 +527,7 @@ ServerResponse QueryServer(const std::wstring& input, bool commit) {
     DWORD written = 0;
     if (!write_pipe(pipe, request, written)) {
         CloseHandle(pipe);
+        WriteStructuralEvent("server_query_write_failed");
         return ServerQueryFailure(input);
     }
 
@@ -308,6 +535,7 @@ ServerResponse QueryServer(const std::wstring& input, bool commit) {
     DWORD read = 0;
     if (!read_pipe(pipe, response, sizeof(response) - 1, read)) {
         CloseHandle(pipe);
+        WriteStructuralEvent("server_query_read_timeout");
         return ServerQueryFailure(input);
     }
     CloseHandle(pipe);
@@ -316,6 +544,7 @@ ServerResponse QueryServer(const std::wstring& input, bool commit) {
     if (!JsonBoolTrueValue(json, "ready") ||
         JsonStringValue(json, "schema_id").empty() ||
         !JsonHasArrayValue(json, "candidates")) {
+        WriteStructuralEvent("server_query_invalid_response");
         return ServerQueryFailure(input);
     }
 

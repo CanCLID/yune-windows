@@ -49,7 +49,7 @@ function Require-Text {
 $Compatibility = Read-RequiredDoc "docs\evidence\p2-win01-installer\compatibility-matrix.md"
 foreach ($Pattern in @(
         '# P2-WIN01 Compatibility Matrix',
-        'Status: pending-approved-live-run',
+        'Status: covered-by-p2-win02-live-closeout',
         'P2-WIN01-WIN11-X64',
         'Notepad',
         'Chromium',
@@ -59,7 +59,8 @@ foreach ($Pattern in @(
         'diagnostics export',
         'uninstall',
         'cleanup verification',
-        'does not close P2-WIN01'
+        'docs/evidence/p2-win02-server-lifecycle/live-closeout-20260630-203015.md',
+        'Dogfood package hardening remains open'
     )) {
     Require-Text $Compatibility ([regex]::Escape($Pattern)) "compatibility matrix"
 }
@@ -83,13 +84,13 @@ foreach ($Pattern in @(
 }
 
 $Roadmap = Read-RequiredDoc "docs\roadmap.md"
-Require-Text $Roadmap "compatibility\s+matrix\s+and\s+signing\s+decision\s+are\s+recorded" "roadmap"
-Require-Text $Roadmap "dogfood\s+live\s+release\s+remain(s)?\s+open" "roadmap"
+Require-Text $Roadmap "Compatibility\s+matrix\s+and\s+signing\s+decision\s+are\s+recorded" "roadmap"
+Require-Text $Roadmap "dogfood\s+packaging,\s+release\s+signing,\s+non-blocking\s+cold-start,\s+and\s+user-data\s+preservation\s+remain\s+open" "roadmap"
 if ($Roadmap -match [regex]::Escape("compatibility matrix, signing decision, and dogfood release remain open")) {
     throw "roadmap still reports compatibility matrix and signing decision as open"
 }
 
-$Plan = Read-RequiredDoc "docs\plans\active\p2-win01-plan-windows-product.md"
+$Plan = Read-RequiredDoc "docs\plans\history\p2-win01-plan-windows-product.md"
 foreach ($Pattern in @(
         'docs\evidence\p2-win01-installer\compatibility-matrix.md',
         'docs\evidence\p2-win01-installer\signing-decision.md',

@@ -52,6 +52,7 @@ if ($ModeIndex -gt $SetModeIndex -or $SetModeIndex -gt $WriteIndex) {
 $FailureGuardPattern = @'
 if \(!SetNamedPipeHandleState\(pipe, &mode, nullptr, nullptr\)\) \{
 \s+CloseHandle\(pipe\);
+\s+WriteStructuralEvent\("server_query_connect_failed"\);
 \s+return ServerQueryFailure\(input\);
 \s+\}
 '@

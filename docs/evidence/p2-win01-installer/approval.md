@@ -1,8 +1,8 @@
-# Live Smoke Approval
+﻿# Live Smoke Approval
 
-Date: 2026-06-27T14:40:03.9048011-07:00
+Date: 2026-06-30T20:31:07.5377315-07:00
 
-Approval note: User approved in this session: I approve
+Approval note: User approved retrying P2-WIN02 live install/register/smoke/uninstall/cleanup after reboot on 2026-07-01.
 
 Machine state changed before approval evidence: false
 

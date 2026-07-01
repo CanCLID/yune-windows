@@ -1,5 +1,5 @@
-{
-    "captured_at":  "2026-06-27T14:40:36.2838620-07:00",
+﻿{
+    "captured_at":  "2026-06-30T20:31:35.6259873-07:00",
     "install_dir":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Yune\\WindowsIme",
     "install_dir_exists":  true,
     "profile_tool_exists":  true,
@@ -9,10 +9,10 @@
     "profile_state":  "{\"registered\":true,\"active\":true,\"langid\":3076,\"profile_guid\":\"{3AE69B8D-19B4-4267-8F21-E239666D6632}\",\"clsid\":\"{1788DBA7-CC9A-49E2-9C4C-E9DBF0BE2567}\"}",
     "server_processes":  [
                              {
-                                 "Id":  34932,
+                                 "Id":  4652,
                                  "ProcessName":  "YuneWindowsServer",
                                  "Path":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Yune\\WindowsIme\\YuneWindowsServer.exe",
-                                 "StartTime":  "\/Date(1782596424368)\/"
+                                 "StartTime":  "\/Date(1782876686930)\/"
                              }
                          ],
     "machine_state_checked":  false,

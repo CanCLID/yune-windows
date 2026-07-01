@@ -29,10 +29,25 @@ if (-not (Test-Path -LiteralPath $MarkdownPath)) {
 }
 
 $Result = Get-Content -Raw -LiteralPath $JsonPath | ConvertFrom-Json
+$Markdown = Get-Content -Raw -LiteralPath $MarkdownPath
 $IncompleteIds = @($Result.gates | Where-Object { $_.status -ne "complete" } | ForEach-Object { $_.id })
 $ExpectedOverallStatus = if ($IncompleteIds.Count -eq 0) { "complete" } else { "incomplete" }
 if ($Result.status -ne $ExpectedOverallStatus) {
     throw "P2-WIN01 closeout audit status should be $ExpectedOverallStatus when non-complete gate count is $($IncompleteIds.Count), got $($Result.status)"
+}
+if ($Result.status -eq "complete") {
+    foreach ($StaleCompleteNote in @(
+            'live display proof is still needed',
+            'approved browser/profile automation still pending',
+            'live registered-session export still pending',
+            'P2-WIN01 must remain open until every gate is complete')) {
+        if ($Markdown -match [regex]::Escape($StaleCompleteNote)) {
+            throw "complete closeout audit retained stale pending note: $StaleCompleteNote"
+        }
+    }
+    if ($Markdown -notmatch [regex]::Escape("P2-WIN01 closeout gates are complete.")) {
+        throw "complete closeout audit must report completed gates in final note"
+    }
 }
 
 function Test-TextEvidencePattern {
@@ -141,7 +156,12 @@ if ($PreflightResidueCount -gt 0) {
 $CommandsPath = Join-Path $RepoRoot "docs\evidence\p2-win01-installer\commands.txt"
 if (Test-Path -LiteralPath $CommandsPath) {
     $CommandsText = Get-Content -Raw -LiteralPath $CommandsPath
-    if ($CommandsText -match '(?m)^FAIL\s+') {
+    $FailedCommandLines = @($CommandsText -split "`r?`n" | Where-Object { $_ -match '^FAIL\s+' })
+    $RecoveredDelayedDeleteFailure =
+        ($FailedCommandLines.Count -eq 1) -and
+        ($FailedCommandLines[0] -match '^FAIL\s+.*uninstall-yune-windows-ime\.ps1') -and
+        ($FailedCommandLines[0] -match 'locked YuneWindowsTSF\.dll')
+    if (($FailedCommandLines.Count -gt 0) -and (-not $RecoveredDelayedDeleteFailure)) {
         $ExpectedLivePreflightStatus = "invalid"
     }
 }

@@ -66,7 +66,9 @@ $ForegroundTargetVerifiedBeforeTyping = $false
 $TextFieldClickVerifiedBeforeTyping = $false
 $TextareaFocusVerifiedBeforeTyping = $false
 $ActiveProfileVerifiedBeforeTyping = $false
-$ProfileActivatedForSmoke = $false
+$ProfileActiveVerifiedBeforeTyping = $false
+$ProductOwnedServerStartObserved = $false
+$ProductOwnedServerReadyObserved = $false
 $CandidateScreenshotCaptured = $false
 $CommitScreenshotCaptured = $false
 $CandidateCommitScreenshotsDistinct = $false
@@ -147,6 +149,7 @@ function Write-TextSmokeResult {
         [string]$TextFieldClickVerifiedBeforeTyping = "False",
         [string]$TextareaFocusVerifiedBeforeTyping = "False",
         [string]$ActiveProfileVerifiedBeforeTyping = "False",
+        [string]$ProfileActiveVerifiedBeforeTyping = "False",
         [string]$ClipboardClearedBeforeTyping = "False",
         [string]$ClipboardClearedAfterCapture = "False",
         [string]$ClipboardClearedAfterFailure = "False",
@@ -162,7 +165,9 @@ function Write-TextSmokeResult {
         [string]$ChromiumEventTitleAfterTyping = "",
         [string]$ChromiumEventTitleAfterCommit = "",
         [string]$ChromiumEventSummaryAfterTyping = "",
-        [string]$ChromiumEventSummaryAfterCommit = ""
+        [string]$ChromiumEventSummaryAfterCommit = "",
+        [string]$ProductOwnedServerStartObserved = "False",
+        [string]$ProductOwnedServerReadyObserved = "False"
     )
 
     $Lines = @(
@@ -183,7 +188,7 @@ function Write-TextSmokeResult {
             "",
             "Failure screenshot captured: $FailureScreenshotCaptured",
             "",
-            "Failure screenshot error: $FailureScreenshotError",
+            $(if ([string]::IsNullOrEmpty($FailureScreenshotError)) { "Failure screenshot error:" } else { "Failure screenshot error: $FailureScreenshotError" }),
             "",
             "Clipboard cleared after failure: $ClipboardClearedAfterFailure",
             ""
@@ -196,11 +201,11 @@ function Write-TextSmokeResult {
         "",
         "Input method: Win32 virtual-key typed test input.",
         "",
-        "Candidate-display screenshot: `candidate-display-chromium.png`.",
+        'Candidate-display screenshot: `candidate-display-chromium.png`.',
         "",
         "Candidate-display screenshot captured: $CandidateScreenshotCaptured",
         "",
-        "Commit screenshot: `chromium-commit.png`.",
+        'Commit screenshot: `chromium-commit.png`.',
         "",
         "Commit screenshot captured: $CommitScreenshotCaptured",
         "",
@@ -238,6 +243,8 @@ function Write-TextSmokeResult {
         "",
         "Active profile verified before typing: $ActiveProfileVerifiedBeforeTyping",
         "",
+        "profile_active_verified_before_typing: $ProfileActiveVerifiedBeforeTyping",
+        "",
         "Clipboard cleared before typing: $ClipboardClearedBeforeTyping",
         "",
         "Clipboard cleared after capture: $ClipboardClearedAfterCapture",
@@ -256,7 +263,11 @@ function Write-TextSmokeResult {
         "",
         "Structural event summary: $StructuralEventSummary",
         "",
-        "Structural new log lines: $StructuralNewLineCount"
+        "Structural new log lines: $StructuralNewLineCount",
+        "",
+        "product_owned_server_start_observed: $ProductOwnedServerStartObserved",
+        "",
+        "product_owned_server_ready_observed: $ProductOwnedServerReadyObserved"
     )
     $Lines | Out-File -LiteralPath $ResultPath -Encoding utf8
     $script:ResultWritten = $true
@@ -278,7 +289,6 @@ Write-YuneWindowsStateSnapshot `
 
 Add-Type -AssemblyName System.Windows.Forms
 $Shell = New-Object -ComObject WScript.Shell
-$ServerProcess = $null
 $BrowserProcess = $null
 $BrowserForegroundProcessId = 0
 $BrowserForegroundWindow = [IntPtr]::Zero
@@ -383,22 +393,10 @@ try {
     $CurrentStage = "server-preflight"
     Assert-NoYuneWindowsServerProcess -Context "Chromium smoke"
 
-    $CurrentStage = "server-start"
-    $ServerProcess = & (Join-Path $RepoRoot "tools\start-yune-windows-server.ps1") `
-        -YuneRoot $YuneRoot `
-        -InstallDir $InstallRoot `
-        -WaitForReady `
-        -PassThru
-
-    $CurrentStage = "profile-activation"
-    Invoke-YuneWindowsProfileTool `
-        -ProfileToolPath $ProfileTool `
-        -Arguments @("--activate") `
-        -Operation "profile activation" | Out-Null
+    $CurrentStage = "profile-preflight"
     Assert-YuneWindowsProfileActive `
         -ProfileToolPath $ProfileTool `
-        -Context "Chromium smoke"
-    $ProfileActivatedForSmoke = $true
+        -Context "Chromium smoke before launch"
 
     $CurrentStage = "browser-launch"
     $Uri = (New-Object System.Uri($HtmlPath)).AbsoluteUri
@@ -441,6 +439,7 @@ try {
     Assert-YuneWindowsProfileActive `
         -ProfileToolPath $ProfileTool `
         -Context "Chromium smoke after focus"
+    $ProfileActiveVerifiedBeforeTyping = $true
     $ActiveProfileVerifiedBeforeTyping = $true
 
     $CurrentStage = "browser-modal-dismiss"
@@ -468,15 +467,6 @@ try {
     Assert-ForegroundWindowHandle `
         -Window $BrowserForegroundWindow `
         -Context "Chromium smoke after text-field click"
-
-    $CurrentStage = "profile-activation-after-focus"
-    Invoke-YuneWindowsProfileTool `
-        -ProfileToolPath $ProfileTool `
-        -Arguments @("--activate") `
-        -Operation "profile activation after Chromium focus" | Out-Null
-    Assert-YuneWindowsProfileActive `
-        -ProfileToolPath $ProfileTool `
-        -Context "Chromium smoke after foreground activation"
 
     $CurrentStage = "target-reset"
     Reset-TextSmokeTargetContent -Context "Chromium smoke"
@@ -515,8 +505,49 @@ try {
     Assert-YuneWindowsProfileActive `
         -ProfileToolPath $ProfileTool `
         -Context "Chromium smoke after pre-type click"
+    $ProfileActiveVerifiedBeforeTyping = $true
+    $ActiveProfileVerifiedBeforeTyping = $true
+
+    $CurrentStage = "server-autostart"
+    Send-YuneWindowsAsciiText -Text "n" -Context "Chromium smoke server launch probe"
+    $ServerReadiness = Wait-YuneWindowsProductOwnedServerReady `
+        -InstallDir $InstallRoot `
+        -StructuralLogPath $StructuralLogPath `
+        -StartLineCount $StructuralLogStartLineCount
+    $ProductOwnedServerStartObserved = [bool]$ServerReadiness.server_process_observed
+    $ProductOwnedServerReadyObserved = [bool]$ServerReadiness.ready_observed
+    if (-not $ProductOwnedServerReadyObserved) {
+        throw "Chromium smoke product-owned server launch did not become ready; structural events: $($ServerReadiness.structural_event_summary)"
+    }
+    Cancel-YuneWindowsTextComposition -Context "Chromium smoke composition cancel after server launch probe"
+
+    $CurrentStage = "target-reset-after-server-ready"
+    Reset-TextSmokeTargetContent -Context "Chromium smoke after server launch probe"
+    Assert-ForegroundWindowHandle `
+        -Window $BrowserForegroundWindow `
+        -Context "Chromium smoke after server launch probe"
+    Invoke-YuneWindowsClientClick `
+        -Window $BrowserForegroundWindow `
+        -ClientX 160 `
+        -ClientY 220 `
+        -Context "Chromium smoke text-field click after server launch probe"
+    [void](Wait-YuneWindowsWindowTitle `
+            -Window $BrowserForegroundWindow `
+            -Pattern "Textarea Focused" `
+            -Context "Chromium smoke text-field focus after server launch probe" `
+            -TimeoutMs 5000)
+    Assert-YuneWindowsProfileActive `
+        -ProfileToolPath $ProfileTool `
+        -Context "Chromium smoke before typing after server ready"
+    $ProfileActiveVerifiedBeforeTyping = $true
+    $ActiveProfileVerifiedBeforeTyping = $true
+    $StructuralLogStartLineCount = Get-StructuralLogLineCount -Path $StructuralLogPath
+
+    $CurrentStage = "candidate-display"
     Send-YuneWindowsAsciiText -Text $TypedInput -Context "Chromium smoke typed input"
     Start-Sleep -Milliseconds 1000
+    $ServerProcessesAfterTyping = @(Get-YuneWindowsInstalledServerProcesses -InstallDir $InstallRoot)
+    $ProductOwnedServerStartObserved = $ProductOwnedServerStartObserved -or ($ServerProcessesAfterTyping.Count -gt 0)
     $ChromiumEventTitleAfterTyping = Get-YuneWindowsWindowTitle -Window $BrowserForegroundWindow
     $ChromiumEventSummaryAfterTyping =
         Get-YuneWindowsChromiumSmokeEventSummary -Title $ChromiumEventTitleAfterTyping
@@ -566,7 +597,9 @@ try {
         $ForegroundTargetVerifiedBeforeTyping -and
         $TextFieldClickVerifiedBeforeTyping -and
         $TextareaFocusVerifiedBeforeTyping -and
-        $ActiveProfileVerifiedBeforeTyping -and
+        $ProfileActiveVerifiedBeforeTyping -and
+        $ProductOwnedServerStartObserved -and
+        $ProductOwnedServerReadyObserved -and
         $ClipboardClearedBeforeTyping -and
         $ClipboardClearedAfterCapture -and
         $CandidateScreenshotCaptured -and
@@ -594,6 +627,7 @@ try {
             -TextFieldClickVerifiedBeforeTyping ([string]$TextFieldClickVerifiedBeforeTyping) `
             -TextareaFocusVerifiedBeforeTyping ([string]$TextareaFocusVerifiedBeforeTyping) `
             -ActiveProfileVerifiedBeforeTyping ([string]$ActiveProfileVerifiedBeforeTyping) `
+            -ProfileActiveVerifiedBeforeTyping ([string]$ProfileActiveVerifiedBeforeTyping) `
             -ClipboardClearedBeforeTyping ([string]$ClipboardClearedBeforeTyping) `
             -ClipboardClearedAfterCapture ([string]$ClipboardClearedAfterCapture) `
             -CandidateScreenshotCaptured ([string]$CandidateScreenshotCaptured) `
@@ -608,7 +642,9 @@ try {
             -ChromiumEventTitleAfterTyping $ChromiumEventTitleAfterTyping `
             -ChromiumEventTitleAfterCommit $ChromiumEventTitleAfterCommit `
             -ChromiumEventSummaryAfterTyping $ChromiumEventSummaryAfterTyping `
-            -ChromiumEventSummaryAfterCommit $ChromiumEventSummaryAfterCommit
+            -ChromiumEventSummaryAfterCommit $ChromiumEventSummaryAfterCommit `
+            -ProductOwnedServerStartObserved ([string]$ProductOwnedServerStartObserved) `
+            -ProductOwnedServerReadyObserved ([string]$ProductOwnedServerReadyObserved)
         throw "Chromium smoke failed; expected '$ExpectedCommitText', observed '$Observed'"
     }
 
@@ -624,6 +660,7 @@ try {
         -TextFieldClickVerifiedBeforeTyping ([string]$TextFieldClickVerifiedBeforeTyping) `
         -TextareaFocusVerifiedBeforeTyping ([string]$TextareaFocusVerifiedBeforeTyping) `
         -ActiveProfileVerifiedBeforeTyping ([string]$ActiveProfileVerifiedBeforeTyping) `
+        -ProfileActiveVerifiedBeforeTyping ([string]$ProfileActiveVerifiedBeforeTyping) `
         -ClipboardClearedBeforeTyping ([string]$ClipboardClearedBeforeTyping) `
         -ClipboardClearedAfterCapture ([string]$ClipboardClearedAfterCapture) `
         -CandidateScreenshotCaptured ([string]$CandidateScreenshotCaptured) `
@@ -638,7 +675,9 @@ try {
         -ChromiumEventTitleAfterTyping $ChromiumEventTitleAfterTyping `
         -ChromiumEventTitleAfterCommit $ChromiumEventTitleAfterCommit `
         -ChromiumEventSummaryAfterTyping $ChromiumEventSummaryAfterTyping `
-        -ChromiumEventSummaryAfterCommit $ChromiumEventSummaryAfterCommit
+        -ChromiumEventSummaryAfterCommit $ChromiumEventSummaryAfterCommit `
+        -ProductOwnedServerStartObserved ([string]$ProductOwnedServerStartObserved) `
+        -ProductOwnedServerReadyObserved ([string]$ProductOwnedServerReadyObserved)
 
     Write-Host "Chromium smoke passed; observed '$Observed'"
 }
@@ -670,6 +709,7 @@ catch {
             -TextFieldClickVerifiedBeforeTyping ([string]$TextFieldClickVerifiedBeforeTyping) `
             -TextareaFocusVerifiedBeforeTyping ([string]$TextareaFocusVerifiedBeforeTyping) `
             -ActiveProfileVerifiedBeforeTyping ([string]$ActiveProfileVerifiedBeforeTyping) `
+            -ProfileActiveVerifiedBeforeTyping ([string]$ProfileActiveVerifiedBeforeTyping) `
             -ClipboardClearedBeforeTyping ([string]$ClipboardClearedBeforeTyping) `
             -ClipboardClearedAfterCapture ([string]$ClipboardClearedAfterCapture) `
             -ClipboardClearedAfterFailure ([string]$ClipboardClearedAfterFailure) `
@@ -685,7 +725,9 @@ catch {
             -ChromiumEventTitleAfterTyping $ChromiumEventTitleAfterTyping `
             -ChromiumEventTitleAfterCommit $ChromiumEventTitleAfterCommit `
             -ChromiumEventSummaryAfterTyping $ChromiumEventSummaryAfterTyping `
-            -ChromiumEventSummaryAfterCommit $ChromiumEventSummaryAfterCommit
+            -ChromiumEventSummaryAfterCommit $ChromiumEventSummaryAfterCommit `
+            -ProductOwnedServerStartObserved ([string]$ProductOwnedServerStartObserved) `
+            -ProductOwnedServerReadyObserved ([string]$ProductOwnedServerReadyObserved)
     }
     throw
 }
@@ -697,16 +739,6 @@ finally {
         }
         catch {
             Write-Warning "failed to write Chromium post-smoke state snapshot: $($_.Exception.Message)"
-        }
-    }
-    if ($ProfileActivatedForSmoke) {
-        try {
-            Invoke-YuneWindowsProfileDeactivationForSmoke `
-                -ProfileToolPath $ProfileTool `
-                -Context "Chromium smoke"
-        }
-        catch {
-            $CleanupErrors.Add($_.Exception.Message)
         }
     }
     if ($BrowserProcess) {
@@ -723,10 +755,10 @@ finally {
     catch {
         $CleanupErrors.Add($_.Exception.Message)
     }
-    if ($ServerProcess -and -not $ServerProcess.HasExited) {
+    foreach ($InstalledServerProcess in @(Get-YuneWindowsInstalledServerProcesses -InstallDir $InstallRoot)) {
         try {
-            Stop-Process -Id $ServerProcess.Id -Force
-            Wait-YuneWindowsProcessExit -ProcessId $ServerProcess.Id -RequireExit
+            Stop-Process -Id $InstalledServerProcess.Id -Force
+            Wait-YuneWindowsProcessExit -ProcessId $InstalledServerProcess.Id -RequireExit
         }
         catch {
             $CleanupErrors.Add($_.Exception.Message)
@@ -759,6 +791,7 @@ finally {
             -TextFieldClickVerifiedBeforeTyping ([string]$TextFieldClickVerifiedBeforeTyping) `
             -TextareaFocusVerifiedBeforeTyping ([string]$TextareaFocusVerifiedBeforeTyping) `
             -ActiveProfileVerifiedBeforeTyping ([string]$ActiveProfileVerifiedBeforeTyping) `
+            -ProfileActiveVerifiedBeforeTyping ([string]$ProfileActiveVerifiedBeforeTyping) `
             -ClipboardClearedBeforeTyping ([string]$ClipboardClearedBeforeTyping) `
             -ClipboardClearedAfterCapture ([string]$ClipboardClearedAfterCapture) `
             -ClipboardClearedAfterFailure ([string]$ClipboardClearedAfterFailure) `
@@ -774,7 +807,9 @@ finally {
             -ChromiumEventTitleAfterTyping $ChromiumEventTitleAfterTyping `
             -ChromiumEventTitleAfterCommit $ChromiumEventTitleAfterCommit `
             -ChromiumEventSummaryAfterTyping $ChromiumEventSummaryAfterTyping `
-            -ChromiumEventSummaryAfterCommit $ChromiumEventSummaryAfterCommit
+            -ChromiumEventSummaryAfterCommit $ChromiumEventSummaryAfterCommit `
+            -ProductOwnedServerStartObserved ([string]$ProductOwnedServerStartObserved) `
+            -ProductOwnedServerReadyObserved ([string]$ProductOwnedServerReadyObserved)
         throw $CleanupFailureMessage
     }
 }

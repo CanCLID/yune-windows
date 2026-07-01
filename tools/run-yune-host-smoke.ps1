@@ -111,8 +111,7 @@ $CommandLog = @(
     $CompileForLog,
     "",
     "Run:",
-    "$Exe $($RunArgs -join ' ')",
-    ""
+    "$Exe $($RunArgs -join ' ')"
 )
 Set-Content -LiteralPath $CommandsPath -Encoding ASCII -Value $CommandLog
 

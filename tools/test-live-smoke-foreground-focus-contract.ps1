@@ -39,7 +39,7 @@ if ($ChromiumSource -notmatch 'Set-YuneWindowsForegroundChromiumWindow(?s:.*?)As
     throw "run-chromium-smoke.ps1 must assert foreground focus for the visible Chromium window before profile re-check and typing."
 }
 
-if ($ChromiumSource -notmatch 'browser-text-field-click(?s:.*?)Invoke-YuneWindowsClientClick(?s:.*?)profile-activation-after-focus' -or
+if ($ChromiumSource -notmatch 'browser-text-field-click(?s:.*?)Invoke-YuneWindowsClientClick(?s:.*?)target-reset' -or
     $ChromiumSource -notmatch 'Chromium smoke before typing(?s:.*?)Invoke-YuneWindowsClientClick(?s:.*?)Send-YuneWindowsAsciiText') {
     throw "run-chromium-smoke.ps1 must click the visible Chromium text field before typing."
 }

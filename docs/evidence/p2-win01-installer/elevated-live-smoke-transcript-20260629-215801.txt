@@ -1,0 +1,55 @@
+﻿**********************
+Windows PowerShell transcript start
+Start time: 20260629215803
+Username: DESKTOP-OHT2K15\laubonghaudoi
+RunAs User: DESKTOP-OHT2K15\laubonghaudoi
+Configuration Name:
+Machine: DESKTOP-OHT2K15 (Microsoft Windows NT 10.0.26200.0)
+Host Application: C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe -STA -NoProfile -ExecutionPolicy Bypass -EncodedCommand JABFAHIAcgBvAHIAQQBjAHQAaQBvAG4AUAByAGUAZgBlAHIAZQBuAGMAZQAgAD0AIAAiAFMAdABvAHAAIgAKACQAZQB4AGkAdABDAG8AZABlACAAPQAgADEACgBTAGUAdAAtAEwAbwBjAGEAdABpAG8AbgAgAC0ATABpAHQAZQByAGEAbABQAGEAdABoACAAJwBDADoAXABVAHMAZQByAHMAXABsAGEAdQBiAG8AbgBnAGgAYQB1AGQAbwBpAFwARABvAGMAdQBtAGUAbgB0AHMAXABHAGkAdABIAHUAYgBcAHkAdQBuAGUALQB3AGkAbgBkAG8AdwBzACcACgBTAHQAYQByAHQALQBUAHIAYQBuAHMAYwByAGkAcAB0ACAALQBMAGkAdABlAHIAYQBsAFAAYQB0AGgAIAAnAEMAOgBcAFUAcwBlAHIAcwBcAGwAYQB1AGIAbwBuAGcAaABhAHUAZABvAGkAXABEAG8AYwB1AG0AZQBuAHQAcwBcAEcAaQB0AEgAdQBiAFwAeQB1AG4AZQAtAHcAaQBuAGQAbwB3AHMAXABkAG8AYwBzAFwAZQB2AGkAZABlAG4AYwBlAFwAcAAyAC0AdwBpAG4AMAAxAC0AaQBuAHMAdABhAGwAbABlAHIAXABlAGwAZQB2AGEAdABlAGQALQBsAGkAdgBlAC0AcwBtAG8AawBlAC0AdAByAGEAbgBzAGMAcgBpAHAAdAAtADIAMAAyADYAMAA2ADIAOQAtADIAMQA1ADgAMAAxAC4AdAB4AHQAJwAgAC0ARgBvAHIAYwBlAAoAdAByAHkAIAB7AAoAIAAgACAAIAAmACAAJwBDADoAXABVAHMAZQByAHMAXABsAGEAdQBiAG8AbgBnAGgAYQB1AGQAbwBpAFwARABvAGMAdQBtAGUAbgB0AHMAXABHAGkAdABIAHUAYgBcAHkAdQBuAGUALQB3AGkAbgBkAG8AdwBzAFwAdABvAG8AbABzAFwAcgB1AG4ALQBwADIALQB3AGkAbgAwADEALQBsAGkAdgBlAC0AcwBtAG8AawBlAC4AcABzADEAJwAgAC0AQQBwAHAAcgBvAHYAZQBkAE0AYQBjAGgAaQBuAGUAUwB0AGEAdABlAEMAaABhAG4AZwBlACAALQBBAHAAcAByAG8AdgBhAGwATgBvAHQAZQAgACcAVQBzAGUAcgAgAGEAcABwAHIAbwB2AGUAZAAgAFAAMgAtAFcASQBOADAAMgAgAGwAaQB2AGUAIABpAG4AcwB0AGEAbABsAC8AcgBlAGcAaQBzAHQAZQByAC8AcwBtAG8AawBlAC8AdQBuAGkAbgBzAHQAYQBsAGwALwBjAGwAZQBhAG4AdQBwACAAaQBuACAAdABoAGkAcwAgAHMAZQBzAHMAaQBvAG4ALgAnACAALQBZAHUAbgBlAFIAbwBvAHQAIAAnAEMAOgBcAFUAcwBlAHIAcwBcAGwAYQB1AGIAbwBuAGcAaABhAHUAZABvAGkAXABEAG8AYwB1AG0AZQBuAHQAcwBcAEcAaQB0AEgAdQBiAFwAeQB1AG4AZQAnACAALQBJAG4AcwB0AGEAbABsAEQAaQByACAAJwBDADoAXABVAHMAZQByAHMAXABsAGEAdQBiAG8AbgBnAGgAYQB1AGQAbwBpAFwAQQBwAHAARABhAHQAYQBcAEwAbwBjAGEAbABcAFkAdQBuAGUAXABXAGkAbgBkAG8AdwBzAEkAbQBlACcAIAAtAEUAdgBpAGQAZQBuAGMAZQBSAG8AbwB0ACAAJwBDADoAXABVAHMAZQByAHMAXABsAGEAdQBiAG8AbgBnAGgAYQB1AGQAbwBpAFwARABvAGMAdQBtAGUAbgB0AHMAXABHAGkAdABIAHUAYgBcAHkAdQBuAGUALQB3AGkAbgBkAG8AdwBzAFwAZABvAGMAcwBcAGUAdgBpAGQAZQBuAGMAZQAnACAALQBCAHIAbwB3AHMAZQByAFAAYQB0AGgAIAAnAEMAOgBcAFAAcgBvAGcAcgBhAG0AIABGAGkAbABlAHMAXABHAG8AbwBnAGwAZQBcAEMAaAByAG8AbQBlAFwAQQBwAHAAbABpAGMAYQB0AGkAbwBuAFwAYwBoAHIAbwBtAGUALgBlAHgAZQAnAAoAIAAgACAAIAAkAGUAeABpAHQAQwBvAGQAZQAgAD0AIAAkAEwAQQBTAFQARQBYAEkAVABDAE8ARABFAAoAIAAgACAAIABpAGYAIAAoACQAbgB1AGwAbAAgAC0AZQBxACAAJABlAHgAaQB0AEMAbwBkAGUAKQAgAHsACgAgACAAIAAgACAAIAAgACAAJABlAHgAaQB0AEMAbwBkAGUAIAA9ACAAMAAKACAAIAAgACAAfQAKAH0ACgBjAGEAdABjAGgAIAB7AAoAIAAgACAAIABXAHIAaQB0AGUALQBFAHIAcgBvAHIAIAAkAF8ALgBFAHgAYwBlAHAAdABpAG8AbgAuAE0AZQBzAHMAYQBnAGUACgAgACAAIAAgACQAZQB4AGkAdABDAG8AZABlACAAPQAgADEACgB9AAoAZgBpAG4AYQBsAGwAeQAgAHsACgAgACAAIAAgAFMAdABvAHAALQBUAHIAYQBuAHMAYwByAGkAcAB0AAoAfQAKAGUAeABpAHQAIAAkAGUAeABpAHQAQwBvAGQAZQA=
+Process ID: 11360
+PSVersion: 5.1.26100.8655
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.8655
+BuildVersion: 10.0.26100.8655
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+Transcript started, output file is C:\Users\laubonghaudoi\Documents\GitHub\yune-windows\docs\evidence\p2-win01-installer\elevated-live-smoke-transcript-20260629-215801.txt
+yune_windows_server.cpp
+yune_windows_candidate_window.cpp
+yune_windows_tsf.cpp
+   Creating library C:\Users\LAUBON~1\AppData\Local\Temp\yune-windows\p2-win01-install-build\YuneWindowsTSF.lib and obje
+ct C:\Users\LAUBON~1\AppData\Local\Temp\yune-windows\p2-win01-install-build\YuneWindowsTSF.exp
+yune_windows_candidate_window_smoke.cpp
+yune_windows_profile_tool.cpp
+Built TSF shell artifacts:
+  C:\Users\LAUBON~1\AppData\Local\Temp\yune-windows\p2-win01-install-build\YuneWindowsTSF.dll
+  C:\Users\LAUBON~1\AppData\Local\Temp\yune-windows\p2-win01-install-build\YuneWindowsServer.exe
+  C:\Users\LAUBON~1\AppData\Local\Temp\yune-windows\p2-win01-install-build\YuneWindowsProfileTool.exe
+  C:\Users\LAUBON~1\AppData\Local\Temp\yune-windows\p2-win01-install-build\YuneWindowsCandidateWindowSmoke.exe
+yune_windows_server.cpp
+yune_windows_candidate_window.cpp
+yune_windows_tsf.cpp
+   Creating library C:\Users\LAUBON~1\AppData\Local\Temp\yune-windows\p2-win01-install-build\YuneWindowsTSF.lib and obje
+ct C:\Users\LAUBON~1\AppData\Local\Temp\yune-windows\p2-win01-install-build\YuneWindowsTSF.exp
+yune_windows_candidate_window_smoke.cpp
+yune_windows_profile_tool.cpp
+Built TSF shell artifacts:
+  C:\Users\LAUBON~1\AppData\Local\Temp\yune-windows\p2-win01-install-build\YuneWindowsTSF.dll
+  C:\Users\LAUBON~1\AppData\Local\Temp\yune-windows\p2-win01-install-build\YuneWindowsServer.exe
+  C:\Users\LAUBON~1\AppData\Local\Temp\yune-windows\p2-win01-install-build\YuneWindowsProfileTool.exe
+  C:\Users\LAUBON~1\AppData\Local\Temp\yune-windows\p2-win01-install-build\YuneWindowsCandidateWindowSmoke.exe
+Prepared Yune Windows Yune product data: C:\Users\laubonghaudoi\AppData\Local\Yune\WindowsIme\schema
+Installed and registered Yune Windows IME at C:\Users\laubonghaudoi\AppData\Local\Yune\WindowsIme
+PS>TerminatingError(): "text-field smoke profile activation failed with exit code 1: failed to activate YuneWindows profile: 0x80004005"
+PS>TerminatingError(): "profile deactivation before unregister failed with exit code 1: failed to deactivate YuneWindows profile: 0x80004005"
+>> TerminatingError(): "profile deactivation before unregister failed with exit code 1: failed to deactivate YuneWindows profile: 0x80004005"
+PS>TerminatingError(): "profile deactivation before unregister failed with exit code 1: failed to deactivate YuneWindows profile: 0x80004005"
+PS>TerminatingError(): "Cleanup validation failed: Install directory still exists; Installed YuneWindowsProfileTool.exe still exists; YuneWindows TSF profile is still registered; Machine-state cleanup issue: Registry key remains: Registry::HKEY_CLASSES_ROOT\CLSID\{1788DBA7-CC9A-49E2-9C4C-E9DBF0BE2567}; Machine-state cleanup issue: Registry key remains: Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\CTF\TIP\{1788DBA7-CC9A-49E2-9C4C-E9DBF0BE2567}; Machine-state cleanup issue: Registry key remains: Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\CTF\TIP\{1788DBA7-CC9A-49E2-9C4C-E9DBF0BE2567}\LanguageProfile\0x00000c04\{3AE69B8D-19B4-4267-8F21-E239666D6632}; Machine-state cleanup issue: Registry key remains: Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Wow6432Node\Microsoft\CTF\TIP\{1788DBA7-CC9A-49E2-9C4C-E9DBF0BE2567}; Machine-state cleanup issue: Registry key remains: Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Wow6432Node\Microsoft\CTF\TIP\{1788DBA7-CC9A-49E2-9C4C-E9DBF0BE2567}\LanguageProfile\0x00000c04\{3AE69B8D-19B4-4267-8F21-E239666D6632}"
+>> TerminatingError(): "The running command stopped because the preference variable "ErrorActionPreference" or common parameter is set to Stop: Cleanup validation failed: Install directory still exists; Installed YuneWindowsProfileTool.exe still exists; YuneWindows TSF profile is still registered; Machine-state cleanup issue: Registry key remains: Registry::HKEY_CLASSES_ROOT\CLSID\{1788DBA7-CC9A-49E2-9C4C-E9DBF0BE2567}; Machine-state cleanup issue: Registry key remains: Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\CTF\TIP\{1788DBA7-CC9A-49E2-9C4C-E9DBF0BE2567}; Machine-state cleanup issue: Registry key remains: Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\CTF\TIP\{1788DBA7-CC9A-49E2-9C4C-E9DBF0BE2567}\LanguageProfile\0x00000c04\{3AE69B8D-19B4-4267-8F21-E239666D6632}; Machine-state cleanup issue: Registry key remains: Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Wow6432Node\Microsoft\CTF\TIP\{1788DBA7-CC9A-49E2-9C4C-E9DBF0BE2567}; Machine-state cleanup issue: Registry key remains: Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Wow6432Node\Microsoft\CTF\TIP\{1788DBA7-CC9A-49E2-9C4C-E9DBF0BE2567}\LanguageProfile\0x00000c04\{3AE69B8D-19B4-4267-8F21-E239666D6632}"
+**********************
+Windows PowerShell transcript end
+End time: 20260629215820
+**********************

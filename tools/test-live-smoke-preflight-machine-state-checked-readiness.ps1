@@ -60,8 +60,13 @@ $CheckedReport = New-P2Win01PreflightReport `
     -InstallDir $InstallDir `
     -CurrentResiduePath $CheckedResiduePath
 
-if ($CheckedReport.ready_for_live_smoke -ne $true) {
-    throw "clean checked residue evidence should allow ready_for_live_smoke=true in the synthetic preflight."
+if ($CheckedReport.server_process_count -eq 0) {
+    if ($CheckedReport.ready_for_live_smoke -ne $true) {
+        throw "clean checked residue evidence should allow ready_for_live_smoke=true in the synthetic preflight."
+    }
+}
+elseif ($CheckedReport.ready_for_live_smoke -ne $false) {
+    throw "preflight report must not be ready when a YuneWindowsServer.exe process is already running."
 }
 
 Write-Host "Live preflight readiness requires machine_state_checked=true residue evidence."

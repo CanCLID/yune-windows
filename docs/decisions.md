@@ -47,13 +47,29 @@ evidence, then implementation continues or the gate stays open.
 
 ### D-08 - Shared server lifecycle must become product-owned
 
-The shared server model remains the default, but requiring an operator to start
-`YuneWindowsServer.exe` manually is a development workaround, not a dogfood
-contract. The product must either launch the per-user server on demand or own a
-session-scoped broker/autostart path, with bounded IPC failure behavior and
-structural diagnostics.
+The shared server model remains the default. The first product-owned lifecycle
+path is on-demand `YuneWindowsServer.exe` launch from the installed TSF DLL, with
+bounded IPC failure behavior and structural diagnostics. The current P2-WIN02
+implementation uses a bounded synchronous cold-start readiness wait in the TSF
+key path (`kServerLaunchReadyWaitMs = 15000`), so the first cold keystroke can
+block the foreground app while the product-owned server starts. A session-scoped
+broker or otherwise non-blocking/asynchronous cold-start path remains the
+fast-follow if restricted hosts, AppContainer coverage, foreground-app latency,
+or AV/EDR policy make in-host launch insufficient.
+
+### D-09 - Dogfood uninstall must preserve user data deliberately
+
+The current uninstaller removes the install tree, including `user-data`, unless
+`-KeepFiles` is used. That is acceptable for the P2-WIN02 live closeout, but
+dogfood package hardening must decide and verify a user-data preservation or
+migration policy before repeated reinstall loops can be considered safe for
+learned dictionary or personalization data.
 
 ## Last Updated
 
-2026-06-29 - Confirmed development dogfood works after explicit shared-server
-start, and recorded server lifecycle as the next product-owned milestone.
+2026-06-30 - P2-WIN02 live closeout passed after post-reboot delayed-delete
+cleanup validation. Product-owned server startup is proven in installed Notepad
+and Chromium smokes, with the known synchronous cold-start wait documented as a
+fast-follow limitation. Completed P2-WIN01 and P2-WIN02 plans moved to
+`docs/plans/history/`; the next product gate is dogfood package hardening,
+including deliberate user-data preservation behavior for reinstall loops.

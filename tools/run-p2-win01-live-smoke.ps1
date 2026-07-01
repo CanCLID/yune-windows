@@ -528,6 +528,40 @@ try {
         -Path $PostInstallStatePath `
         -Context "Live smoke post-install state"
 
+    $TextFieldProfileTool = Join-Path $InstallDir "YuneWindowsProfileTool.exe"
+
+    $CurrentStage = "post-install-profile-registration"
+    $ProfileRegistrationCommand = "YuneWindowsProfileTool.exe --state wait for profile registration"
+    Record-Command $ProfileRegistrationCommand
+    try {
+        Wait-YuneWindowsProfileRegistered `
+            -ProfileToolPath $TextFieldProfileTool `
+            -Context "Text-field smoke pre-activation" | Out-Null
+        Record-CommandSuccess $ProfileRegistrationCommand
+    }
+    catch {
+        Record-CommandFailure $ProfileRegistrationCommand $_.Exception.Message
+        throw
+    }
+
+    $CurrentStage = "text-field-smoke-profile-activation"
+    $TextFieldActivationCommand = "YuneWindowsProfileTool.exe --activate for text-field smokes"
+    Record-Command $TextFieldActivationCommand
+    try {
+        Invoke-YuneWindowsProfileTool `
+            -ProfileToolPath $TextFieldProfileTool `
+            -Arguments @("--activate") `
+            -Operation "text-field smoke profile activation" | Out-Null
+        Assert-YuneWindowsProfileActive `
+            -ProfileToolPath $TextFieldProfileTool `
+            -Context "Text-field smoke pre-state"
+        Record-CommandSuccess $TextFieldActivationCommand
+    }
+    catch {
+        Record-CommandFailure $TextFieldActivationCommand $_.Exception.Message
+        throw
+    }
+
     $CurrentStage = "notepad-smoke"
     $NotepadCommand = "tools\run-notepad-smoke.ps1 -YuneRoot $(Format-CommandValue $YuneRoot) -InstallDir $(Format-CommandValue $InstallDir) -EvidenceDir $(Format-CommandValue $TsfEvidence) -ApprovedMachineStateChange -ApprovalNote $(Format-CommandValue $ApprovalNote)"
     Record-Command $NotepadCommand
@@ -658,13 +692,15 @@ finally {
         }
 
         $CurrentStage = "cleanup"
-        $UninstallCommand = "tools\uninstall-yune-windows-ime.ps1 -InstallDir $(Format-CommandValue $InstallDir) -ApprovedMachineStateChange -ApprovalNote $(Format-CommandValue $ApprovalNote)"
+        $UninstallResultPath = Join-Path $InstallerEvidence "uninstall-result.json"
+        $UninstallCommand = "tools\uninstall-yune-windows-ime.ps1 -InstallDir $(Format-CommandValue $InstallDir) -ApprovedMachineStateChange -ApprovalNote $(Format-CommandValue $ApprovalNote) -ResultPath $(Format-CommandValue $UninstallResultPath)"
         Record-Command $UninstallCommand
         try {
             & (Join-Path $RepoRoot "tools\uninstall-yune-windows-ime.ps1") `
                 -InstallDir $InstallDir `
                 -ApprovedMachineStateChange `
-                -ApprovalNote $ApprovalNote
+                -ApprovalNote $ApprovalNote `
+                -ResultPath $UninstallResultPath
             Record-CommandSuccess $UninstallCommand
         }
         catch {
@@ -700,7 +736,23 @@ finally {
             $CleanupValidationPath = Join-Path $InstallerEvidence "cleanup-validation.json"
             $CleanupValidation | ConvertTo-Json -Depth 6 |
                 Out-File -LiteralPath $CleanupValidationPath -Encoding utf8
+            $UninstallResultPath = Join-Path $InstallerEvidence "uninstall-result.json"
+            $UninstallResult = $null
+            if (Test-Path -LiteralPath $UninstallResultPath) {
+                try {
+                    $UninstallResult = Get-Content -Raw -LiteralPath $UninstallResultPath |
+                        ConvertFrom-Json
+                }
+                catch {
+                    $UninstallResult = $null
+                }
+            }
             $CleanupResultStatus = if ($CleanupValidation.pass) { "passed" } else { "failed" }
+            $RequiresReboot = $false
+            if ($null -ne $UninstallResult -and
+                $UninstallResult.PSObject.Properties["requires_reboot"]) {
+                $RequiresReboot = [bool]$UninstallResult.requires_reboot
+            }
 
             @(
                 "# Cleanup Result",
@@ -710,6 +762,10 @@ finally {
                 "Status: $CleanupResultStatus",
                 "",
                 "Uninstall script: ``tools\uninstall-yune-windows-ime.ps1``.",
+                "",
+                "Uninstall result: ``uninstall-result.json``.",
+                "",
+                "Requires reboot: $RequiresReboot",
                 "",
                 "Cleanup state snapshot: ``post-cleanup-state.json``.",
                 "",
@@ -738,6 +794,10 @@ finally {
 
         if (-not $CleanupValidation.pass) {
             $CleanupMessage = "Cleanup validation failed: $($CleanupValidation.issues -join '; ')"
+            if ($null -ne $UninstallResult -and $UninstallResult.requires_reboot -eq $true) {
+                $PendingPaths = @($UninstallResult.pending_delete_paths)
+                $CleanupMessage = "Cleanup pending sign-out/reboot after delayed delete scheduling. Pending paths: $($PendingPaths -join '; '). Post-cleanup validation issues: $($CleanupValidation.issues -join '; ')"
+            }
             Write-LiveSmokeResult `
                 -Status "failed" `
                 -FailureStage $CurrentStage `

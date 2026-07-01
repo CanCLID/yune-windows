@@ -16,7 +16,8 @@ foreach ($RelativePath in @("tools\run-notepad-smoke.ps1", "tools\run-chromium-s
         '\$ForegroundTargetVerifiedBeforeTyping\s+-and\s*' +
         '(\$TextFieldClickVerifiedBeforeTyping\s+-and\s*)?' +
         '(\$TextareaFocusVerifiedBeforeTyping\s+-and\s*)?' +
-        '\$ActiveProfileVerifiedBeforeTyping\s+-and\s*' +
+        '\$ProfileActiveVerifiedBeforeTyping\s+-and\s*' +
+        '\$ProductOwnedServerStartObserved\s+-and\s*' +
         '\$ClipboardClearedBeforeTyping\s+-and\s*' +
         '\$ClipboardClearedAfterCapture\s+-and\s*' +
         '\$CandidateScreenshotCaptured\s+-and\s*' +
@@ -27,11 +28,11 @@ foreach ($RelativePath in @("tools\run-notepad-smoke.ps1", "tools\run-chromium-s
         '\$StructuralCommitEventObserved'
 
     if ($Source -notmatch $PassPattern) {
-        throw "$Name must require foreground-target proof, active-profile proof, clipboard cleanup, screenshot capture, expected commit text, and structural TSF events before reporting Pass: True."
+        throw "$Name must require foreground-target proof, profile-active proof, product-owned server proof, clipboard cleanup, screenshot capture, expected commit text, and structural TSF events before reporting Pass: True."
     }
 
     if ($Name -eq "run-chromium-smoke.ps1" -and
-        $Source -notmatch '\$Pass\s*=\s*\$MatchesExpectedCommit(?s:.*?)\$TextareaFocusVerifiedBeforeTyping\s+-and(?s:.*?)\$ActiveProfileVerifiedBeforeTyping') {
+        $Source -notmatch '\$Pass\s*=\s*\$MatchesExpectedCommit(?s:.*?)\$TextareaFocusVerifiedBeforeTyping\s+-and(?s:.*?)\$ProfileActiveVerifiedBeforeTyping') {
         throw "$Name must require title-confirmed Chromium textarea focus before reporting Pass: True."
     }
 
@@ -57,4 +58,4 @@ foreach ($RelativePath in @("tools\run-notepad-smoke.ps1", "tools\run-chromium-s
     }
 }
 
-Write-Host "Live app-smoke pass criteria require foreground, active-profile, clipboard cleanup, screenshot quality, expected commit, and structural-event proof."
+Write-Host "Live app-smoke pass criteria require foreground, profile-active, product-owned server, clipboard cleanup, screenshot quality, expected commit, and structural-event proof."

@@ -4,7 +4,7 @@ Date: 2026-06-27T14:15:00.2685419-07:00
 
 Machine state changed: false
 
-Status: pending-approved-live-run
+Status: covered-by-p2-win02-live-closeout
 
 Compatibility environment source: `compatibility-environment.json`
 
@@ -23,14 +23,14 @@ Compatibility environment source: `compatibility-environment.json`
 
 | Area | Required evidence | Current status |
 | --- | --- | --- |
-| fresh install | install result and pre/post install snapshots | pending approved live run |
-| TSF registration | registered Yune Windows profile state | pending approved live run |
-| profile activation | active Yune Windows profile state | pending approved live run |
-| Notepad | committed non-raw Yune candidate text | pending approved live run |
-| Chromium | one Chromium text field commits through Yune | pending approved live run |
-| diagnostics export | structural support bundle without typed-content logs | pending approved live run |
-| uninstall | approved uninstaller transcript | pending approved live run |
-| cleanup verification | no install dir, TSF DLL, server process, TSF profile, or machine residue remains | pending approved live run |
+| fresh install | install result and pre/post install snapshots | covered by `docs/evidence/p2-win01-installer/result.md`, `pre-install-state.json`, and `post-install-state.json` |
+| TSF registration | registered Yune Windows profile state | covered by `docs/evidence/p2-win01-installer/result.md` and `post-install-state.json` |
+| profile activation | active Yune Windows profile state | covered by `docs/evidence/p2-win01-installer/result.md`, `docs/evidence/p2-win01-tsf-smoke/notepad-smoke-result.md`, and `docs/evidence/p2-win01-tsf-smoke/chromium-smoke-result.md` |
+| Notepad | committed non-raw Yune candidate text | covered by `docs/evidence/p2-win01-tsf-smoke/notepad-smoke-result.md` |
+| Chromium | one Chromium text field commits through Yune | covered by `docs/evidence/p2-win01-tsf-smoke/chromium-smoke-result.md` |
+| diagnostics export | structural support bundle without typed-content logs | covered by `docs/evidence/p2-win01-settings/registered-session-diagnostics/yune-windows-diagnostics-20260630-203148.zip` |
+| uninstall | approved uninstaller transcript | covered by `docs/evidence/p2-win01-installer/elevated-live-smoke-transcript-20260630-203015.txt` and `docs/evidence/p2-win01-installer/uninstall-result.json` |
+| cleanup verification | no install dir, TSF DLL, server process, TSF profile, or machine residue remains | covered by `docs/evidence/p2-win01-installer/cleanup-validation.json` and `docs/evidence/p2-win02-server-lifecycle/live-closeout-20260630-203015.md` |
 
-This matrix does not close P2-WIN01. It prepares the dogfood evidence target
-for the approved live path.
+This matrix is covered by the recovered P2-WIN02 live closeout on the
+`P2-WIN01-WIN11-X64` target. Dogfood package hardening remains open.

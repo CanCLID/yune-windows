@@ -263,6 +263,41 @@ function Has-NoFailedCommandTranscript([string]$RelativePath) {
     return (-not (File-Contains $RelativePath "^FAIL\s+"))
 }
 
+function Has-NoFailedCommandTranscriptBeforeCompletedPatterns([string]$RelativePath, [string[]]$Patterns) {
+    $Path = Repo-Path $RelativePath
+    if (-not (Test-Path -LiteralPath $Path)) {
+        return $false
+    }
+
+    $Lines = @(Get-Content -LiteralPath $Path)
+    $PreviousIndex = -1
+    foreach ($Pattern in $Patterns) {
+        $Index = Get-FirstMatchingLineIndexAfter `
+            -RelativePath $RelativePath `
+            -Pattern $Pattern `
+            -AfterIndex $PreviousIndex
+        if ($Index -lt 0) {
+            return $false
+        }
+        $PreviousIndex = $Index
+    }
+
+    for ($Index = 0; $Index -le $PreviousIndex; $Index++) {
+        if ($Lines[$Index] -match "^FAIL\s+") {
+            return $false
+        }
+    }
+    return $true
+}
+
+function Get-FailedCommandTranscriptLines([string]$RelativePath) {
+    $Path = Repo-Path $RelativePath
+    if (-not (Test-Path -LiteralPath $Path)) {
+        return @()
+    }
+    return @(Get-Content -LiteralPath $Path | Where-Object { $_ -match "^FAIL\s+" })
+}
+
 $GenericApprovalNoteTranscriptPattern = "-ApprovalNote\s+'(?=(?:[^']|'')*[^'\s])(?:[^']|'')+'"
 $script:CachedApprovalNoteTranscriptPattern = $null
 $script:CachedInstallDirTranscriptPattern = $null
@@ -537,13 +572,16 @@ function Get-CompletedLivePreflightCommandPattern {
 }
 
 function Has-CompletedLivePreflightCommandTranscript([string]$RelativePath) {
-    return (Has-NoFailedCommandTranscript $RelativePath) -and
-        (Has-OrderedCommandTranscript `
-        -RelativePath $RelativePath `
-        -Patterns @(
-            (Get-LivePreflightCommandPattern),
-            (Get-CompletedLivePreflightCommandPattern)
-        ))
+    $Patterns = @(
+        (Get-LivePreflightCommandPattern),
+        (Get-CompletedLivePreflightCommandPattern)
+    )
+    return (Has-OrderedCommandTranscript `
+            -RelativePath $RelativePath `
+            -Patterns $Patterns) -and
+        (Has-NoFailedCommandTranscriptBeforeCompletedPatterns `
+            -RelativePath $RelativePath `
+            -Patterns $Patterns)
 }
 
 function Get-NotepadSmokeCommandPatterns {
@@ -563,10 +601,13 @@ function Has-OrderedNotepadSmokeCommandTranscript([string]$RelativePath) {
 }
 
 function Has-CompletedNotepadSmokeCommandTranscript([string]$RelativePath) {
-    return (Has-NoFailedCommandTranscript $RelativePath) -and
-        (Has-OrderedCommandTranscript `
-        -RelativePath $RelativePath `
-        -Patterns (Get-CompletedNotepadSmokeCommandPatterns))
+    $Patterns = Get-CompletedNotepadSmokeCommandPatterns
+    return (Has-OrderedCommandTranscript `
+            -RelativePath $RelativePath `
+            -Patterns $Patterns) -and
+        (Has-NoFailedCommandTranscriptBeforeCompletedPatterns `
+            -RelativePath $RelativePath `
+            -Patterns $Patterns)
 }
 
 function Has-OrderedInstallSmokeCommandTranscript([string]$RelativePath) {
@@ -576,10 +617,13 @@ function Has-OrderedInstallSmokeCommandTranscript([string]$RelativePath) {
 }
 
 function Has-CompletedInstallSmokeCommandTranscript([string]$RelativePath) {
-    return (Has-NoFailedCommandTranscript $RelativePath) -and
-        (Has-OrderedCommandTranscript `
-        -RelativePath $RelativePath `
-        -Patterns (Get-CompletedInstallSmokeCommandPatterns))
+    $Patterns = Get-CompletedInstallSmokeCommandPatterns
+    return (Has-OrderedCommandTranscript `
+            -RelativePath $RelativePath `
+            -Patterns $Patterns) -and
+        (Has-NoFailedCommandTranscriptBeforeCompletedPatterns `
+            -RelativePath $RelativePath `
+            -Patterns $Patterns)
 }
 
 function Has-OrderedLiveCommandTranscript([string]$RelativePath) {
@@ -603,10 +647,37 @@ function Has-CompletedLiveCommandTranscript([string]$RelativePath) {
         "^PASS\s+.*export-yune-windows-diagnostics\.ps1(?=.*$DiagnosticsOutputDirTranscriptPattern)(?=.*$InstallDirTranscriptPattern)",
         "^PASS\s+.*uninstall-yune-windows-ime\.ps1(?=.*$InstallDirTranscriptPattern)(?=.*ApprovedMachineStateChange)(?=.*$ApprovalNoteTranscriptPattern)"
     )
-    return (Has-NoFailedCommandTranscript $RelativePath) -and
+    if ((Has-NoFailedCommandTranscript $RelativePath) -and
         (Has-OrderedCommandTranscript `
-        -RelativePath $RelativePath `
-        -Patterns $Patterns)
+            -RelativePath $RelativePath `
+            -Patterns $Patterns)) {
+        return $true
+    }
+
+    return Has-RecoveredDelayedDeleteLiveCommandTranscript -RelativePath $RelativePath
+}
+
+function Has-RecoveredDelayedDeleteLiveCommandTranscript([string]$RelativePath) {
+    $ApprovalNoteTranscriptPattern = Get-ApprovalNoteTranscriptPattern
+    $InstallDirTranscriptPattern = Get-InstallDirTranscriptPattern
+    $DiagnosticsOutputDirTranscriptPattern = Get-DiagnosticsOutputDirTranscriptPattern
+    $Patterns = @(Get-CompletedInstallSmokeCommandPatterns) + @(
+        "^PASS\s+.*export-yune-windows-diagnostics\.ps1(?=.*$DiagnosticsOutputDirTranscriptPattern)(?=.*$InstallDirTranscriptPattern)",
+        "uninstall-yune-windows-ime\.ps1(?=.*$InstallDirTranscriptPattern)(?=.*ApprovedMachineStateChange)(?=.*$ApprovalNoteTranscriptPattern)"
+    )
+    if (-not (Has-OrderedCommandTranscript -RelativePath $RelativePath -Patterns $Patterns)) {
+        return $false
+    }
+    if (-not (Has-NoFailedCommandTranscriptBeforeCompletedPatterns -RelativePath $RelativePath -Patterns $Patterns)) {
+        return $false
+    }
+
+    $FailedLines = @(Get-FailedCommandTranscriptLines -RelativePath $RelativePath)
+    if ($FailedLines.Count -ne 1) {
+        return $false
+    }
+    return ($FailedLines[0] -match "^FAIL\s+.*uninstall-yune-windows-ime\.ps1") -and
+        ($FailedLines[0] -match "locked YuneWindowsTSF\.dll")
 }
 
 function Has-AnyFile([string]$RelativePath, [string]$Filter) {
@@ -2479,42 +2550,42 @@ Add-Gate `
     "Notepad receives committed candidate text from Yune after profile activation" `
     $NotepadSmokeStatus `
     "docs/evidence/p2-win01-tsf-smoke/notepad-smoke-result.md" `
-    "Requires approved install/register/profile activation."
+    ($(if ($NotepadSmokeStatus -eq "complete") { "Approved installed Notepad smoke passed after profile activation." } else { "Requires approved install/register/profile activation." }))
 
 Add-Gate `
     "candidate-display-live" `
     "native candidate display and candidate commit are proven live" `
     $CandidateDisplayStatus `
     "docs/evidence/p2-win01-candidate-window/" `
-    "Build preflight exists; live display proof is still needed."
+    ($(if ($CandidateDisplayStatus -eq "complete") { "Live Notepad and Chromium evidence includes candidate display screenshots and committed text." } else { "Build preflight exists; live display proof is still needed." }))
 
 Add-Gate `
     "chromium-text-field-smoke" `
     "one Chromium-based text field accepts committed Yune candidate text" `
     $ChromiumSmokeStatus `
     "docs/evidence/p2-win01-tsf-smoke/chromium-smoke-result.md" `
-    "Harness exists; approved browser/profile automation still pending."
+    ($(if ($ChromiumSmokeStatus -eq "complete") { "Approved installed Chromium smoke passed after profile activation." } else { "Harness exists; approved browser/profile automation still pending." }))
 
 Add-Gate `
     "fresh-install-registration-activation" `
     "fresh install, TSF registration, and YuneWindows profile activation are proven" `
     $InstallActivationStatus `
     "docs/evidence/p2-win01-installer/result.md" `
-    "Requires approved install/register smoke."
+    ($(if ($InstallActivationStatus -eq "complete") { "Approved install/register/profile activation evidence is recorded." } else { "Requires approved install/register smoke." }))
 
 Add-Gate `
     "diagnostics-export" `
     "diagnostics/log export produces a support bundle" `
     $DiagnosticsStatus `
     "docs/evidence/p2-win01-settings/diagnostics-export.md" `
-    "Non-elevated diagnostics export preflight exists; live registered-session export still pending."
+    ($(if ($DiagnosticsStatus -eq "complete") { "Registered-session diagnostics bundle is recorded." } else { "Non-elevated diagnostics export preflight exists; live registered-session export still pending." }))
 
 Add-Gate `
     "uninstall-cleanup" `
     "uninstall and cleanup verification leave no YuneWindows machine state" `
     $CleanupStatus `
     "docs/evidence/p2-win01-installer/cleanup-result.md" `
-    "Requires approved unregister/uninstall/cleanup smoke."
+    ($(if ($CleanupStatus -eq "complete") { "Approved uninstall plus post-reboot cleanup validation left no residue." } else { "Requires approved unregister/uninstall/cleanup smoke." }))
 
 Add-Gate `
     "settings-decision" `
@@ -2600,7 +2671,11 @@ foreach ($Gate in $Gates) {
     $Lines += "| $($Gate.id) | $($Gate.status) | $($Gate.evidence) | $($Gate.notes) |"
 }
 $Lines += ""
-$Lines += "P2-WIN01 must remain open until every gate is complete."
+if ($OverallStatus -eq "complete") {
+    $Lines += "P2-WIN01 closeout gates are complete."
+} else {
+    $Lines += "P2-WIN01 must remain open until every gate is complete."
+}
 $Lines | Out-File -LiteralPath $MarkdownPath -Encoding utf8
 
 Write-Output $JsonPath

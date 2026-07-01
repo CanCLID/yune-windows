@@ -1,5 +1,5 @@
-{
-    "generated_at":  "2026-06-27T14:14:48.8658584-07:00",
+﻿{
+    "generated_at":  "2026-06-30T21:33:25.4445079-07:00",
     "machine_state_changed":  false,
     "compatibility_target_id":  "P2-WIN01-WIN11-X64",
     "os_caption":  "Microsoft Windows 11 Pro",
@@ -11,6 +11,7 @@
     "browser_path":  "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
     "browser_available":  true,
     "approval_required_for_live_gates":  true,
-    "live_status":  "pending-approved-live-run",
-    "p2_win01_closes":  false
+    "live_status":  "covered-by-p2-win02-live-closeout",
+    "live_closeout_evidence":  "docs/evidence/p2-win02-server-lifecycle/live-closeout-20260630-203015.md",
+    "p2_win01_closes":  true
 }

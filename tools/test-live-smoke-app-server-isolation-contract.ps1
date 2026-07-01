@@ -9,7 +9,7 @@ $SupportSource = Get-Content -Raw -LiteralPath $SupportScript
 foreach ($Required in @(
         'function Assert-NoYuneWindowsServerProcess',
         'Get-Process -Name "YuneWindowsServer"',
-        'before starting the controlled shared server'
+        'YuneWindowsServer.exe process'
     )) {
     if ($SupportSource -notmatch $Required) {
         throw "live smoke support is missing stale shared-server guard pattern: $Required"
@@ -23,19 +23,18 @@ foreach ($RelativePath in @(
     $Path = Join-Path $RepoRoot $RelativePath
     $Source = Get-Content -Raw -LiteralPath $Path
     $GuardIndex = $Source.IndexOf("Assert-NoYuneWindowsServerProcess", [System.StringComparison]::Ordinal)
-    $StartIndex = $Source.IndexOf("start-yune-windows-server.ps1", [System.StringComparison]::Ordinal)
     if ($GuardIndex -lt 0) {
-        throw "$RelativePath must check for stale YuneWindowsServer.exe before starting its controlled server."
+        throw "$RelativePath must check for stale YuneWindowsServer.exe before product-owned server startup is exercised."
     }
-    if ($StartIndex -lt 0) {
-        throw "$RelativePath is missing shared-server startup."
-    }
-    if ($GuardIndex -gt $StartIndex) {
-        throw "$RelativePath checks for stale YuneWindowsServer.exe after shared-server startup."
+    if ($Source -match 'start-yune-windows-server\.ps1') {
+        throw "$RelativePath must not manually start YuneWindowsServer.exe after P2-WIN02."
     }
     if ($Source -notmatch '\$CurrentStage = "server-preflight"(?s:.*?)Assert-NoYuneWindowsServerProcess') {
         throw "$RelativePath must record a server-preflight stage before refusing stale shared-server processes."
     }
+    if ($Source -notmatch 'ProductOwnedServerStartObserved') {
+        throw "$RelativePath must record product-owned server startup evidence."
+    }
 }
 
-Write-Host "Live app smokes reject stale shared-server processes before starting controlled app smoke servers."
+Write-Host "Live app smokes reject stale shared-server processes before exercising product-owned startup."

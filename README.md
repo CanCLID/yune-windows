@@ -23,13 +23,14 @@ usable TSF shell, shared server, native candidate window, installer scripts,
 diagnostics export, and non-elevated contract tests, but omits old private
 evidence captured before the rename.
 
-Current development dogfood works after install, registration, profile
-activation, and an explicit start of the shared server. The installer does not
-yet own the server lifecycle, so manual dogfood must start
-`YuneWindowsServer.exe` before typing.
+Current development dogfood has product-owned shared-server startup in the TSF
+DLL and structured cleanup result support in the uninstaller. The approved live
+install/register/type/diagnostics/uninstall/cleanup closeout passed after
+post-reboot delayed-delete validation. The next product gate is dogfood package
+hardening and release evidence.
 
-Before dogfood or production installer work, regenerate live evidence under the
-Yune Windows names:
+For dogfood package or production installer work, refresh live evidence under
+the Yune Windows names whenever package inputs or installer behavior change:
 
 1. Build against the current packaged Yune Windows engine.
 2. Register the text service only after explicit approval.
@@ -53,7 +54,7 @@ Read these in order:
 2. [docs/requirements.md](./docs/requirements.md)
 3. [docs/decisions.md](./docs/decisions.md)
 4. [docs/reference/yune-engine-contract.md](./docs/reference/yune-engine-contract.md)
-5. [docs/plans/active/p2-win01-plan-windows-product.md](./docs/plans/active/p2-win01-plan-windows-product.md)
+5. [docs/plans/active/README.md](./docs/plans/active/README.md)
 
 ## Build
 
@@ -71,14 +72,13 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\build-tsf-shell.ps1 -Y
 
 ## Manual Dogfood
 
-After packaging Yune and installing Yune Windows with explicit approval, start
-the shared server before opening the text field you want to test:
+The installed TSF DLL starts the per-user `YuneWindowsServer.exe` on demand
+when the Yune Windows profile receives composition input. Manual
+`tools\start-yune-windows-server.ps1` remains a diagnostic helper, not a
+dogfood prerequisite.
 
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File tools\start-yune-windows-server.ps1 -YuneRoot C:\Users\laubonghaudoi\Documents\GitHub\yune -InstallDir "$env:LOCALAPPDATA\Yune\WindowsIme" -WaitForReady
-```
-
-Then activate the profile:
+After packaging Yune and installing Yune Windows with explicit approval,
+activate the profile:
 
 ```powershell
 $tool = "$env:LOCALAPPDATA\Yune\WindowsIme\YuneWindowsProfileTool.exe"

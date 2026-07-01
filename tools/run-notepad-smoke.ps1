@@ -46,7 +46,9 @@ $ClipboardClearedAfterCapture = $false
 $ClipboardClearedAfterFailure = $false
 $ForegroundTargetVerifiedBeforeTyping = $false
 $ActiveProfileVerifiedBeforeTyping = $false
-$ProfileActivatedForSmoke = $false
+$ProfileActiveVerifiedBeforeTyping = $false
+$ProductOwnedServerStartObserved = $false
+$ProductOwnedServerReadyObserved = $false
 $CandidateScreenshotCaptured = $false
 $CommitScreenshotCaptured = $false
 $CandidateCommitScreenshotsDistinct = $false
@@ -121,6 +123,7 @@ function Write-TextSmokeResult {
         [string]$Raw = "Unknown",
         [string]$ForegroundTargetVerifiedBeforeTyping = "False",
         [string]$ActiveProfileVerifiedBeforeTyping = "False",
+        [string]$ProfileActiveVerifiedBeforeTyping = "False",
         [string]$ClipboardClearedBeforeTyping = "False",
         [string]$ClipboardClearedAfterCapture = "False",
         [string]$ClipboardClearedAfterFailure = "False",
@@ -132,7 +135,9 @@ function Write-TextSmokeResult {
         [string]$StructuralCandidateUpdateCandidateCountPositive = "False",
         [string]$StructuralCommitEventObserved = "False",
         [string]$StructuralCandidateWindowFailureObserved = "False",
-        [string]$StructuralNewLineCount = "0"
+        [string]$StructuralNewLineCount = "0",
+        [string]$ProductOwnedServerStartObserved = "False",
+        [string]$ProductOwnedServerReadyObserved = "False"
     )
 
     $Lines = @(
@@ -153,7 +158,7 @@ function Write-TextSmokeResult {
             "",
             "Failure screenshot captured: $FailureScreenshotCaptured",
             "",
-            "Failure screenshot error: $FailureScreenshotError",
+            $(if ([string]::IsNullOrEmpty($FailureScreenshotError)) { "Failure screenshot error:" } else { "Failure screenshot error: $FailureScreenshotError" }),
             "",
             "Clipboard cleared after failure: $ClipboardClearedAfterFailure",
             ""
@@ -164,11 +169,11 @@ function Write-TextSmokeResult {
         "",
         "Input method: Win32 virtual-key typed test input.",
         "",
-        "Candidate-display screenshot: `candidate-display-notepad.png`.",
+        'Candidate-display screenshot: `candidate-display-notepad.png`.',
         "",
         "Candidate-display screenshot captured: $CandidateScreenshotCaptured",
         "",
-        "Commit screenshot: `notepad-commit.png`.",
+        'Commit screenshot: `notepad-commit.png`.',
         "",
         "Commit screenshot captured: $CommitScreenshotCaptured",
         "",
@@ -194,6 +199,8 @@ function Write-TextSmokeResult {
         "",
         "Active profile verified before typing: $ActiveProfileVerifiedBeforeTyping",
         "",
+        "profile_active_verified_before_typing: $ProfileActiveVerifiedBeforeTyping",
+        "",
         "Clipboard cleared before typing: $ClipboardClearedBeforeTyping",
         "",
         "Clipboard cleared after capture: $ClipboardClearedAfterCapture",
@@ -212,7 +219,11 @@ function Write-TextSmokeResult {
         "",
         "Structural event summary: $StructuralEventSummary",
         "",
-        "Structural new log lines: $StructuralNewLineCount"
+        "Structural new log lines: $StructuralNewLineCount",
+        "",
+        "product_owned_server_start_observed: $ProductOwnedServerStartObserved",
+        "",
+        "product_owned_server_ready_observed: $ProductOwnedServerReadyObserved"
     )
     $Lines | Out-File -LiteralPath $ResultPath -Encoding utf8
     $script:ResultWritten = $true
@@ -234,7 +245,6 @@ Write-YuneWindowsStateSnapshot `
 
 Add-Type -AssemblyName System.Windows.Forms
 $Shell = New-Object -ComObject WScript.Shell
-$ServerProcess = $null
 $Notepad = $null
 $NotepadLaunchTime = [DateTime]::MinValue
 $NotepadForegroundProcessId = 0
@@ -244,22 +254,10 @@ try {
     $CurrentStage = "server-preflight"
     Assert-NoYuneWindowsServerProcess -Context "Notepad smoke"
 
-    $CurrentStage = "server-start"
-    $ServerProcess = & (Join-Path $RepoRoot "tools\start-yune-windows-server.ps1") `
-        -YuneRoot $YuneRoot `
-        -InstallDir $InstallRoot `
-        -WaitForReady `
-        -PassThru
-
-    $CurrentStage = "profile-activation"
-    Invoke-YuneWindowsProfileTool `
-        -ProfileToolPath $ProfileTool `
-        -Arguments @("--activate") `
-        -Operation "profile activation" | Out-Null
+    $CurrentStage = "profile-preflight"
     Assert-YuneWindowsProfileActive `
         -ProfileToolPath $ProfileTool `
-        -Context "Notepad smoke"
-    $ProfileActivatedForSmoke = $true
+        -Context "Notepad smoke before launch"
 
     $CurrentStage = "notepad-launch"
     $NotepadLaunchTime = Get-Date
@@ -291,7 +289,8 @@ try {
     $ForegroundTargetVerifiedBeforeTyping = $true
     Assert-YuneWindowsProfileActive `
         -ProfileToolPath $ProfileTool `
-        -Context "Notepad smoke after focus"
+        -Context "Notepad smoke before typing"
+    $ProfileActiveVerifiedBeforeTyping = $true
     $ActiveProfileVerifiedBeforeTyping = $true
 
     $CurrentStage = "target-reset"
@@ -302,9 +301,36 @@ try {
     $ClipboardClearedBeforeTyping = $true
     $StructuralLogStartLineCount = Get-StructuralLogLineCount -Path $StructuralLogPath
     $StructuralLogBaselineCaptured = $true
+    $CurrentStage = "server-autostart"
+    Send-YuneWindowsAsciiText -Text "n" -Context "Notepad smoke server launch probe"
+    $ServerReadiness = Wait-YuneWindowsProductOwnedServerReady `
+        -InstallDir $InstallRoot `
+        -StructuralLogPath $StructuralLogPath `
+        -StartLineCount $StructuralLogStartLineCount
+    $ProductOwnedServerStartObserved = [bool]$ServerReadiness.server_process_observed
+    $ProductOwnedServerReadyObserved = [bool]$ServerReadiness.ready_observed
+    if (-not $ProductOwnedServerReadyObserved) {
+        throw "Notepad smoke product-owned server launch did not become ready; structural events: $($ServerReadiness.structural_event_summary)"
+    }
+    Cancel-YuneWindowsTextComposition -Context "Notepad smoke composition cancel after server launch probe"
+
+    $CurrentStage = "target-reset-after-server-ready"
+    Reset-TextSmokeTargetContent -Context "Notepad smoke after server launch probe"
+    Assert-ForegroundProcess `
+        -ProcessId $NotepadForegroundProcessId `
+        -Context "Notepad smoke after server launch probe"
+    Assert-YuneWindowsProfileActive `
+        -ProfileToolPath $ProfileTool `
+        -Context "Notepad smoke before typing after server ready"
+    $ProfileActiveVerifiedBeforeTyping = $true
+    $ActiveProfileVerifiedBeforeTyping = $true
+    $StructuralLogStartLineCount = Get-StructuralLogLineCount -Path $StructuralLogPath
+
     $CurrentStage = "candidate-display"
     Send-YuneWindowsAsciiText -Text $TypedInput -Context "Notepad smoke typed input"
     Start-Sleep -Milliseconds 1000
+    $ServerProcessesAfterTyping = @(Get-YuneWindowsInstalledServerProcesses -InstallDir $InstallRoot)
+    $ProductOwnedServerStartObserved = $ProductOwnedServerStartObserved -or ($ServerProcessesAfterTyping.Count -gt 0)
     $CandidateScreenshot = Join-Path $EvidenceDir "candidate-display-notepad.png"
     Capture-DesktopScreenshot -Path $CandidateScreenshot
     Assert-DesktopScreenshotEvidence `
@@ -343,7 +369,9 @@ try {
     Update-StructuralSmokeEvidence
     $Pass = $MatchesExpectedCommit -and
         $ForegroundTargetVerifiedBeforeTyping -and
-        $ActiveProfileVerifiedBeforeTyping -and
+        $ProfileActiveVerifiedBeforeTyping -and
+        $ProductOwnedServerStartObserved -and
+        $ProductOwnedServerReadyObserved -and
         $ClipboardClearedBeforeTyping -and
         $ClipboardClearedAfterCapture -and
         $CandidateScreenshotCaptured -and
@@ -369,6 +397,7 @@ try {
             -Raw ([string]$Raw) `
             -ForegroundTargetVerifiedBeforeTyping ([string]$ForegroundTargetVerifiedBeforeTyping) `
             -ActiveProfileVerifiedBeforeTyping ([string]$ActiveProfileVerifiedBeforeTyping) `
+            -ProfileActiveVerifiedBeforeTyping ([string]$ProfileActiveVerifiedBeforeTyping) `
             -ClipboardClearedBeforeTyping ([string]$ClipboardClearedBeforeTyping) `
             -ClipboardClearedAfterCapture ([string]$ClipboardClearedAfterCapture) `
             -CandidateScreenshotCaptured ([string]$CandidateScreenshotCaptured) `
@@ -379,7 +408,9 @@ try {
             -StructuralCandidateUpdateCandidateCountPositive ([string]$StructuralCandidateUpdateCandidateCountPositive) `
             -StructuralCommitEventObserved ([string]$StructuralCommitEventObserved) `
             -StructuralCandidateWindowFailureObserved ([string]$StructuralCandidateWindowFailureObserved) `
-            -StructuralNewLineCount ([string]($NewStructuralLogLines.Count))
+            -StructuralNewLineCount ([string]($NewStructuralLogLines.Count)) `
+            -ProductOwnedServerStartObserved ([string]$ProductOwnedServerStartObserved) `
+            -ProductOwnedServerReadyObserved ([string]$ProductOwnedServerReadyObserved)
         throw "Notepad smoke failed; expected '$ExpectedCommitText', observed '$Observed'"
     }
 
@@ -393,6 +424,7 @@ try {
         -Raw ([string]$Raw) `
         -ForegroundTargetVerifiedBeforeTyping ([string]$ForegroundTargetVerifiedBeforeTyping) `
         -ActiveProfileVerifiedBeforeTyping ([string]$ActiveProfileVerifiedBeforeTyping) `
+        -ProfileActiveVerifiedBeforeTyping ([string]$ProfileActiveVerifiedBeforeTyping) `
         -ClipboardClearedBeforeTyping ([string]$ClipboardClearedBeforeTyping) `
         -ClipboardClearedAfterCapture ([string]$ClipboardClearedAfterCapture) `
         -CandidateScreenshotCaptured ([string]$CandidateScreenshotCaptured) `
@@ -403,7 +435,9 @@ try {
         -StructuralCandidateUpdateCandidateCountPositive ([string]$StructuralCandidateUpdateCandidateCountPositive) `
         -StructuralCommitEventObserved ([string]$StructuralCommitEventObserved) `
         -StructuralCandidateWindowFailureObserved ([string]$StructuralCandidateWindowFailureObserved) `
-        -StructuralNewLineCount ([string]($NewStructuralLogLines.Count))
+        -StructuralNewLineCount ([string]($NewStructuralLogLines.Count)) `
+        -ProductOwnedServerStartObserved ([string]$ProductOwnedServerStartObserved) `
+        -ProductOwnedServerReadyObserved ([string]$ProductOwnedServerReadyObserved)
 
     Write-Host "Notepad smoke passed; observed '$Observed'"
 }
@@ -433,6 +467,7 @@ catch {
             -Raw ([string]$Raw) `
             -ForegroundTargetVerifiedBeforeTyping ([string]$ForegroundTargetVerifiedBeforeTyping) `
             -ActiveProfileVerifiedBeforeTyping ([string]$ActiveProfileVerifiedBeforeTyping) `
+            -ProfileActiveVerifiedBeforeTyping ([string]$ProfileActiveVerifiedBeforeTyping) `
             -ClipboardClearedBeforeTyping ([string]$ClipboardClearedBeforeTyping) `
             -ClipboardClearedAfterCapture ([string]$ClipboardClearedAfterCapture) `
             -ClipboardClearedAfterFailure ([string]$ClipboardClearedAfterFailure) `
@@ -444,7 +479,9 @@ catch {
             -StructuralCandidateUpdateCandidateCountPositive ([string]$StructuralCandidateUpdateCandidateCountPositive) `
             -StructuralCommitEventObserved ([string]$StructuralCommitEventObserved) `
             -StructuralCandidateWindowFailureObserved ([string]$StructuralCandidateWindowFailureObserved) `
-            -StructuralNewLineCount ([string]($NewStructuralLogLines.Count))
+            -StructuralNewLineCount ([string]($NewStructuralLogLines.Count)) `
+            -ProductOwnedServerStartObserved ([string]$ProductOwnedServerStartObserved) `
+            -ProductOwnedServerReadyObserved ([string]$ProductOwnedServerReadyObserved)
     }
     throw
 }
@@ -456,16 +493,6 @@ finally {
         }
         catch {
             Write-Warning "failed to write Notepad post-smoke state snapshot: $($_.Exception.Message)"
-        }
-    }
-    if ($ProfileActivatedForSmoke) {
-        try {
-            Invoke-YuneWindowsProfileDeactivationForSmoke `
-                -ProfileToolPath $ProfileTool `
-                -Context "Notepad smoke"
-        }
-        catch {
-            $CleanupErrors.Add($_.Exception.Message)
         }
     }
     if ($Notepad -and -not $Notepad.HasExited) {
@@ -485,10 +512,10 @@ finally {
             $CleanupErrors.Add($_.Exception.Message)
         }
     }
-    if ($ServerProcess -and -not $ServerProcess.HasExited) {
+    foreach ($InstalledServerProcess in @(Get-YuneWindowsInstalledServerProcesses -InstallDir $InstallRoot)) {
         try {
-            Stop-Process -Id $ServerProcess.Id -Force
-            Wait-YuneWindowsProcessExit -ProcessId $ServerProcess.Id -RequireExit
+            Stop-Process -Id $InstalledServerProcess.Id -Force
+            Wait-YuneWindowsProcessExit -ProcessId $InstalledServerProcess.Id -RequireExit
         }
         catch {
             $CleanupErrors.Add($_.Exception.Message)
@@ -511,6 +538,7 @@ finally {
             -Raw ([string]$Raw) `
             -ForegroundTargetVerifiedBeforeTyping ([string]$ForegroundTargetVerifiedBeforeTyping) `
             -ActiveProfileVerifiedBeforeTyping ([string]$ActiveProfileVerifiedBeforeTyping) `
+            -ProfileActiveVerifiedBeforeTyping ([string]$ProfileActiveVerifiedBeforeTyping) `
             -ClipboardClearedBeforeTyping ([string]$ClipboardClearedBeforeTyping) `
             -ClipboardClearedAfterCapture ([string]$ClipboardClearedAfterCapture) `
             -ClipboardClearedAfterFailure ([string]$ClipboardClearedAfterFailure) `
@@ -522,7 +550,9 @@ finally {
             -StructuralCandidateUpdateCandidateCountPositive ([string]$StructuralCandidateUpdateCandidateCountPositive) `
             -StructuralCommitEventObserved ([string]$StructuralCommitEventObserved) `
             -StructuralCandidateWindowFailureObserved ([string]$StructuralCandidateWindowFailureObserved) `
-            -StructuralNewLineCount ([string]($NewStructuralLogLines.Count))
+            -StructuralNewLineCount ([string]($NewStructuralLogLines.Count)) `
+            -ProductOwnedServerStartObserved ([string]$ProductOwnedServerStartObserved) `
+            -ProductOwnedServerReadyObserved ([string]$ProductOwnedServerReadyObserved)
         throw $CleanupFailureMessage
     }
 }

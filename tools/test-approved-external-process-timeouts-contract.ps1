@@ -8,8 +8,9 @@ $InstallerScript = Join-Path $RepoRoot "tools\install-yune-windows-ime.ps1"
 $UninstallerScript = Join-Path $RepoRoot "tools\uninstall-yune-windows-ime.ps1"
 $NotepadSmokeScript = Join-Path $RepoRoot "tools\run-notepad-smoke.ps1"
 $ChromiumSmokeScript = Join-Path $RepoRoot "tools\run-chromium-smoke.ps1"
+$LiveSmokeScript = Join-Path $RepoRoot "tools\run-p2-win01-live-smoke.ps1"
 
-foreach ($Path in @($SupportScript, $InstallerScript, $UninstallerScript, $NotepadSmokeScript, $ChromiumSmokeScript)) {
+foreach ($Path in @($SupportScript, $InstallerScript, $UninstallerScript, $NotepadSmokeScript, $ChromiumSmokeScript, $LiveSmokeScript)) {
     if (-not (Test-Path -LiteralPath $Path)) {
         throw "missing required script: $Path"
     }
@@ -100,11 +101,19 @@ foreach ($Forbidden in @(
     }
 }
 
+$LiveSmokeSource = Get-Content -Raw -LiteralPath $LiveSmokeScript
+if ($LiveSmokeSource -notmatch 'Invoke-YuneWindowsProfileTool(?s:.*?)-ProfileToolPath\s+\$TextFieldProfileTool(?s:.*?)-Arguments\s+@\("--activate"\)') {
+    throw "live smoke orchestrator must activate the YuneWindows profile through the bounded profile-tool helper before text-field smokes."
+}
+if ($LiveSmokeSource -match '&\s+\$TextFieldProfileTool\s+--activate') {
+    throw "live smoke orchestrator must not activate YuneWindows profile through a raw blocking call."
+}
+
 foreach ($SmokeScript in @($NotepadSmokeScript, $ChromiumSmokeScript)) {
     $SmokeSource = Get-Content -Raw -LiteralPath $SmokeScript
     $SmokeName = Split-Path -Leaf $SmokeScript
-    if ($SmokeSource -notmatch 'Invoke-YuneWindowsProfileTool(?s:.*?)-ProfileToolPath\s+\$ProfileTool(?s:.*?)-Arguments\s+@\("--activate"\)') {
-        throw "$SmokeName must activate the YuneWindows profile through the bounded profile-tool helper."
+    if ($SmokeSource -match '--activate') {
+        throw "$SmokeName must not activate the YuneWindows profile; the live orchestrator owns one-time selection."
     }
     if ($SmokeSource -match '&\s+\$ProfileTool\s+--activate') {
         throw "$SmokeName must not activate YuneWindows profile through a raw blocking call."

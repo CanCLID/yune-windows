@@ -16,7 +16,9 @@ foreach ($Required in @(
         'compatibility_target_id',
         'P2-WIN01-WIN11-X64',
         'approval_required_for_live_gates\s*=\s*\$true',
-        'p2_win01_closes\s*=\s*\$false'
+        'live_status\s*=\s*"covered-by-p2-win02-live-closeout"',
+        'live_closeout_evidence',
+        'p2_win01_closes\s*=\s*\$true'
     )) {
     if ($Source -notmatch $Required) {
         throw "compatibility environment collector is missing required pattern: $Required"
@@ -60,6 +62,8 @@ foreach ($Property in @(
         "browser_path",
         "browser_available",
         "approval_required_for_live_gates",
+        "live_status",
+        "live_closeout_evidence",
         "p2_win01_closes"
     )) {
     if (-not $Environment.PSObject.Properties.Name.Contains($Property)) {
@@ -89,8 +93,14 @@ if ([string]::IsNullOrWhiteSpace($Environment.os_architecture)) {
 if ($Environment.approval_required_for_live_gates -ne $true) {
     throw "compatibility environment must keep live gates approval-required"
 }
-if ($Environment.p2_win01_closes -ne $false) {
-    throw "compatibility environment must not claim P2-WIN01 closeout"
+if ($Environment.live_status -ne "covered-by-p2-win02-live-closeout") {
+    throw "compatibility environment must record covered live status, got $($Environment.live_status)"
+}
+if ($Environment.live_closeout_evidence -ne "docs/evidence/p2-win02-server-lifecycle/live-closeout-20260630-203015.md") {
+    throw "compatibility environment must point to the recovered P2-WIN02 live closeout evidence"
+}
+if ($Environment.p2_win01_closes -ne $true) {
+    throw "compatibility environment must claim P2-WIN01 closeout after recovered live closeout"
 }
 
 $DurablePath = Join-Path $RepoRoot "docs\evidence\p2-win01-installer\compatibility-environment.json"
@@ -116,8 +126,25 @@ $CompatibilityMatrix = Get-Content -Raw -LiteralPath $CompatibilityMatrixPath
 if ($CompatibilityMatrix -notmatch [regex]::Escape("compatibility-environment.json")) {
     throw "compatibility matrix must reference compatibility-environment.json"
 }
+if ($CompatibilityMatrix -match [regex]::Escape("pending-approved-live-run")) {
+    throw "compatibility matrix must not retain pending-approved-live-run after live closeout"
+}
+if ($CompatibilityMatrix -notmatch [regex]::Escape("docs/evidence/p2-win02-server-lifecycle/live-closeout-20260630-203015.md")) {
+    throw "compatibility matrix must point to the recovered P2-WIN02 live closeout evidence"
+}
 
-$Plan = Get-Content -Raw -LiteralPath (Join-Path $RepoRoot "docs\plans\active\p2-win01-plan-windows-product.md")
+$DurableEnvironment = Get-Content -Raw -LiteralPath $DurablePath | ConvertFrom-Json
+if ($DurableEnvironment.live_status -ne "covered-by-p2-win02-live-closeout") {
+    throw "durable compatibility environment must record covered live status"
+}
+if ($DurableEnvironment.live_closeout_evidence -ne "docs/evidence/p2-win02-server-lifecycle/live-closeout-20260630-203015.md") {
+    throw "durable compatibility environment must point to recovered live closeout evidence"
+}
+if ($DurableEnvironment.p2_win01_closes -ne $true) {
+    throw "durable compatibility environment must record that the recovered live closeout closes P2-WIN01"
+}
+
+$Plan = Get-Content -Raw -LiteralPath (Join-Path $RepoRoot "docs\plans\history\p2-win01-plan-windows-product.md")
 foreach ($RequiredPlanText in @(
         'tools\collect-p2-win01-compatibility-environment.ps1',
         'tools\test-compatibility-environment-evidence.ps1',

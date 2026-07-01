@@ -28,12 +28,12 @@ Require-Pattern `
 
 Require-Pattern `
     -RelativePath "tools\run-notepad-smoke.ps1" `
-    -Pattern 'Stop-Process\s+-Id\s+\$ServerProcess\.Id\s+-Force(?s:.*?)Wait-YuneWindowsProcessExit\s+-ProcessId\s+\$ServerProcess\.Id' `
-    -Reason "wait after stopping the shared server"
+    -Pattern 'foreach\s+\(\$InstalledServerProcess\s+in\s+@\(Get-YuneWindowsInstalledServerProcesses(?s:.*?)Stop-Process\s+-Id\s+\$InstalledServerProcess\.Id\s+-Force(?s:.*?)Wait-YuneWindowsProcessExit\s+-ProcessId\s+\$InstalledServerProcess\.Id' `
+    -Reason "wait after stopping installed product-owned server processes"
 
 Require-Pattern `
     -RelativePath "tools\run-chromium-smoke.ps1" `
-    -Pattern 'Stop-Process\s+-Id\s+\$ServerProcess\.Id\s+-Force(?s:.*?)Wait-YuneWindowsProcessExit\s+-ProcessId\s+\$ServerProcess\.Id' `
-    -Reason "wait after stopping the shared server"
+    -Pattern 'foreach\s+\(\$InstalledServerProcess\s+in\s+@\(Get-YuneWindowsInstalledServerProcesses(?s:.*?)Stop-Process\s+-Id\s+\$InstalledServerProcess\.Id\s+-Force(?s:.*?)Wait-YuneWindowsProcessExit\s+-ProcessId\s+\$InstalledServerProcess\.Id' `
+    -Reason "wait after stopping installed product-owned server processes"
 
-Write-Host "Live app smokes wait for Notepad and shared-server process exit before post-smoke cleanup continues."
+Write-Host "Live app smokes wait for Notepad and installed product-owned server process exit before post-smoke cleanup continues."

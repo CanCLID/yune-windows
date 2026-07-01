@@ -1,12 +1,10 @@
-# Install And Smoke Result
+﻿# Install And Smoke Result
 
-Date: 2026-06-27T14:42:21.3455807-07:00
+Date: 2026-06-30T21:02:07.9683487-07:00
 
-Status: failed
+Status: passed
 
-Failure stage: cleanup-validation
-
-Failure message: Cleanup validation failed: Install directory still exists
+Recovered cleanup: post-reboot cleanup validation passed after the approved delayed-delete path.
 
 Fresh install: attempted through `tools\install-yune-windows-ime.ps1`.
 
@@ -19,5 +17,5 @@ Chromium smoke: see `docs/evidence/p2-win01-tsf-smoke/chromium-smoke-result.md` 
 Diagnostics bundle:
 
 ``text
-C:\Users\laubonghaudoi\Documents\GitHub\yune-windows\docs\evidence\p2-win01-settings\registered-session-diagnostics\yune-windows-diagnostics-20260627-144052.zip
+C:\Users\laubonghaudoi\Documents\GitHub\yune-windows\docs\evidence\p2-win01-settings\registered-session-diagnostics\yune-windows-diagnostics-20260630-203148.zip
 ``

@@ -1,0 +1,10 @@
+﻿{
+    "install_dir":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Yune\\WindowsIme",
+    "yune_root":  "C:\\Users\\laubonghaudoi\\Documents\\GitHub\\yune",
+    "rime_dll":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Yune\\WindowsIme\\rime.dll",
+    "shared_data_dir":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Yune\\WindowsIme\\schema",
+    "user_data_dir":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Yune\\WindowsIme\\user-data",
+    "pipe":  "\\\\.\\pipe\\yune-windows-ime",
+    "tsf_clsid":  "{1788DBA7-CC9A-49E2-9C4C-E9DBF0BE2567}",
+    "profile_guid":  "{3AE69B8D-19B4-4267-8F21-E239666D6632}"
+}

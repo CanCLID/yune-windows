@@ -1,6 +1,6 @@
-# Notepad Smoke Result
+﻿# Notepad Smoke Result
 
-Date: 2026-06-27T14:40:36.3058625-07:00
+Date: 2026-06-30T20:31:35.6509891-07:00
 
 Status: passed
 
@@ -8,11 +8,11 @@ Input: `ngohaig` followed by space.
 
 Input method: Win32 virtual-key typed test input.
 
-Candidate-display screenshot: candidate-display-notepad.png.
+Candidate-display screenshot: `candidate-display-notepad.png`.
 
 Candidate-display screenshot captured: True
 
-Commit screenshot: notepad-commit.png.
+Commit screenshot: `notepad-commit.png`.
 
 Commit screenshot captured: True
 
@@ -38,6 +38,8 @@ Foreground target verified before typing: True
 
 Active profile verified before typing: True
 
+profile_active_verified_before_typing: True
+
 Clipboard cleared before typing: True
 
 Clipboard cleared after capture: True
@@ -57,3 +59,7 @@ Structural event matcher: exact event tokens
 Structural event summary: candidate_update=7, commit_request=1, commit_text=1, key_down=7
 
 Structural new log lines: 16
+
+product_owned_server_start_observed: True
+
+product_owned_server_ready_observed: True

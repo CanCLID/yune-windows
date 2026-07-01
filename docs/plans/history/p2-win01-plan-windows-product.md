@@ -1,5 +1,8 @@
 # P2-WIN01 Windows Product Implementation Plan
 
+> Historical status: complete. This plan is retained for audit context. Current
+> work should start from `docs/roadmap.md` and `docs/plans/active/README.md`.
+
 **Goal:** maintain the first usable Yune-only Yune Windows IME product path in
 the public `CanCLID/yune-windows` repo.
 

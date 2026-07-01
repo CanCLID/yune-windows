@@ -6,6 +6,7 @@ $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $SupportPath = Join-Path $RepoRoot "tools\live-smoke-support.ps1"
 $NotepadPath = Join-Path $RepoRoot "tools\run-notepad-smoke.ps1"
 $ChromiumPath = Join-Path $RepoRoot "tools\run-chromium-smoke.ps1"
+$UninstallPath = Join-Path $RepoRoot "tools\uninstall-yune-windows-ime.ps1"
 
 $SupportSource = Get-Content -Raw -LiteralPath $SupportPath
 if ($SupportSource -notmatch 'function Invoke-YuneWindowsProfileDeactivationForSmoke') {
@@ -20,22 +21,20 @@ foreach ($Required in @(
     }
 }
 
-function Assert-SmokeScriptDeactivatesBeforeClosingTarget {
+function Assert-SmokeScriptDoesNotOwnProfileActivationCleanup {
     param(
         [Parameter(Mandatory = $true)]
         [string]$Path,
         [Parameter(Mandatory = $true)]
-        [string]$SmokeName,
-        [Parameter(Mandatory = $true)]
-        [string[]]$CloseMarkers
+        [string]$SmokeName
     )
 
     $Source = Get-Content -Raw -LiteralPath $Path
-    if ($Source -notmatch '\$ProfileActivatedForSmoke\s*=\s*\$false') {
-        throw "$SmokeName must initialize profile-activation tracking."
+    if ($Source -match '--activate') {
+        throw "$SmokeName must not activate the profile; live orchestrator owns text-field profile selection."
     }
-    if ($Source -notmatch '(?s)--activate.*?Assert-YuneWindowsProfileActive.*?\$ProfileActivatedForSmoke\s*=\s*\$true') {
-        throw "$SmokeName must mark the profile active only after activation is verified."
+    if ($Source -match 'Invoke-YuneWindowsProfileDeactivationForSmoke') {
+        throw "$SmokeName must not deactivate the profile between text-field smokes."
     }
 
     $FinallyIndex = $Source.LastIndexOf('finally {', [System.StringComparison]::Ordinal)
@@ -43,36 +42,22 @@ function Assert-SmokeScriptDeactivatesBeforeClosingTarget {
         throw "$SmokeName is missing a finally cleanup block."
     }
     $FinallySource = $Source.Substring($FinallyIndex)
-    $DeactivateIndex = $FinallySource.IndexOf(
-        'Invoke-YuneWindowsProfileDeactivationForSmoke',
-        [System.StringComparison]::Ordinal)
-    if ($DeactivateIndex -lt 0) {
-        throw "$SmokeName must deactivate the YuneWindows profile during cleanup."
-    }
-    foreach ($Marker in $CloseMarkers) {
-        $CloseIndex = $FinallySource.IndexOf($Marker, [System.StringComparison]::Ordinal)
-        if ($CloseIndex -ge 0 -and $CloseIndex -lt $DeactivateIndex) {
-            throw "$SmokeName must deactivate the YuneWindows profile before target cleanup marker: $Marker"
-        }
+    if ($FinallySource -notmatch 'Stop-Process|Stop-ProcessTree|Stop-YuneWindowsNotepadSmokeProcesses') {
+        throw "$SmokeName must still clean up its target app/server processes."
     }
 }
 
-Assert-SmokeScriptDeactivatesBeforeClosingTarget `
+Assert-SmokeScriptDoesNotOwnProfileActivationCleanup `
     -Path $NotepadPath `
-    -SmokeName "Notepad smoke" `
-    -CloseMarkers @(
-        'Stop-Process -Id $Notepad.Id',
-        'Stop-YuneWindowsNotepadSmokeProcesses',
-        'Stop-Process -Id $ServerProcess.Id'
-    )
+    -SmokeName "Notepad smoke"
 
-Assert-SmokeScriptDeactivatesBeforeClosingTarget `
+Assert-SmokeScriptDoesNotOwnProfileActivationCleanup `
     -Path $ChromiumPath `
-    -SmokeName "Chromium smoke" `
-    -CloseMarkers @(
-        'Stop-ProcessTree -ProcessId $BrowserProcess.Id',
-        'Stop-ProcessesUsingPathInCommandLine',
-        'Stop-Process -Id $ServerProcess.Id'
-    )
+    -SmokeName "Chromium smoke"
 
-Write-Host "Live app smokes deactivate the YuneWindows profile before target cleanup returns focus to the launcher."
+$UninstallSource = Get-Content -Raw -LiteralPath $UninstallPath
+if ($UninstallSource -notmatch 'Invoke-YuneWindowsProfileDeactivation\s+-ProfileToolPath\s+\$ProfileTool') {
+    throw "uninstaller must deactivate the YuneWindows profile before unregistering/cleanup."
+}
+
+Write-Host "Text-field smokes preserve one-time profile selection; uninstall owns profile deactivation cleanup."

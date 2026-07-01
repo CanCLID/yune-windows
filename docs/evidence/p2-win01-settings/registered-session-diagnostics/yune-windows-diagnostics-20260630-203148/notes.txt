@@ -1,0 +1,5 @@
+﻿Yune Windows diagnostics export.
+Typed-content logs are disabled for this P2-WIN01 preflight.
+Structural TSF logs, when present, contain event names and counts only.
+Registry state is not collected by this non-elevated exporter.
+Approved install/register cleanup evidence must be captured separately.

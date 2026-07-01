@@ -1,0 +1,54 @@
+﻿{
+    "captured_at":  "2026-06-29T22:14:07.8129235-07:00",
+    "install_dir":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Yune\\WindowsIme",
+    "install_dir_exists":  true,
+    "tsf_dll":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Yune\\WindowsIme\\YuneWindowsTSF.dll",
+    "tsf_dll_exists":  true,
+    "profile_tool_exists":  false,
+    "server_process_count":  0,
+    "tsf_dll_holders":  [
+                            {
+                                "process_id":  3472,
+                                "process_name":  "chrome",
+                                "process_path":  "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"
+                            },
+                            {
+                                "process_id":  10428,
+                                "process_name":  "claude",
+                                "process_path":  "C:\\Program Files\\WindowsApps\\Claude_1.15962.1.0_x64__pzs8sxrjxfjjc\\app\\Claude.exe"
+                            },
+                            {
+                                "process_id":  5336,
+                                "process_name":  "Codex",
+                                "process_path":  "C:\\Program Files\\WindowsApps\\OpenAI.Codex_26.623.9142.0_x64__2p2nqsd0c76g0\\app\\Codex.exe"
+                            },
+                            {
+                                "process_id":  11280,
+                                "process_name":  "explorer",
+                                "process_path":  "C:\\Windows\\Explorer.EXE"
+                            },
+                            {
+                                "process_id":  15276,
+                                "process_name":  "NVIDIA Overlay",
+                                "process_path":  "C:\\Program Files\\NVIDIA Corporation\\NVIDIA App\\CEF\\NVIDIA Overlay.exe"
+                            },
+                            {
+                                "process_id":  17360,
+                                "process_name":  "Signal",
+                                "process_path":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Programs\\signal-desktop\\Signal.exe"
+                            },
+                            {
+                                "process_id":  13980,
+                                "process_name":  "steamwebhelper",
+                                "process_path":  "C:\\Program Files (x86)\\Steam\\bin\\cef\\cef.win64\\steamwebhelper.exe"
+                            }
+                        ],
+    "pending_file_rename_operations":  [
+                                           "*1\\??\\C:\\Program Files\\Google\\Chrome\\Temp\\11176_1927749521\\old_chrome.exe",
+                                           "",
+                                           "*1\\??\\C:\\Program Files\\Google\\Chrome\\Temp\\11176_1927749521",
+                                           "",
+                                           "*1\\??\\C:\\Program Files\\Google\\Chrome\\Temp",
+                                           ""
+                                       ]
+}

@@ -64,6 +64,20 @@ std::string Narrow(std::wstring_view value) {
     return output;
 }
 
+std::wstring ServerInstanceMutexName(const std::wstring& pipe_name) {
+    std::wstring suffix;
+    suffix.reserve(pipe_name.size());
+    for (wchar_t ch : pipe_name) {
+        if ((ch >= L'0' && ch <= L'9') || (ch >= L'A' && ch <= L'Z') ||
+            (ch >= L'a' && ch <= L'z') || ch == L'_' || ch == L'-') {
+            suffix.push_back(ch);
+        } else {
+            suffix.push_back(L'_');
+        }
+    }
+    return L"Local\\YuneWindowsServerSingleInstance_" + suffix;
+}
+
 Args ParseArgs(int argc, wchar_t** argv) {
     Args args;
     for (int i = 1; i < argc; ++i) {
@@ -385,14 +399,31 @@ void ServeOnce(const Args& args, YuneRuntime& runtime) {
 }  // namespace
 
 int wmain(int argc, wchar_t** argv) {
+    HANDLE single_instance = nullptr;
     try {
         const Args args = ParseArgs(argc, argv);
+        const std::wstring mutex_name = ServerInstanceMutexName(args.pipe_name);
+        single_instance = CreateMutexW(nullptr, TRUE, mutex_name.c_str());
+        if (!single_instance) {
+            throw std::runtime_error("failed to create server single-instance mutex");
+        }
+        const DWORD mutex_error = GetLastError();
+        if (mutex_error == ERROR_ALREADY_EXISTS) {
+            CloseHandle(single_instance);
+            single_instance = nullptr;
+            return 0;
+        }
         YuneRuntime runtime(args);
         do {
             ServeOnce(args, runtime);
         } while (!args.once);
+        CloseHandle(single_instance);
+        single_instance = nullptr;
         return 0;
     } catch (const std::exception& error) {
+        if (single_instance) {
+            CloseHandle(single_instance);
+        }
         std::cerr << "YuneWindowsServer failed: " << error.what() << "\n";
         return 1;
     }

@@ -1,0 +1,104 @@
+﻿{
+    "generated_at":  "2026-06-29T22:19:37.2412170-07:00",
+    "install_dir":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Yune\\WindowsIme",
+    "approval_note_present":  true,
+    "profile_deactivated":  false,
+    "machine_registration_absent":  true,
+    "server_processes_stopped":  true,
+    "safe_module_hosts_stopped":  [
+
+                                  ],
+    "module_holders_before_remove":  [
+                                         {
+                                             "process_id":  3472,
+                                             "process_name":  "chrome",
+                                             "process_path":  "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"
+                                         },
+                                         {
+                                             "process_id":  10428,
+                                             "process_name":  "claude",
+                                             "process_path":  "C:\\Program Files\\WindowsApps\\Claude_1.15962.1.0_x64__pzs8sxrjxfjjc\\app\\Claude.exe"
+                                         },
+                                         {
+                                             "process_id":  5336,
+                                             "process_name":  "Codex",
+                                             "process_path":  "C:\\Program Files\\WindowsApps\\OpenAI.Codex_26.623.9142.0_x64__2p2nqsd0c76g0\\app\\Codex.exe"
+                                         },
+                                         {
+                                             "process_id":  11280,
+                                             "process_name":  "explorer",
+                                             "process_path":  "C:\\Windows\\Explorer.EXE"
+                                         },
+                                         {
+                                             "process_id":  10964,
+                                             "process_name":  "L-Connect 3",
+                                             "process_path":  "C:\\Program Files\\Lian-Li\\L-Connect 3\\L-Connect 3.exe"
+                                         },
+                                         {
+                                             "process_id":  15276,
+                                             "process_name":  "NVIDIA Overlay",
+                                             "process_path":  "C:\\Program Files\\NVIDIA Corporation\\NVIDIA App\\CEF\\NVIDIA Overlay.exe"
+                                         },
+                                         {
+                                             "process_id":  17360,
+                                             "process_name":  "Signal",
+                                             "process_path":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Programs\\signal-desktop\\Signal.exe"
+                                         },
+                                         {
+                                             "process_id":  13980,
+                                             "process_name":  "steamwebhelper",
+                                             "process_path":  "C:\\Program Files (x86)\\Steam\\bin\\cef\\cef.win64\\steamwebhelper.exe"
+                                         }
+                                     ],
+    "module_holders_after_remove":  [
+                                        {
+                                            "process_id":  3472,
+                                            "process_name":  "chrome",
+                                            "process_path":  "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"
+                                        },
+                                        {
+                                            "process_id":  10428,
+                                            "process_name":  "claude",
+                                            "process_path":  "C:\\Program Files\\WindowsApps\\Claude_1.15962.1.0_x64__pzs8sxrjxfjjc\\app\\Claude.exe"
+                                        },
+                                        {
+                                            "process_id":  5336,
+                                            "process_name":  "Codex",
+                                            "process_path":  "C:\\Program Files\\WindowsApps\\OpenAI.Codex_26.623.9142.0_x64__2p2nqsd0c76g0\\app\\Codex.exe"
+                                        },
+                                        {
+                                            "process_id":  11280,
+                                            "process_name":  "explorer",
+                                            "process_path":  "C:\\Windows\\Explorer.EXE"
+                                        },
+                                        {
+                                            "process_id":  10964,
+                                            "process_name":  "L-Connect 3",
+                                            "process_path":  "C:\\Program Files\\Lian-Li\\L-Connect 3\\L-Connect 3.exe"
+                                        },
+                                        {
+                                            "process_id":  15276,
+                                            "process_name":  "NVIDIA Overlay",
+                                            "process_path":  "C:\\Program Files\\NVIDIA Corporation\\NVIDIA App\\CEF\\NVIDIA Overlay.exe"
+                                        },
+                                        {
+                                            "process_id":  17360,
+                                            "process_name":  "Signal",
+                                            "process_path":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Programs\\signal-desktop\\Signal.exe"
+                                        },
+                                        {
+                                            "process_id":  13980,
+                                            "process_name":  "steamwebhelper",
+                                            "process_path":  "C:\\Program Files (x86)\\Steam\\bin\\cef\\cef.win64\\steamwebhelper.exe"
+                                        }
+                                    ],
+    "install_dir_removed":  false,
+    "pending_delete_scheduled":  true,
+    "pending_delete_paths":  [
+                                 "C:\\Users\\laubonghaudoi\\AppData\\Local\\Yune\\WindowsIme\\YuneWindowsTSF.dll",
+                                 "C:\\Users\\laubonghaudoi\\AppData\\Local\\Yune\\WindowsIme"
+                             ],
+    "requires_reboot":  true,
+    "pass":  false,
+    "error":  "install directory contains locked YuneWindowsTSF.dll module holders: chrome[3472], claude[10428], Codex[5336], explorer[11280], L-Connect 3[10964], NVIDIA Overlay[15276], Signal[17360], steamwebhelper[13980]"
+}

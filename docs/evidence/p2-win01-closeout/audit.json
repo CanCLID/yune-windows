@@ -1,6 +1,6 @@
-{
-    "generated_at":  "2026-06-29T18:45:39.2752511-07:00",
-    "status":  "incomplete",
+﻿{
+    "generated_at":  "2026-06-30T21:32:49.0874309-07:00",
+    "status":  "complete",
     "gates":  [
                   {
                       "id":  "repo-reference-audit",
@@ -19,51 +19,51 @@
                   {
                       "id":  "tsf-server-ipc-preflight",
                       "requirement":  "shared server returns non-raw Yune candidate over IPC",
-                      "status":  "preflight",
+                      "status":  "complete",
                       "evidence":  "docs/evidence/p2-win01-tsf-smoke/server-ipc-smoke.md",
-                      "notes":  "Non-elevated preflight only; does not close TSF registration."
+                      "notes":  "Preflight is backed by approved live Notepad commit evidence."
                   },
                   {
                       "id":  "tsf-notepad-smoke",
                       "requirement":  "Notepad receives committed candidate text from Yune after profile activation",
-                      "status":  "invalid",
+                      "status":  "complete",
                       "evidence":  "docs/evidence/p2-win01-tsf-smoke/notepad-smoke-result.md",
-                      "notes":  "Requires approved install/register/profile activation."
+                      "notes":  "Approved installed Notepad smoke passed after profile activation."
                   },
                   {
                       "id":  "candidate-display-live",
                       "requirement":  "native candidate display and candidate commit are proven live",
-                      "status":  "invalid",
+                      "status":  "complete",
                       "evidence":  "docs/evidence/p2-win01-candidate-window/",
-                      "notes":  "Build preflight exists; live display proof is still needed."
+                      "notes":  "Live Notepad and Chromium evidence includes candidate display screenshots and committed text."
                   },
                   {
                       "id":  "chromium-text-field-smoke",
                       "requirement":  "one Chromium-based text field accepts committed Yune candidate text",
-                      "status":  "invalid",
+                      "status":  "complete",
                       "evidence":  "docs/evidence/p2-win01-tsf-smoke/chromium-smoke-result.md",
-                      "notes":  "Harness exists; approved browser/profile automation still pending."
+                      "notes":  "Approved installed Chromium smoke passed after profile activation."
                   },
                   {
                       "id":  "fresh-install-registration-activation",
                       "requirement":  "fresh install, TSF registration, and YuneWindows profile activation are proven",
-                      "status":  "invalid",
+                      "status":  "complete",
                       "evidence":  "docs/evidence/p2-win01-installer/result.md",
-                      "notes":  "Requires approved install/register smoke."
+                      "notes":  "Approved install/register/profile activation evidence is recorded."
                   },
                   {
                       "id":  "diagnostics-export",
                       "requirement":  "diagnostics/log export produces a support bundle",
-                      "status":  "invalid",
+                      "status":  "complete",
                       "evidence":  "docs/evidence/p2-win01-settings/diagnostics-export.md",
-                      "notes":  "Non-elevated diagnostics export preflight exists; live registered-session export still pending."
+                      "notes":  "Registered-session diagnostics bundle is recorded."
                   },
                   {
                       "id":  "uninstall-cleanup",
                       "requirement":  "uninstall and cleanup verification leave no YuneWindows machine state",
-                      "status":  "invalid",
+                      "status":  "complete",
                       "evidence":  "docs/evidence/p2-win01-installer/cleanup-result.md",
-                      "notes":  "Requires approved unregister/uninstall/cleanup smoke."
+                      "notes":  "Approved uninstall plus post-reboot cleanup validation left no residue."
                   },
                   {
                       "id":  "settings-decision",
@@ -82,9 +82,9 @@
                   {
                       "id":  "live-preflight",
                       "requirement":  "non-mutating install/live-smoke preflight evidence is captured",
-                      "status":  "invalid",
+                      "status":  "complete",
                       "evidence":  "docs/evidence/p2-win01-installer/live-preflight.json",
-                      "notes":  "Preflight evidence is invalid; commands.txt must record live-preflight start and PASS entries after approval."
+                      "notes":  "Preflight evidence records clean fresh-target readiness without install/register/browser automation."
                   },
                   {
                       "id":  "engine-boundary",

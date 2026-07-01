@@ -101,6 +101,74 @@ function Get-StructuralEventSummary {
             ForEach-Object { "$($_.Name)=$($_.Value)" }) -join ", ")
 }
 
+function Get-YuneWindowsStructuralLogLinesAfter {
+    param(
+        [string]$Path,
+        [int]$StartLineCount
+    )
+
+    if (-not (Test-Path -LiteralPath $Path)) {
+        return @()
+    }
+
+    $Lines = @(Get-Content -LiteralPath $Path)
+    if ($Lines.Count -le $StartLineCount) {
+        return @()
+    }
+
+    return @($Lines[$StartLineCount..($Lines.Count - 1)])
+}
+
+function Wait-YuneWindowsProductOwnedServerReady {
+    param(
+        [Parameter(Mandatory = $true)][string]$InstallDir,
+        [Parameter(Mandatory = $true)][string]$StructuralLogPath,
+        [int]$StartLineCount = 0,
+        [int]$TimeoutMs = 20000,
+        [int]$DelayMilliseconds = 250
+    )
+
+    $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+    $ServerProcesses = @()
+    $ServerProcessObserved = $false
+    $ReadyObserved = $false
+    $ReadyEvent = ""
+    $NewLines = @()
+
+    do {
+        $ServerProcesses = @(Get-YuneWindowsInstalledServerProcesses -InstallDir $InstallDir)
+        if ($ServerProcesses.Count -gt 0) {
+            $ServerProcessObserved = $true
+        }
+
+        $NewLines = @(Get-YuneWindowsStructuralLogLinesAfter `
+                -Path $StructuralLogPath `
+                -StartLineCount $StartLineCount)
+        foreach ($EventName in @("server_launch_ready", "candidate_update")) {
+            if ($NewLines | Where-Object { Test-StructuralEventLine -Line $_ -EventName $EventName } | Select-Object -First 1) {
+                $ReadyObserved = $true
+                $ReadyEvent = $EventName
+                break
+            }
+        }
+
+        if ($ReadyObserved) {
+            break
+        }
+
+        Start-Sleep -Milliseconds $DelayMilliseconds
+    } while ($Stopwatch.ElapsedMilliseconds -lt $TimeoutMs)
+
+    return [pscustomobject]@{
+        server_process_observed = $ServerProcessObserved
+        server_process_count = @($ServerProcesses).Count
+        ready_observed = $ReadyObserved
+        ready_event = $ReadyEvent
+        structural_event_summary = Get-StructuralEventSummary -Lines $NewLines
+        structural_new_line_count = @($NewLines).Count
+    }
+}
+
 function Get-YuneWindowsChromiumSmokeEventSummary {
     param([AllowEmptyString()][string]$Title)
 
@@ -597,6 +665,15 @@ function Reset-TextSmokeTargetContent {
     Start-Sleep -Milliseconds 150
     Release-YuneWindowsModifierKeys -Context "$Context target reset"
     Send-YuneWindowsVirtualKey -VirtualKey 0x2e -Context "$Context target reset"
+    Start-Sleep -Milliseconds 250
+}
+
+function Cancel-YuneWindowsTextComposition {
+    param([string]$Context = "Text smoke")
+
+    Release-YuneWindowsModifierKeys -Context "$Context composition cancel"
+    Send-YuneWindowsVirtualKey -VirtualKey 0x1b -Context "$Context composition cancel"
+    Release-YuneWindowsModifierKeys -Context "$Context composition cancel"
     Start-Sleep -Milliseconds 250
 }
 
@@ -1382,6 +1459,22 @@ function Assert-NoYuneWindowsServerProcess {
     throw "$Context found existing YuneWindowsServer.exe process before starting the controlled shared server: PID(s) $($ProcessIds -join ', ')"
 }
 
+function Get-YuneWindowsInstalledServerProcesses {
+    param([Parameter(Mandatory = $true)][string]$InstallDir)
+
+    $ServerPath = Join-Path $InstallDir "YuneWindowsServer.exe"
+    return @(Get-Process -Name "YuneWindowsServer" -ErrorAction SilentlyContinue |
+        Where-Object {
+            try {
+                $_.Path -eq $ServerPath
+            }
+            catch {
+                $false
+            }
+        } |
+        Select-Object Id, ProcessName, Path, StartTime)
+}
+
 function Assert-YuneWindowsActiveInstalledSnapshot {
     param(
         [Parameter(Mandatory = $true)]
@@ -1647,6 +1740,43 @@ function Assert-YuneWindowsProfileActive {
     catch {
         throw "$Context profile activation did not verify: $ProfileStateText ($($_.Exception.Message))"
     }
+}
+
+function Wait-YuneWindowsProfileRegistered {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ProfileToolPath,
+        [string]$Context = "YuneWindows",
+        [int]$Attempts = 20,
+        [int]$DelayMilliseconds = 250
+    )
+
+    $LastProfileStateText = ""
+    $LastError = ""
+    for ($Attempt = 1; $Attempt -le $Attempts; $Attempt++) {
+        try {
+            $ProfileStateText = (Invoke-YuneWindowsProfileTool `
+                    -ProfileToolPath $ProfileToolPath `
+                    -Arguments @("--state") `
+                    -Operation "$Context profile registration wait").Trim()
+            $LastProfileStateText = $ProfileStateText
+            $ProfileState = $ProfileStateText | ConvertFrom-Json
+            Assert-JsonBooleanProperty -Object $ProfileState -Name "registered" -Expected $true -Context "$Context profile state"
+            return $ProfileStateText
+        }
+        catch {
+            $LastError = $_.Exception.Message
+        }
+
+        if ($Attempt -lt $Attempts) {
+            Start-Sleep -Milliseconds $DelayMilliseconds
+        }
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($LastProfileStateText)) {
+        throw "$Context profile registration did not become visible after $Attempts attempts: $LastProfileStateText ($LastError)"
+    }
+    throw "$Context profile registration did not become visible after $Attempts attempts: $LastError"
 }
 
 function Invoke-YuneWindowsProfileDeactivationForSmoke {

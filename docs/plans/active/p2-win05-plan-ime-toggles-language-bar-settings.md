@@ -149,15 +149,27 @@ DLL swaps (holder-free). D is the largest (new build target).
 
 ### Slice B — TSF hotkeys + English pass-through + native indicator
 
-- **Hotkeys (chord-first):** register preserved keys via
-  `ITfKeystrokeMgr::PreserveKey` at profile-activate time and handle them in
-  `OnPreservedKey` (1104) — use the Rime chord convention: `Ctrl+Shift+2` toggles
-  `ascii_mode`, `Ctrl+Shift+3` toggles `full_shape`, plus a schema-cycle chord.
-  `PreserveKey` delivers chords cleanly. (A **lone-Shift** 中/英 toggle is an
-  optional later add: it needs a key-up state machine — Shift-down sets a pending
-  flag, any intervening key clears it, Shift-up with the flag set toggles; spell
-  that out only if we add it.) On a hotkey, send `op=set-option`/`op=select-schema`
-  through a generalized `QueryServer` (471).
+- **Hotkeys.** The primary 中/英 toggle is a **lone Shift press** (the Microsoft
+  Pinyin / Sogou convention users expect). This is NOT a `PreserveKey` chord — it
+  needs a key-up state machine in the TSF key sink:
+  - Track `bool shift_down_` and `bool shift_consumed_` on the `TextService`. In
+    `OnKeyDown` for `VK_SHIFT`/`VK_LSHIFT`/`VK_RSHIFT`: set `shift_down_=true`,
+    `shift_consumed_=false` (do NOT eat it). In `OnKeyDown` for any **other** key
+    while `shift_down_`: set `shift_consumed_=true` (Shift acted as a modifier —
+    e.g. Shift+letter for a capital — so it is not "lone"). In `OnKeyUp` for
+    `VK_SHIFT` with `shift_down_ && !shift_consumed_`: it was a lone Shift →
+    toggle `ascii_mode` via `op=set-option`; then clear `shift_down_`.
+  - Never eat the Shift key itself (return not-eaten) so it still works as a
+    modifier in the host app.
+  - **Delivery risk to resolve in implementation:** confirm the TSF key sink
+    reliably receives `VK_SHIFT` key-**up** across host apps; if some app does not
+    deliver it, fall back to a low-level keyboard hook (`WH_KEYBOARD_LL`) for the
+    lone-Shift detection (the approach Weasel and other IMEs use). Note this may
+    interact with any OS/other-IME "Shift to switch language" setting.
+  - **Secondary toggles stay chords** via `PreserveKey` + `OnPreservedKey` (1104):
+    `Ctrl+Shift+3` toggles `full_shape`, plus a schema-cycle chord.
+  On any toggle, send `op=set-option`/`op=select-schema` through a generalized
+  `QueryServer` (471).
 - **State reconciliation (no cross-app drift):** the DLL treats the server as the
   source of truth and keeps only a short-lived cache, refreshed two ways — from
   the **state block on every server response** (Slice A), and by sending
@@ -169,9 +181,10 @@ DLL swaps (holder-free). D is the largest (new build target).
   path (946-969) so English/ASCII passes straight through.
 - Drive the Windows 中/英 tray indicator via the registered input-mode
   compartment (1461).
-- **Verify live:** holder-free `dev-reload-tsf` swap; confirm `Ctrl+Shift+2`
-  toggles 中/英 and `Ctrl+Shift+3` toggles 全/半, English passes through in ascii
-  mode, and the native indicator reflects state.
+- **Verify live:** holder-free `dev-reload-tsf` swap; confirm a **lone Shift**
+  press toggles 中/英 (while Shift+letter still types a capital with no toggle),
+  `Ctrl+Shift+3` toggles 全/半, English passes through in ascii mode, and the
+  native indicator reflects state.
 
 ### Slice C — Floating language bar
 
@@ -267,22 +280,28 @@ DLL swaps (holder-free). D is the largest (new build target).
   server does not have yet?
 - Cold-start: a language bar / settings app querying the server at startup hits
   the up-to-15s cold-start wait — do we need the deferred per-user broker first?
+- Lone-Shift delivery: does the TSF key sink reliably receive `VK_SHIFT` key-up
+  across host apps (so the state machine works), or must we install a
+  `WH_KEYBOARD_LL` hook fallback? And does it collide with any OS/other-IME
+  "Shift to switch input language" setting?
 
-Resolved in this revision (from the plan review): the server is the **single
+Resolved in this revision (from the plan reviews): the server is the **single
 writer** of state (clients use `op=` verbs only); state lives in a dedicated
 `state\ime-state.json` (outside `user-data`/`schema`); cross-app drift is
 prevented by the state block on **every** response plus `op=get-state` on focus;
-the language bar is a **focus-scoped** mini bar this milestone; hotkeys are
-**chord-first** (`Ctrl+Shift+2/3`); Task 0 closes the P2-WIN04 live proof and
-fixes the `-RefreshSchema` ordering.
+the language bar is a **focus-scoped** mini bar this milestone; the 中/英 toggle
+is a **lone-Shift** key-up state machine (with a `WH_KEYBOARD_LL` fallback), and
+`full_shape`/schema stay on `PreserveKey` chords; Task 0 closes the P2-WIN04 live
+proof and fixes the `-RefreshSchema` ordering.
 
 ## Completion Gates
 
 - Server holds persistent schema + `ascii_mode`/`full_shape`/output-standard
   state, applied to every keystroke and saved across restarts; `op=` verbs work
   and are dev-loop verified.
-- Hotkeys toggle 中/英 (with English pass-through) and full/half; the native
-  Windows indicator reflects 中/英.
+- A lone Shift press toggles 中/英 (with English pass-through), Shift+letter still
+  types a capital, and `Ctrl+Shift+3` toggles full/half; the native Windows
+  indicator reflects 中/英.
 - The floating language bar shows current mode and its segments toggle state,
   consistently across apps.
 - The settings exe changes schema + the three toggles live, via the shared state

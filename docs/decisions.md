@@ -72,11 +72,16 @@ files under the per-user install root, and relaunch a dev-owned disposable test
 window. It must not perform TSF registration, registry edits, delayed-delete
 cleanup, verifier setup, or canonical install/uninstall loops. Installed-path
 reloads are development evidence only and do not close dogfood readiness.
+Installed TSF reload must verify dev-owned process identity before closing a
+test window and must safe-abort if any non-dev process holds
+`YuneWindowsTSF.dll`; full TSF file swap validation can require closing GUI apps
+or signing out, and is not part of the normal dev loop.
 
 ## Last Updated
 
-2026-07-01 - P2-WIN03 Development Inner Loop completed. The repo now has
-non-elevated dev REPL, installed-server reload, TSF DLL reload through a
-dev-owned test window, and dry-run watch tooling; the completed P2-WIN03 plan
-moved to `docs/plans/history/`. Candidate comment hygiene is recorded as a
-P2-WIN04 Daily Typing Quality follow-up.
+2026-07-01 - P2-WIN03 Development Inner Loop post-review fixups completed. The
+repo now has non-elevated dev REPL, installed-server reload, TSF DLL reload
+through a dev-owned test window, dry-run watch tooling with exact `-YuneRoot`
+forwarding, stronger process-ownership checks, and installed-server runtime
+evidence. Candidate comment hygiene is recorded as a P2-WIN04 Daily Typing
+Quality follow-up.

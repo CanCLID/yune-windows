@@ -1,0 +1,7 @@
+﻿{
+    "pass":  false,
+    "exit_code":  1,
+    "generated_at":  "2026-07-01T00:08:29.8276886-07:00",
+    "output":  "docs\\evidence\\p2-win03-dev-inner-loop\\dev-reload-tsf-output.txt",
+    "state_path":  "docs\\evidence\\p2-win03-dev-inner-loop\\dev-test-window-state-validated.json"
+}

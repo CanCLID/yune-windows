@@ -92,7 +92,7 @@ function Assert-InstallDirResolverContract {
 Assert-InstallDirResolverContract -ScriptPath $InstallerPath
 Assert-InstallDirResolverContract -ScriptPath $UninstallerPath
 
-$Plan = Get-Content -Raw -LiteralPath (Join-Path $RepoRoot "docs\plans\active\p2-win01-plan-windows-product.md")
+$Plan = Get-Content -Raw -LiteralPath (Join-Path $RepoRoot "docs\plans\history\p2-win01-plan-windows-product.md")
 foreach ($RequiredPlanText in @(
         'tools\test-install-dir-safety-contract.ps1',
         'LocalAppData\Yune'

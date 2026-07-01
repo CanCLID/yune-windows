@@ -7,7 +7,7 @@ intentionally separate from Yune engine-performance work.
 
 | Lane | Current state | Next gate |
 | --- | --- | --- |
-| Product shell | Renamed public baseline with TSF DLL, shared server, native candidate window, diagnostics tooling, installer scripts, non-elevated contract tests, P2-WIN02 product-owned server startup, and P2-WIN03 development inner-loop tooling. Latest approved live closeout reached install/register, profile activation, Notepad, Chromium, diagnostics export, uninstall, and post-reboot no-residue cleanup. Both text-field smokes passed from the installed path, committed the expected Cantonese text, and recorded product-owned server start/readiness plus profile-active-before-typing evidence. Cold start is still synchronous in the TSF key path for up to `kServerLaunchReadyWaitMs = 15000`. | Start P2-WIN04 Daily Typing Quality unless dogfood package hardening is explicitly prioritized first. |
+| Product shell | Renamed public baseline with TSF DLL, shared server, native candidate window, diagnostics tooling, installer scripts, non-elevated contract tests, P2-WIN02 product-owned server startup, and P2-WIN03 development inner-loop tooling. Latest approved live closeout reached install/register, profile activation, Notepad, Chromium, diagnostics export, uninstall, and post-reboot no-residue cleanup. Both text-field smokes passed from the installed path, committed the expected Cantonese text, and recorded product-owned server start/readiness plus profile-active-before-typing evidence. P2-WIN03 installed-server reload is runtime-proven; installed TSF reload correctly safe-aborts when the DLL is held by non-dev desktop processes. Cold start is still synchronous in the TSF key path for up to `kServerLaunchReadyWaitMs = 15000`. | Start P2-WIN04 Daily Typing Quality unless dogfood package hardening is explicitly prioritized first. |
 | Yune boundary | Windows consumes packaged Yune through `rime_get_api()` plus the opt-in `rime_get_yune_windows_profile_api()` surface. | Keep default `rime_get_api()` unchanged; send new engine needs to Yune as named proposals with tests. |
 | Reference code | Legacy Weasel-derived implementation is reference material only. | Extract no more code without a focused audit and smoke proof. |
 | Dogfood release | Public repo starts from clean initial history and omits old private evidence. Fresh post-rename live evidence exists, including Notepad, Chromium, diagnostics, recovered cleanup, compatibility matrix, signing decision, and complete closeout audit under the product-owned server contract. Compatibility matrix and signing decision are recorded; dogfood packaging, release signing, non-blocking cold-start, and user-data preservation remain open. | Start dogfood package hardening when selected. |
@@ -41,8 +41,11 @@ intentionally separate from Yune engine-performance work.
    `docs/evidence/p2-win02-server-lifecycle/live-closeout-20260630-203015.md`.
 6. **Development inner loop** - add non-elevated dev tooling for a no-install
    REPL, installed-server hot reload with backup/rollback, installed TSF DLL
-   reload through a dev-owned test window, and dry-run watch routing. Historical
-   plan: `docs/plans/history/p2-win03-plan-dev-inner-loop.md`.
+   reload through a dev-owned test window, and dry-run watch routing. The
+   installed-server reload is runtime-proven with schema/user-data backup
+   coverage; TSF reload guard evidence proves it refuses to close non-dev
+   desktop holders. Historical plan:
+   `docs/plans/history/p2-win03-plan-dev-inner-loop.md`.
 
 ## Scope Ledger
 
@@ -98,9 +101,16 @@ Status: complete for non-elevated development tooling. The implementation adds
 `dev-repl.ps1`, `dev-reload-server.ps1`, `dev-test-window.ps1`,
 `dev-reload-tsf.ps1`, `dev-watch.ps1`, and static safety contracts. The
 installed-path reload scripts keep timestamped backups and roll back on
-validation failure; the watch wrapper defaults to dry-run and only runs reload
-commands with explicit `-AutoRun`. Installed-path reloads are development
-evidence only and do not close dogfood readiness.
+validation failure; the watch wrapper defaults to dry-run, forwards the exact
+`-YuneRoot`, and only runs reload commands with explicit `-AutoRun`.
+Installed-server reload with `-RefreshSchema` passed on the live installed path.
+Installed TSF reload is implemented, but the runtime attempt correctly
+safe-aborted because the installed TSF DLL was held by Chrome, Claude, Codex,
+Explorer, GitHub Desktop, Notepad, NVIDIA Overlay, and Telegram. That holder
+state requires closing apps/sign-out before a full TSF file swap; the dev tool
+must not force-close those apps. Installed-path reloads are development evidence
+only and do not close dogfood readiness. Evidence:
+`docs/evidence/p2-win03-dev-inner-loop/runtime-validation-20260701.md`.
 
 Historical plan:
 `docs/plans/history/p2-win03-plan-dev-inner-loop.md`.

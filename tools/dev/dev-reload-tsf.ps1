@@ -2,7 +2,7 @@ param(
     [string]$YuneRoot = "C:\Users\laubonghaudoi\Documents\GitHub\yune",
     [string]$InstallDir = "$env:LOCALAPPDATA\Yune\WindowsIme",
     [string]$ScratchRoot = "",
-    [string]$StatePath = $script:YuneWindowsDevDefaultTestWindowStatePath,
+    [string]$StatePath = "",
     [switch]$RestartExplorer,
     [int]$HolderTimeoutMs = 10000
 )
@@ -12,7 +12,21 @@ $ErrorActionPreference = "Stop"
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 . (Join-Path $PSScriptRoot "dev-support.ps1")
 
-function Get-YuneWindowsDevOwnedTestProcessId {
+function ConvertTo-YuneWindowsDevStateDateTime {
+    param([string]$Value)
+
+    if ([string]::IsNullOrWhiteSpace($Value)) {
+        return $null
+    }
+    try {
+        return [DateTime]::Parse($Value, [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::RoundtripKind)
+    }
+    catch {
+        return $null
+    }
+}
+
+function Get-YuneWindowsDevOwnedTestProcess {
     param([string]$StatePath)
 
     $State = Read-YuneWindowsDevJsonFile -Path $StatePath
@@ -30,7 +44,48 @@ function Get-YuneWindowsDevOwnedTestProcessId {
     if ([string]$Process.ProcessName -ne [string]$State.process_name) {
         return $null
     }
-    return $ProcessId
+
+    $RecordedPath = [string]$State.process_path
+    if (-not [string]::IsNullOrWhiteSpace($RecordedPath)) {
+        $ActualPath = ""
+        try {
+            $ActualPath = [string]$Process.Path
+        }
+        catch {
+        }
+        if ([string]::IsNullOrWhiteSpace($ActualPath)) {
+            return $null
+        }
+        $RecordedPath = Resolve-YuneWindowsDevFullPath $RecordedPath
+        $ActualPath = Resolve-YuneWindowsDevFullPath $ActualPath
+        if (-not [string]::Equals($RecordedPath, $ActualPath, [System.StringComparison]::OrdinalIgnoreCase)) {
+            return $null
+        }
+    }
+
+    $RecordedStartTime = ConvertTo-YuneWindowsDevStateDateTime -Value ([string]$State.process_start_time)
+    if ($RecordedStartTime) {
+        $StartDelta = New-TimeSpan -Start $RecordedStartTime -End $Process.StartTime
+        if ([Math]::Abs($StartDelta.TotalSeconds) -gt 2) {
+            return $null
+        }
+    }
+
+    $LaunchedAt = ConvertTo-YuneWindowsDevStateDateTime -Value ([string]$State.launched_at)
+    if ($LaunchedAt) {
+        $LaunchDelta = New-TimeSpan -Start $Process.StartTime -End $LaunchedAt
+        if ($LaunchDelta.TotalSeconds -lt -2) {
+            return $null
+        }
+    }
+
+    return [pscustomobject]@{
+        process_id = $ProcessId
+        process_name = [string]$Process.ProcessName
+        process_path = $RecordedPath
+        process_start_time = if ($RecordedStartTime) { $RecordedStartTime.ToString("o") } else { "" }
+        launched_at = if ($LaunchedAt) { $LaunchedAt.ToString("o") } else { "" }
+    }
 }
 
 function Stop-YuneWindowsDevOwnedTestProcess {
@@ -119,10 +174,10 @@ New-Item -Path $BuildDir -ItemType Directory -Force | Out-Null
 $ScratchTsfDll = Join-Path $BuildDir "YuneWindowsTSF.dll"
 Test-YuneWindowsDevPath -Path $ScratchTsfDll -Description "scratch YuneWindowsTSF.dll" -PathType Leaf
 
-$DevOwnedProcessId = Get-YuneWindowsDevOwnedTestProcessId -StatePath $StatePath
+$DevOwnedProcess = Get-YuneWindowsDevOwnedTestProcess -StatePath $StatePath
 $AllowedProcessId = 0
-if ($DevOwnedProcessId) {
-    $AllowedProcessId = [int]$DevOwnedProcessId
+if ($DevOwnedProcess) {
+    $AllowedProcessId = [int]$DevOwnedProcess.process_id
 }
 Assert-YuneWindowsDevNoUnsafeTsfHolders `
     -TsfPath $Paths.tsf_dll `
@@ -130,9 +185,9 @@ Assert-YuneWindowsDevNoUnsafeTsfHolders `
     -RestartExplorer:$RestartExplorer `
     -TimeoutMs $HolderTimeoutMs
 
-if ($DevOwnedProcessId) {
-    Write-Host "Closing dev-owned test window PID $DevOwnedProcessId."
-    Stop-YuneWindowsDevOwnedTestProcess -ProcessId $DevOwnedProcessId -TimeoutMs $HolderTimeoutMs
+if ($DevOwnedProcess) {
+    Write-Host "Closing dev-owned test window PID $($DevOwnedProcess.process_id)."
+    Stop-YuneWindowsDevOwnedTestProcess -ProcessId ([int]$DevOwnedProcess.process_id) -TimeoutMs $HolderTimeoutMs
 }
 
 $Deadline = [DateTime]::UtcNow.AddMilliseconds($HolderTimeoutMs)

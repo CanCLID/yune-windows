@@ -5,7 +5,8 @@ param(
     [switch]$RefreshSchema,
     [int]$MaxCopyAttempts = 5,
     [int]$RetryDelayMs = 500,
-    [int]$ReadyTimeoutMs = 180000
+    [int]$ReadyTimeoutMs = 180000,
+    [int]$BackupRetentionCount = 3
 )
 
 $ErrorActionPreference = "Stop"
@@ -64,19 +65,26 @@ New-Item -Path $BuildDir -ItemType Directory -Force | Out-Null
 $ScratchServer = Join-Path $BuildDir "YuneWindowsServer.exe"
 Test-YuneWindowsDevPath -Path $ScratchServer -Description "scratch YuneWindowsServer.exe" -PathType Leaf
 
+$Timestamp = New-YuneWindowsDevTimestamp
+$Backup = $null
+$BackupPath = ""
+$SchemaBackup = $null
+$UserDataBackup = $null
+
 if ($RefreshSchema) {
+    $SchemaBackup = Backup-YuneWindowsDevPath -Path $Paths.schema_dir -Label "schema" -Timestamp $Timestamp
+    $UserDataBackup = Backup-YuneWindowsDevPath -Path $Paths.user_data_dir -Label "user-data" -Timestamp $Timestamp
     & (Join-Path $RepoRoot "tools\prepare-yune-product-data.ps1") `
         -SourceSchemaDir $Package.schema_source_dir `
         -DestinationSchemaDir $Paths.schema_dir `
         -UserDataDir $Paths.user_data_dir
 }
 
-$Timestamp = New-YuneWindowsDevTimestamp
-$BackupPath = "$($Paths.server_exe).dev-backup-$Timestamp"
 $StartedProcess = $null
 
 try {
-    Copy-Item -LiteralPath $Paths.server_exe -Destination $BackupPath -Force
+    $Backup = Backup-YuneWindowsDevPath -Path $Paths.server_exe -Label "server" -Timestamp $Timestamp
+    $BackupPath = [string]$Backup.backup_path
     Write-Host "Backed up installed server: $BackupPath"
 
     $LastCopyError = ""
@@ -109,27 +117,69 @@ try {
         throw "server copy did not complete: $LastCopyError"
     }
 
-    $StartedProcess = & (Join-Path $RepoRoot "tools\start-yune-windows-server.ps1") `
-        -YuneRoot $Package.yune_root `
-        -InstallDir $Paths.install_dir `
-        -WaitForReady `
-        -ReadyTimeoutMs $ReadyTimeoutMs `
-        -PassThru
+    $ExistingInstalledServers = @(Get-YuneWindowsDevProcessesByPath `
+            -Path $Paths.server_exe `
+            -ProcessName "YuneWindowsServer")
+    foreach ($Existing in $ExistingInstalledServers) {
+        $ExistingProcess = Get-Process -Id ([int]$Existing.process_id) -ErrorAction SilentlyContinue
+        if ($ExistingProcess -and (Test-YuneWindowsDevServerReady -Process $ExistingProcess -TimeoutMs $ReadyTimeoutMs)) {
+            $StartedProcess = $ExistingProcess
+            Write-Host "Using already-running installed server PID $($StartedProcess.Id); readiness passed."
+            break
+        }
+    }
+
+    if (-not $StartedProcess) {
+        if ($ExistingInstalledServers.Count -gt 0) {
+            Write-Host "Stopping already-running installed server process(es) that were not ready: $(Format-YuneWindowsDevProcessSummary -Processes $ExistingInstalledServers)"
+            Stop-YuneWindowsDevProcessesByPath `
+                -Path $Paths.server_exe `
+                -ProcessName "YuneWindowsServer" `
+                -TimeoutMs 10000 | Out-Null
+        }
+
+        $StartedProcess = & (Join-Path $RepoRoot "tools\start-yune-windows-server.ps1") `
+            -YuneRoot $Package.yune_root `
+            -InstallDir $Paths.install_dir `
+            -WaitForReady `
+            -ReadyTimeoutMs $ReadyTimeoutMs `
+            -PassThru
+    }
     if (-not $StartedProcess -or $StartedProcess.HasExited) {
         throw "installed server restart did not return a running process"
     }
 
     Write-Host "Reloaded installed server PID $($StartedProcess.Id); readiness passed."
     Write-Host "Backup retained: $BackupPath"
+
+    Remove-YuneWindowsDevOldBackups -Directory $Paths.install_dir -Filter "YuneWindowsServer.exe.dev-backup-*" -RetainCount $BackupRetentionCount | Out-Null
+    Remove-YuneWindowsDevOldBackups -Directory $Paths.install_dir -Filter "schema.dev-backup-*" -RetainCount $BackupRetentionCount | Out-Null
+    Remove-YuneWindowsDevOldBackups -Directory $Paths.install_dir -Filter "user-data.dev-backup-*" -RetainCount $BackupRetentionCount | Out-Null
 }
 catch {
     $ReloadError = $_.Exception.Message
     try {
-        Restore-YuneWindowsDevServerBackup `
-            -BackupPath $BackupPath `
-            -ServerPath $Paths.server_exe `
-            -MaxCopyAttempts $MaxCopyAttempts `
-            -RetryDelayMs $RetryDelayMs
+        if (-not [string]::IsNullOrWhiteSpace($BackupPath)) {
+            Restore-YuneWindowsDevServerBackup `
+                -BackupPath $BackupPath `
+                -ServerPath $Paths.server_exe `
+                -MaxCopyAttempts $MaxCopyAttempts `
+                -RetryDelayMs $RetryDelayMs
+        }
+        if ($RefreshSchema) {
+            if ($SchemaBackup -and $SchemaBackup.existed) {
+                Restore-YuneWindowsDevPathBackup -BackupPath $SchemaBackup.backup_path -Path $Paths.schema_dir
+            }
+            elseif ($SchemaBackup -and (Test-Path -LiteralPath $Paths.schema_dir)) {
+                Remove-Item -LiteralPath $Paths.schema_dir -Recurse -Force
+            }
+            if ($UserDataBackup -and $UserDataBackup.existed) {
+                Restore-YuneWindowsDevPathBackup -BackupPath $UserDataBackup.backup_path -Path $Paths.user_data_dir
+            }
+            elseif ($UserDataBackup -and (Test-Path -LiteralPath $Paths.user_data_dir)) {
+                Remove-Item -LiteralPath $Paths.user_data_dir -Recurse -Force
+            }
+        }
     }
     catch {
         throw "server reload failed: $ReloadError. Backup restore also failed: $($_.Exception.Message)"

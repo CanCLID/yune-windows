@@ -1,0 +1,11 @@
+﻿{
+    "owner":  "yune-windows-dev-test-window",
+    "app":  "notepad",
+    "process_id":  27424,
+    "process_name":  "Notepad",
+    "process_path":  "C:\\Program Files\\WindowsApps\\Microsoft.WindowsNotepad_11.2604.5.0_x64__8wekyb3d8bbwe\\Notepad\\Notepad.exe",
+    "process_start_time":  "2026-07-01T00:06:26.1916236-07:00",
+    "launched_at":  "2026-07-01T00:06:26.2364504-07:00",
+    "test_file":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Temp\\yune-windows\\dev-test-window-6908-45249148.txt",
+    "state_path":  "C:\\Users\\laubonghaudoi\\Documents\\GitHub\\yune-windows\\docs\\evidence\\p2-win03-dev-inner-loop\\dev-test-window-state-validated.json"
+}

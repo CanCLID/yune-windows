@@ -51,6 +51,98 @@ function New-YuneWindowsDevScratchRoot {
     return $ScratchRoot
 }
 
+function Backup-YuneWindowsDevPath {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string]$Label,
+        [string]$Timestamp = (New-YuneWindowsDevTimestamp)
+    )
+
+    $FullPath = Resolve-YuneWindowsDevFullPath $Path
+    $Parent = Split-Path -Parent $FullPath
+    $Leaf = Split-Path -Leaf $FullPath
+    $BackupPath = Join-Path $Parent ("{0}.dev-backup-{1}-{2}" -f $Leaf, $Label, $Timestamp)
+
+    if (-not (Test-Path -LiteralPath $FullPath)) {
+        return [pscustomobject]@{
+            path = $FullPath
+            backup_path = $BackupPath
+            existed = $false
+            label = $Label
+        }
+    }
+
+    if (Test-Path -LiteralPath $FullPath -PathType Container) {
+        if (Test-Path -LiteralPath $BackupPath) {
+            Remove-Item -LiteralPath $BackupPath -Recurse -Force
+        }
+        Copy-Item -LiteralPath $FullPath -Destination $BackupPath -Recurse -Force
+    }
+    else {
+        Copy-Item -LiteralPath $FullPath -Destination $BackupPath -Force
+    }
+
+    return [pscustomobject]@{
+        path = $FullPath
+        backup_path = $BackupPath
+        existed = $true
+        label = $Label
+    }
+}
+
+function Restore-YuneWindowsDevPathBackup {
+    param(
+        [Parameter(Mandatory = $true)][string]$BackupPath,
+        [Parameter(Mandatory = $true)][string]$Path
+    )
+
+    $FullPath = Resolve-YuneWindowsDevFullPath $Path
+    $BackupPath = Resolve-YuneWindowsDevFullPath $BackupPath
+    if (-not (Test-Path -LiteralPath $BackupPath)) {
+        return
+    }
+
+    if (Test-Path -LiteralPath $FullPath) {
+        if (Test-Path -LiteralPath $FullPath -PathType Container) {
+            Remove-Item -LiteralPath $FullPath -Recurse -Force
+        }
+        else {
+            Remove-Item -LiteralPath $FullPath -Force
+        }
+    }
+
+    if (Test-Path -LiteralPath $BackupPath -PathType Container) {
+        Copy-Item -LiteralPath $BackupPath -Destination $FullPath -Recurse -Force
+    }
+    else {
+        Copy-Item -LiteralPath $BackupPath -Destination $FullPath -Force
+    }
+}
+
+function Remove-YuneWindowsDevOldBackups {
+    param(
+        [Parameter(Mandatory = $true)][string]$Directory,
+        [Parameter(Mandatory = $true)][string]$Filter,
+        [int]$RetainCount = 3
+    )
+
+    if ($RetainCount -lt 0) {
+        throw "-RetainCount must not be negative"
+    }
+    if (-not (Test-Path -LiteralPath $Directory -PathType Container)) {
+        return @()
+    }
+
+    $Backups = @(Get-ChildItem -LiteralPath $Directory -Filter $Filter -Force |
+        Sort-Object LastWriteTimeUtc -Descending)
+    $Removed = [System.Collections.Generic.List[object]]::new()
+    foreach ($Backup in @($Backups | Select-Object -Skip $RetainCount)) {
+        Remove-Item -LiteralPath $Backup.FullName -Recurse -Force
+        $Removed.Add($Backup.FullName) | Out-Null
+    }
+    return @($Removed)
+}
+
 function Get-YuneWindowsDevInstallPaths {
     param([string]$InstallDir = $script:YuneWindowsDevDefaultInstallDir)
 
@@ -190,6 +282,32 @@ function Invoke-YuneWindowsDevServerRequest {
     }
 
     throw "timed out waiting for dev server response on $PipeName. Last error: $LastError"
+}
+
+function Test-YuneWindowsDevServerReady {
+    param(
+        [string]$PipeName = "\\.\pipe\yune-windows-ime",
+        [System.Diagnostics.Process]$Process = $null,
+        [int]$TimeoutMs = 180000
+    )
+
+    try {
+        $Response = Invoke-YuneWindowsDevServerRequest `
+            -PipeName $PipeName `
+            -InputText "ngohaig" `
+            -Commit $false `
+            -Process $Process `
+            -TimeoutMs $TimeoutMs
+        $Candidates = @($Response.candidates)
+        return ($Response.ready -eq $true -and
+            [string]$Response.schema_id -eq "jyut6ping3" -and
+            [int]$Response.candidate_count -gt 0 -and
+            $Candidates.Count -gt 0 -and
+            [string]$Candidates[0].text -eq (-join ([char[]](0x6211, 0x4fc2, 0x500b))))
+    }
+    catch {
+        return $false
+    }
 }
 
 function Get-YuneWindowsDevProcessesUsingModule {

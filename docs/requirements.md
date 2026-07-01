@@ -64,8 +64,12 @@ post-reboot no-residue cleanup on the installed IME.
   no-install engine REPL, installed-server reload, installed TSF DLL reload
   through a dev-owned test window, and dry-run watch routing without elevation,
   re-registration, registry edits, delayed-delete cleanup, or canonical live
-  install/uninstall loops. Static safety contracts and REPL smoke verification
-  cover the non-elevated path.
+  install/uninstall loops. Static safety contracts, REPL smoke verification,
+  dry-run routing, and installed-server runtime validation cover the
+  non-elevated path. The installed TSF DLL reload path verifies process
+  ownership before closing the dev-owned test window and safely aborts when
+  non-dev desktop apps hold `YuneWindowsTSF.dll`; a full TSF file swap requires
+  a holder-free session rather than forced app closure.
 - [ ] **WIN-14 - Daily typing quality:** Candidate paging/mouse selection,
   punctuation/full-width behavior, learning/userdb, and candidate comment
   hygiene remain open. P2-WIN03 exposed raw structured CSV-like candidate

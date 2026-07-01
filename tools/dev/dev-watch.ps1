@@ -16,6 +16,30 @@ $TsfRoot = Resolve-YuneWindowsDevFullPath (Join-Path $RepoRoot "src\tsf")
 $CandidateRoot = Resolve-YuneWindowsDevFullPath (Join-Path $RepoRoot "src\candidate_window")
 $SchemaRoot = Resolve-YuneWindowsDevFullPath (Join-Path $YuneRoot "apps\yune-web\public\schema")
 
+function Format-YuneWindowsDevWatchCommand {
+    param(
+        [Parameter(Mandatory = $true)][string]$ScriptName,
+        [string[]]$Arguments = @()
+    )
+
+    $Parts = [System.Collections.Generic.List[string]]::new()
+    $Parts.Add("powershell") | Out-Null
+    $Parts.Add("-NoProfile") | Out-Null
+    $Parts.Add("-ExecutionPolicy") | Out-Null
+    $Parts.Add("Bypass") | Out-Null
+    $Parts.Add("-File") | Out-Null
+    $Parts.Add("tools\dev\$ScriptName") | Out-Null
+    foreach ($Argument in $Arguments) {
+        if ($Argument.StartsWith("-", [System.StringComparison]::Ordinal)) {
+            $Parts.Add($Argument) | Out-Null
+        }
+        else {
+            $Parts.Add("`"$Argument`"") | Out-Null
+        }
+    }
+    return ($Parts -join " ")
+}
+
 function Test-YuneWindowsDevPathUnderRoot {
     param(
         [Parameter(Mandatory = $true)][string]$Path,
@@ -34,33 +58,36 @@ function Get-YuneWindowsDevWatchRoute {
     param([Parameter(Mandatory = $true)][string]$Path)
 
     if (Test-YuneWindowsDevPathUnderRoot -Path $Path -Root $SchemaRoot) {
+        $Args = @("-YuneRoot", $YuneRoot, "-RefreshSchema")
         return [pscustomobject]@{
             name = "server"
             reason = "schema change"
             script = Join-Path $PSScriptRoot "dev-reload-server.ps1"
-            args = @("-RefreshSchema")
-            command = "powershell -NoProfile -ExecutionPolicy Bypass -File tools\dev\dev-reload-server.ps1 -RefreshSchema"
+            args = @("-YuneRoot", $YuneRoot, "-RefreshSchema")
+            command = Format-YuneWindowsDevWatchCommand -ScriptName "dev-reload-server.ps1" -Arguments $Args
         }
     }
 
     if (Test-YuneWindowsDevPathUnderRoot -Path $Path -Root $ServerRoot) {
+        $Args = @("-YuneRoot", $YuneRoot)
         return [pscustomobject]@{
             name = "server"
             reason = "server change"
             script = Join-Path $PSScriptRoot "dev-reload-server.ps1"
-            args = @()
-            command = "powershell -NoProfile -ExecutionPolicy Bypass -File tools\dev\dev-reload-server.ps1"
+            args = @("-YuneRoot", $YuneRoot)
+            command = Format-YuneWindowsDevWatchCommand -ScriptName "dev-reload-server.ps1" -Arguments $Args
         }
     }
 
     if ((Test-YuneWindowsDevPathUnderRoot -Path $Path -Root $TsfRoot) -or
         (Test-YuneWindowsDevPathUnderRoot -Path $Path -Root $CandidateRoot)) {
+        $Args = @("-YuneRoot", $YuneRoot)
         return [pscustomobject]@{
             name = "tsf"
             reason = "TSF or candidate-window change"
             script = Join-Path $PSScriptRoot "dev-reload-tsf.ps1"
-            args = @()
-            command = "powershell -NoProfile -ExecutionPolicy Bypass -File tools\dev\dev-reload-tsf.ps1"
+            args = @("-YuneRoot", $YuneRoot)
+            command = Format-YuneWindowsDevWatchCommand -ScriptName "dev-reload-tsf.ps1" -Arguments $Args
         }
     }
 

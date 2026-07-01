@@ -12,7 +12,7 @@ engine and is consumed through a packaged Windows ABI surface.
 - This public baseline is the renamed Yune Windows product tree.
 - Fresh post-rename live evidence exists for install/register, Notepad,
   Chromium, diagnostics, uninstall, and post-reboot cleanup. The next product
-  gate is dogfood package hardening.
+  gate is P2-WIN03 Development Inner Loop.
 - The legacy Weasel-derived implementation remains useful reference material
   for TSF, server, IPC, installer, candidate-window positioning, and smoke
   harness behavior.
@@ -78,6 +78,16 @@ engine and is consumed through a packaged Windows ABI surface.
 - Keep the first inline candidate window native.
 - Treat WebView2 as a settings/dictionary-panel candidate, not the first
   latency-critical candidate renderer.
+
+## Publishing
+
+- Default to direct-to-`main` publishing for this repo. After scoped review and
+  verification, stage only the intended files, commit on `main`, and push
+  `origin/main`; do not create feature branches, PRs, or branch handoff steps
+  unless the user explicitly asks for them.
+- Before a direct `main` publish, refresh safely with `git fetch origin` and a
+  fast-forward check/merge, preserve unrelated worktree changes, and verify the
+  final status and pushed commit.
 
 ## Verification
 

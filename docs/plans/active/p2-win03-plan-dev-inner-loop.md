@@ -217,7 +217,11 @@ protocol. No new C++.
 - [ ] **Step 1: Rebuild the server** to a scratch build dir with
   `build-tsf-shell.ps1 -OutputDir <scratch> -YuneRoot <root>`.
 - [ ] **Step 2: Stop the installed server** by matching processes whose `Path`
-  equals `<InstallDir>\YuneWindowsServer.exe`; wait for exit.
+  equals `<InstallDir>\YuneWindowsServer.exe`; wait for exit. During the swap
+  window, a keystroke in a Yune-active field can trigger the product-owned
+  auto-launch path and recreate the installed server, so hold the reload
+  discipline by retrying stop/copy when the exe is briefly locked instead of
+  assuming the server stays down.
 - [ ] **Step 3: Swap in the new server** by creating a timestamped backup of the
   installed `YuneWindowsServer.exe`, copying the scratch build into place, and
   restoring the backup if copy or readiness validation fails. With an optional
@@ -284,7 +288,9 @@ protocol. No new C++.
   `git diff --check`. Run `dev-repl.ps1` end to end against a scratch server and
   confirm candidates for `ngohaig` include the expected commit. This is
   non-elevated and needs no install.
-- [ ] **Step 3:** Commit tooling and docs on a `codex/` branch.
+- [ ] **Step 3:** Commit tooling and docs directly on `main` and push
+  `origin/main`, preserving unrelated worktree changes and staging only the
+  intended files.
 
 ## Reviewer Questions (for GPT)
 

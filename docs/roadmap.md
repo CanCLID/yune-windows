@@ -7,7 +7,7 @@ intentionally separate from Yune engine-performance work.
 
 | Lane | Current state | Next gate |
 | --- | --- | --- |
-| Product shell | Renamed public baseline with TSF DLL, shared server, native candidate window, diagnostics tooling, installer scripts, non-elevated contract tests, and P2-WIN02 product-owned server startup implementation. Latest approved live closeout reached install/register, profile activation, Notepad, Chromium, diagnostics export, uninstall, and post-reboot no-residue cleanup. Both text-field smokes passed from the installed path, committed `我係個`, and recorded product-owned server start/readiness plus profile-active-before-typing evidence. Cold start is still synchronous in the TSF key path for up to `kServerLaunchReadyWaitMs = 15000`. | Move to dogfood package hardening and release evidence, including non-blocking cold-start and user-data preservation follow-ups. |
+| Product shell | Renamed public baseline with TSF DLL, shared server, native candidate window, diagnostics tooling, installer scripts, non-elevated contract tests, and P2-WIN02 product-owned server startup implementation. Latest approved live closeout reached install/register, profile activation, Notepad, Chromium, diagnostics export, uninstall, and post-reboot no-residue cleanup. Both text-field smokes passed from the installed path, committed `我係個`, and recorded product-owned server start/readiness plus profile-active-before-typing evidence. Cold start is still synchronous in the TSF key path for up to `kServerLaunchReadyWaitMs = 15000`. | Start P2-WIN03 Development Inner Loop before heavier dogfood and daily-typing work. |
 | Yune boundary | Windows consumes packaged Yune through `rime_get_api()` plus the opt-in `rime_get_yune_windows_profile_api()` surface. | Keep default `rime_get_api()` unchanged; send new engine needs to Yune as named proposals with tests. |
 | Reference code | Legacy Weasel-derived implementation is reference material only. | Extract no more code without a focused audit and smoke proof. |
 | Dogfood release | Public repo starts from clean initial history and omits old private evidence. Fresh post-rename live evidence exists, including Notepad, Chromium, diagnostics, recovered cleanup, compatibility matrix, signing decision, and complete closeout audit under the product-owned server contract. Compatibility matrix and signing decision are recorded; dogfood packaging, release signing, non-blocking cold-start, and user-data preservation remain open. | Start dogfood package hardening. |
@@ -88,13 +88,48 @@ dogfood fast-follow.
 Historical plan:
 `docs/plans/history/p2-win02-plan-server-lifecycle-cleanup-hardening.md`.
 
-## Next Milestone
+## Candidate Next Milestones (for discussion)
 
-**Dogfood Package Hardening**
+P2-WIN02 is complete. The chosen next milestone is **P2-WIN03 Development Inner
+Loop** (a fast dev kit; see
+`docs/plans/active/p2-win03-plan-dev-inner-loop.md`) because it is the multiplier
+on every other item below. The rest remain candidates under discussion.
 
-Start packaging and release-evidence work from the completed P2-WIN02 baseline.
-Keep live IME install/register/uninstall loops approval-gated and reboot-aware.
-Add dogfood follow-ups for non-blocking cold-start readiness and for preserving
-or migrating learned dictionary/personalization data across reinstall loops;
-today uninstall removes the install tree including `user-data` unless
-`-KeepFiles` is used.
+| Candidate | Delivers | Rough size | Key dependency / risk |
+| --- | --- | --- | --- |
+| **P2-WIN03 - Development Inner Loop (chosen)** | A fast `type -> find bug -> fix -> takes effect` dev kit: server hot-restart, in-place TSF DLL swap without reboot or re-registration, and a no-install engine REPL. The multiplier on all work below. | M | Plan: `docs/plans/active/p2-win03-plan-dev-inner-loop.md`. Tooling only; one-time install/register stays approval-gated. |
+| **P2-WIN04 - Daily Typing Quality** | Candidate paging + mouse selection, punctuation/full-width input, and learning/userdb so the IME adapts. Turns the proven typing path into a daily-usable Cantonese IME. | L (three slices) | Learning is a protocol change, not a flag flip (see notes); every slice touches the latency-critical inline path (D-04). |
+| **Non-blocking cold-start / per-user broker** | Removes the up-to-15s foreground freeze on the first cold keystroke and makes launch work in sandboxed/AppContainer hosts (UWP, WeChat, some Store/Electron). Reduces AV/EDR risk of spawning an unsigned exe from a browser. | M | Adds per-user autostart/broker state that install/uninstall must create and remove; documented P2-WIN02 fast-follow. |
+| **Dogfood package hardening (WIN-11)** | Self-contained install bundle decoupled from the local Yune source build, so a second machine can install without a Rust/Yune toolchain. | M | Production signing stays deferred; needs pre-staged `rime.dll` + schema + binaries + `install-info.json`. |
+| **User-data preservation (D-09)** | Preserve or migrate the learned dictionary / personalization across reinstall loops instead of deleting `user-data` on uninstall. | S | Decide backup vs. a `-PurgeUserData` switch; small but touches the uninstall path. |
+| **Deferred (Scope Ledger)** | Production signing + release distribution, rich settings UI (WebView2), auto-update, Store packaging, broader compatibility matrix (Win10, Office/Electron/UWP). | varies | Formally deferred until typing evidence + security review; keep behind the above. |
+
+### P2-WIN04 (Daily Typing Quality) workstream notes
+
+Recommended order is **paging -> punctuation -> learning**, each slice shippable
+and dogfoodable on its own:
+
+1. **Candidate paging + mouse** (smallest, lowest risk): `CandidateWindowState`
+   has `page_size`/`highlighted_index` but no page index, and the candidate
+   window is click-through (`WM_NCHITTEST -> HTTRANSPARENT`) today. A first cut
+   can page client-side over a larger returned candidate list, avoiding any
+   session-model change.
+2. **Punctuation / full-width / symbols**: `OnKeyDown` only handles a-z, 1-9,
+   space/enter/backspace/escape today. Verify whether the schema takes tone
+   digits (the smoke used toneless `ngohaig`, suggesting not) before scoping
+   tone input, since digits 1-9 are currently candidate selection.
+3. **Learning / userdb** (largest; own slice with its own live evidence): today
+   the protocol is stateless (`input=<full buffer>`, fresh session per
+   keystroke, `disable_learning=True`) and the TSF never tells Rime which
+   candidate the user picked, so enabling learning alone would teach the wrong
+   selections. Requires a persistent per-client session, a select-index/commit
+   message, userdb persistence, and D-05 secure-context suppression proven with
+   a fresh live privacy closeout.
+
+### Cross-cutting
+
+- The synchronous cold-start wait (`kServerLaunchReadyWaitMs = 15000`) will
+  color the daily-typing experience even though it is a separate milestone;
+  weigh the broker candidate against P2-WIN04 accordingly.
+- Keep live IME install/register/uninstall loops approval-gated and
+  reboot-aware regardless of which candidate is chosen.

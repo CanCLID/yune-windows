@@ -38,10 +38,17 @@ bool RegisterCandidateWindowClass() {
 }
 
 SIZE DesiredSize(const CandidateWindowState& state) {
+    const int start =
+        CandidatePageStartIndex(state.page_index, std::max(1, state.page_size));
+    const int remaining =
+        std::max(0, static_cast<int>(state.candidates.size()) - start);
     const int visible_rows =
-        std::max(1, std::min(static_cast<int>(state.candidates.size()),
-                             std::max(1, state.page_size)));
-    return {Scale(420, state.dpi), Scale(12 + visible_rows * 34, state.dpi)};
+        std::max(1, std::min(remaining, std::max(1, state.page_size)));
+    const int page_indicator_rows =
+        CandidatePageCount(static_cast<int>(state.candidates.size()),
+                           state.page_size) > 1 ? 1 : 0;
+    return {Scale(420, state.dpi),
+            Scale(12 + visible_rows * 34 + page_indicator_rows * 22, state.dpi)};
 }
 
 void FillSolid(HDC dc, const RECT& rect, COLORREF color) {
@@ -51,7 +58,7 @@ void FillSolid(HDC dc, const RECT& rect, COLORREF color) {
 }
 
 std::wstring RowLabel(size_t index, const CandidateWindowCandidate& candidate) {
-    std::wstring output = std::to_wstring((index % 9) + 1);
+    std::wstring output = std::to_wstring(index + 1);
     output += L". ";
     output += candidate.text;
     return output;
@@ -90,6 +97,23 @@ int ClampCandidateHighlight(int highlighted_index, int candidate_count) {
         return 0;
     }
     return std::max(0, std::min(highlighted_index, candidate_count - 1));
+}
+
+int CandidatePageCount(int candidate_count, int page_size) {
+    if (candidate_count <= 0) {
+        return 1;
+    }
+    page_size = std::max(1, page_size);
+    return (candidate_count + page_size - 1) / page_size;
+}
+
+int ClampCandidatePageIndex(int page_index, int candidate_count, int page_size) {
+    const int page_count = CandidatePageCount(candidate_count, page_size);
+    return std::max(0, std::min(page_index, page_count - 1));
+}
+
+int CandidatePageStartIndex(int page_index, int page_size) {
+    return std::max(0, page_index) * std::max(1, page_size);
 }
 
 RECT ComputeCandidateWindowRect(const RECT& anchor, SIZE desired_size, UINT dpi) {
@@ -147,8 +171,13 @@ NativeCandidateWindow::~NativeCandidateWindow() {
     }
 }
 
-bool NativeCandidateWindow::EnsureCreated() {
+bool NativeCandidateWindow::EnsureCreated(HWND owner) {
     if (hwnd_) {
+        if (owner_ != owner) {
+            SetWindowLongPtrW(hwnd_, GWLP_HWNDPARENT,
+                              reinterpret_cast<LONG_PTR>(owner));
+            owner_ = owner;
+        }
         return true;
     }
     if (!RegisterCandidateWindowClass()) {
@@ -157,22 +186,37 @@ bool NativeCandidateWindow::EnsureCreated() {
 
     hwnd_ = CreateWindowExW(WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW | WS_EX_TOPMOST,
                             kClassName, L"YuneWindows Candidates", WS_POPUP, 0, 0,
-                            1, 1, nullptr, nullptr, GetModuleHandleW(nullptr),
+                            1, 1, owner, nullptr, GetModuleHandleW(nullptr),
                             this);
+    owner_ = owner;
     return hwnd_ != nullptr;
 }
 
 bool NativeCandidateWindow::Update(const CandidateWindowState& state, bool show) {
-    if (!EnsureCreated()) {
+    if (!EnsureCreated(state.owner)) {
         return false;
     }
 
     state_ = state;
     state_.page_size = std::max(1, state_.page_size);
+    state_.page_index = ClampCandidatePageIndex(
+        state_.page_index, static_cast<int>(state_.candidates.size()),
+        state_.page_size);
+    const int page_start =
+        CandidatePageStartIndex(state_.page_index, state_.page_size);
+    const int visible_count =
+        std::min(state_.page_size,
+                 std::max(0, static_cast<int>(state_.candidates.size()) -
+                                  page_start));
     state_.highlighted_index = ClampCandidateHighlight(
-        state_.highlighted_index, static_cast<int>(state_.candidates.size()));
+        state_.highlighted_index, visible_count);
     for (auto& candidate : state_.candidates) {
         candidate.comment = SanitizeCandidateComment(candidate.comment);
+    }
+
+    if (show && !ForegroundMatchesOwner()) {
+        Hide();
+        return true;
     }
 
     const SIZE desired = DesiredSize(state_);
@@ -191,6 +235,20 @@ void NativeCandidateWindow::Hide() {
     if (hwnd_) {
         ShowWindow(hwnd_, SW_HIDE);
     }
+}
+
+bool NativeCandidateWindow::ForegroundMatchesOwner() const {
+    if (!owner_ || !IsWindow(owner_)) {
+        return true;
+    }
+    HWND foreground = GetForegroundWindow();
+    if (!foreground || foreground == hwnd_ || foreground == owner_ ||
+        IsChild(owner_, foreground)) {
+        return true;
+    }
+    HWND owner_root = GetAncestor(owner_, GA_ROOTOWNER);
+    HWND foreground_root = GetAncestor(foreground, GA_ROOTOWNER);
+    return owner_root && foreground_root && owner_root == foreground_root;
 }
 
 LRESULT CALLBACK NativeCandidateWindow::WindowProc(HWND hwnd, UINT message,
@@ -254,9 +312,14 @@ void NativeCandidateWindow::Paint() {
 
     const int row_height = Scale(34, state_.dpi);
     const int padding = Scale(8, state_.dpi);
+    const int page_start =
+        CandidatePageStartIndex(state_.page_index, state_.page_size);
     const int visible_rows =
-        std::min(static_cast<int>(state_.candidates.size()), state_.page_size);
+        std::min(state_.page_size,
+                 std::max(0, static_cast<int>(state_.candidates.size()) -
+                                  page_start));
     for (int i = 0; i < visible_rows; ++i) {
+        const int candidate_index = page_start + i;
         RECT row = {padding, padding + i * row_height, client.right - padding,
                     padding + (i + 1) * row_height};
         if (i == state_.highlighted_index) {
@@ -266,8 +329,9 @@ void NativeCandidateWindow::Paint() {
         text_rect.left += Scale(8, state_.dpi);
         text_rect.right = text_rect.left + Scale(190, state_.dpi);
         SetTextColor(dc, kTextColor);
-        const std::wstring label = RowLabel(static_cast<size_t>(i),
-                                            state_.candidates[static_cast<size_t>(i)]);
+        const std::wstring label =
+            RowLabel(static_cast<size_t>(i),
+                     state_.candidates[static_cast<size_t>(candidate_index)]);
         DrawTextW(dc, label.c_str(), static_cast<int>(label.size()), &text_rect,
                   DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
 
@@ -276,10 +340,28 @@ void NativeCandidateWindow::Paint() {
         comment_rect.right -= Scale(8, state_.dpi);
         SetTextColor(dc, kCommentColor);
         const std::wstring& comment =
-            state_.candidates[static_cast<size_t>(i)].comment;
+            state_.candidates[static_cast<size_t>(candidate_index)].comment;
         DrawTextW(dc, comment.c_str(), static_cast<int>(comment.size()),
                   &comment_rect,
                   DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+    }
+
+    const int page_count =
+        CandidatePageCount(static_cast<int>(state_.candidates.size()),
+                           state_.page_size);
+    if (page_count > 1) {
+        RECT page_rect = {padding,
+                          padding + visible_rows * row_height,
+                          client.right - padding,
+                          client.bottom - padding};
+        std::wstring page_label = L"Page ";
+        page_label += std::to_wstring(state_.page_index + 1);
+        page_label += L"/";
+        page_label += std::to_wstring(page_count);
+        SetTextColor(dc, kCommentColor);
+        DrawTextW(dc, page_label.c_str(), static_cast<int>(page_label.size()),
+                  &page_rect,
+                  DT_RIGHT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
     }
 
     SelectObject(dc, old_font);

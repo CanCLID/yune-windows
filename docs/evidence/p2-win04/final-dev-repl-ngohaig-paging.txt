@@ -1,0 +1,45 @@
+yune_windows_server.cpp
+yune_windows_candidate_window.cpp
+yune_windows_tsf.cpp
+   Creating library C:\Users\laubonghaudoi\AppData\Local\Temp\yune-windows\dev-repl-22336-a8e7dfea\build\YuneWindowsTSF.lib and object C:\Users\laubonghaudoi\AppData\Local\Temp\yune-windows\dev-repl-22336-a8e7dfea\build\YuneWindowsTSF.exp
+yune_windows_candidate_window_smoke.cpp
+yune_windows_profile_tool.cpp
+Built TSF shell artifacts:
+  C:\Users\laubonghaudoi\AppData\Local\Temp\yune-windows\dev-repl-22336-a8e7dfea\build\YuneWindowsTSF.dll
+  C:\Users\laubonghaudoi\AppData\Local\Temp\yune-windows\dev-repl-22336-a8e7dfea\build\YuneWindowsServer.exe
+  C:\Users\laubonghaudoi\AppData\Local\Temp\yune-windows\dev-repl-22336-a8e7dfea\build\YuneWindowsProfileTool.exe
+  C:\Users\laubonghaudoi\AppData\Local\Temp\yune-windows\dev-repl-22336-a8e7dfea\build\YuneWindowsCandidateWindowSmoke.exe
+Prepared Yune Windows Yune product data: C:\Users\laubonghaudoi\AppData\Local\Temp\yune-windows\dev-repl-22336-a8e7dfea\schema
+Started dev server PID 25368 on \\.\pipe\yune-windows-ime-dev
+schema_id: jyut6ping3
+candidate_count: 30
+[1] 我係個	ngo5hai6go3
+[2] 我係	ngo5hai6
+[3] 我喺	ngo5hai2
+[4] 我	ngo5
+[5] 俄	ngo4
+[6] 餓	ngo6
+[7] 娥	ngo4
+[8] 鵝	ngo2
+[9] 卧	ngo6
+[10] 猗	ngo5
+[11] 五	ng5
+[12] 午	ng5
+[13] 誤	ng6
+[14] 吳	ng4
+[15] 吾	ng4
+[16] 悟	ng6
+[17] 你	nei5
+[18] 外	ngoi6
+[19] 能	nang4
+[20] 內	noi6
+[21] 呢	ne1
+[22] 男	naam4
+[23] 女	neoi5
+[24] 眼	ngaan5
+[25] 那	naa5
+[26] 銀	ngan4
+[27] 年	nin4
+[28] 南	naam4
+[29] 諗	nam2
+[30] 難	naan4

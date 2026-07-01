@@ -13,6 +13,7 @@
 namespace {
 
 using GetProfileApiFn = RimeYuneWindowsProfileApi* (*)();
+constexpr int kMaxReturnedCandidates = 30;
 
 struct Args {
     std::wstring rime_dll;
@@ -255,6 +256,13 @@ std::string SimplifyCandidateComment(std::string_view raw_comment) {
     return CleanNonCsvComment(raw_comment);
 }
 
+Candidate CandidateFromRimeCandidate(const RimeCandidate& candidate) {
+    return Candidate{
+        CStringOrEmpty(candidate.text),
+        SimplifyCandidateComment(CStringOrEmpty(candidate.comment)),
+    };
+}
+
 std::string JsonEscape(std::string_view value) {
     std::ostringstream out;
     for (const unsigned char ch : value) {
@@ -348,8 +356,11 @@ public:
                     api_->run_task && api_->create_session &&
                     api_->select_schema && api_->set_option &&
                     api_->get_option && api_->process_key && api_->get_status &&
-                    api_->free_status && api_->get_context &&
-                    api_->free_context && api_->destroy_session &&
+                    api_->free_status && api_->get_commit &&
+                    api_->free_commit && api_->get_context &&
+                    api_->free_context && api_->candidate_list_begin &&
+                    api_->candidate_list_next && api_->candidate_list_end &&
+                    api_->destroy_session &&
                     api_->finalize,
                 "profile API table is missing required slots");
         api_->setup(&traits_);
@@ -416,6 +427,14 @@ public:
                         "failed to process key");
             }
 
+            std::string commit_text;
+            RimeCommit commit = {};
+            RIME_STRUCT_INIT(RimeCommit, commit);
+            if (api_->get_commit(session, &commit) == True) {
+                commit_text = CStringOrEmpty(commit.text);
+                api_->free_commit(&commit);
+            }
+
             RIME_STRUCT_INIT(RimeStatus, status);
             Require(api_->get_status(session, &status) == True,
                     "failed to get status");
@@ -429,12 +448,19 @@ public:
                     "failed to get context");
             context_active = true;
             std::vector<Candidate> candidates;
-            for (int i = 0; i < context.menu.num_candidates; ++i) {
-                candidates.push_back(Candidate{
-                    CStringOrEmpty(context.menu.candidates[i].text),
-                    SimplifyCandidateComment(
-                        CStringOrEmpty(context.menu.candidates[i].comment)),
-                });
+            RimeCandidateListIterator iterator = {};
+            if (api_->candidate_list_begin(session, &iterator) == True) {
+                while (static_cast<int>(candidates.size()) < kMaxReturnedCandidates &&
+                       api_->candidate_list_next(&iterator) == True) {
+                    candidates.push_back(CandidateFromRimeCandidate(iterator.candidate));
+                }
+                api_->candidate_list_end(&iterator);
+            }
+            if (candidates.empty()) {
+                for (int i = 0; i < context.menu.num_candidates; ++i) {
+                    candidates.push_back(
+                        CandidateFromRimeCandidate(context.menu.candidates[i]));
+                }
             }
             api_->free_context(&context);
             context_active = false;
@@ -442,8 +468,9 @@ public:
                     "failed to destroy session");
             session_active = false;
 
-            const std::string commit_text =
-                request.commit && !candidates.empty() ? candidates[0].text : "";
+            if (commit_text.empty() && request.commit && !candidates.empty()) {
+                commit_text = candidates[0].text;
+            }
             std::ostringstream out;
             out << "{\"ready\":true,\"schema_id\":\"" << JsonEscape(schema_id)
                 << "\",\"candidate_count\":" << candidates.size()

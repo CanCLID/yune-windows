@@ -29,6 +29,13 @@ int SelfTest() {
         std::cerr << "highlight clamp failed\n";
         return 1;
     }
+    if (yune_windows::CandidatePageCount(30, 5) != 6 ||
+        yune_windows::ClampCandidatePageIndex(9, 30, 5) != 5 ||
+        yune_windows::ClampCandidatePageIndex(-2, 30, 5) != 0 ||
+        yune_windows::CandidatePageStartIndex(2, 5) != 10) {
+        std::cerr << "candidate paging helpers failed\n";
+        return 1;
+    }
 
     RECT anchor = {32000, 32000, 32100, 32120};
     RECT rect = yune_windows::ComputeCandidateWindowRect(anchor, {420, 180}, 144);
@@ -58,6 +65,7 @@ int SelfTest() {
     state.anchor = {10, 10, 18, 28};
     state.dpi = 144;
     state.page_size = 5;
+    state.page_index = 0;
     state.highlighted_index = 1;
     state.candidates = {
         {L"candidate-one", L"\\fngo5hai6"},

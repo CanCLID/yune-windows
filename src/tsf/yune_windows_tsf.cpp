@@ -40,6 +40,7 @@ constexpr DWORD kServerLaunchReadyWaitMs = 15000;
 constexpr DWORD kServerLaunchMutexWaitMs = 250;
 constexpr DWORD kServerPipeMissingRetrySleepMs = 15;
 constexpr ULONGLONG kServerLaunchCooldownMs = 1500;
+constexpr int kCandidatePageSize = 5;
 
 HINSTANCE g_instance = nullptr;
 std::atomic<long> g_dll_refs = 0;
@@ -59,7 +60,7 @@ bool IsHandledKey(WPARAM key) {
     return (key >= L'A' && key <= L'Z') || (key >= L'a' && key <= L'z') ||
            key == VK_SPACE || key == VK_RETURN ||
            (key >= L'1' && key <= L'9') || key == VK_BACK ||
-           key == VK_ESCAPE;
+           key == VK_ESCAPE || key == VK_NEXT || key == VK_PRIOR;
 }
 
 bool IsShortcutModifierDown() {
@@ -74,6 +75,39 @@ wchar_t LowerAscii(WPARAM key) {
         return static_cast<wchar_t>(key - L'A' + L'a');
     }
     return static_cast<wchar_t>(key);
+}
+
+std::wstring PunctuationInput(WPARAM key) {
+    switch (key) {
+        case VK_OEM_COMMA:
+            return L",";
+        case VK_OEM_PERIOD:
+            return L".";
+        case VK_OEM_1:
+            return L";";
+        case VK_OEM_2:
+            return L"/";
+        case VK_OEM_3:
+            return L"`";
+        case VK_OEM_4:
+            return L"[";
+        case VK_OEM_5:
+            return L"\\";
+        case VK_OEM_6:
+            return L"]";
+        case VK_OEM_7:
+            return L"'";
+        case VK_OEM_MINUS:
+            return L"-";
+        case VK_OEM_PLUS:
+            return L"=";
+        default:
+            return {};
+    }
+}
+
+bool IsPunctuationKey(WPARAM key) {
+    return !PunctuationInput(key).empty();
 }
 
 std::string Narrow(std::wstring_view value) {
@@ -660,6 +694,113 @@ private:
     std::wstring text_;
 };
 
+struct CandidateAnchorResult {
+    RECT anchor = {80, 80, 96, 104};
+    HWND owner = nullptr;
+    UINT dpi = 96;
+    bool has_text_ext = false;
+    bool has_screen_ext = false;
+};
+
+class CandidateAnchorEditSession final : public ITfEditSession {
+public:
+    CandidateAnchorEditSession(ITfContext* context, CandidateAnchorResult* result)
+        : ref_(1), context_(context), result_(result) {
+        if (context_) {
+            context_->AddRef();
+        }
+        DllAddRef();
+    }
+
+    ~CandidateAnchorEditSession() {
+        if (context_) {
+            context_->Release();
+        }
+        DllRelease();
+    }
+
+    STDMETHODIMP QueryInterface(REFIID iid, void** object) override {
+        if (!object) {
+            return E_INVALIDARG;
+        }
+        *object = nullptr;
+        if (IsEqualIID(iid, IID_IUnknown) || IsEqualIID(iid, IID_ITfEditSession)) {
+            *object = static_cast<ITfEditSession*>(this);
+            AddRef();
+            return S_OK;
+        }
+        return E_NOINTERFACE;
+    }
+
+    STDMETHODIMP_(ULONG) AddRef() override {
+        return static_cast<ULONG>(++ref_);
+    }
+
+    STDMETHODIMP_(ULONG) Release() override {
+        const ULONG count = static_cast<ULONG>(--ref_);
+        if (count == 0) {
+            delete this;
+        }
+        return count;
+    }
+
+    STDMETHODIMP DoEditSession(TfEditCookie cookie) override {
+        if (!context_ || !result_) {
+            return E_FAIL;
+        }
+
+        ITfContextView* view = nullptr;
+        const HRESULT view_hr = context_->GetActiveView(&view);
+        if (FAILED(view_hr) || !view) {
+            return FAILED(view_hr) ? view_hr : E_FAIL;
+        }
+
+        HWND owner = nullptr;
+        if (SUCCEEDED(view->GetWnd(&owner)) && owner) {
+            result_->owner = owner;
+            result_->dpi = GetDpiForWindow(owner);
+        }
+
+        TF_SELECTION selection = {};
+        ULONG fetched = 0;
+        const HRESULT selection_hr =
+            context_->GetSelection(cookie, TF_DEFAULT_SELECTION, 1, &selection,
+                                   &fetched);
+        if (SUCCEEDED(selection_hr) && fetched > 0 && selection.range) {
+            RECT text_ext = {};
+            BOOL clipped = FALSE;
+            if (SUCCEEDED(view->GetTextExt(cookie, selection.range, &text_ext,
+                                           &clipped)) &&
+                text_ext.right >= text_ext.left &&
+                text_ext.bottom >= text_ext.top) {
+                result_->anchor = text_ext;
+                result_->has_text_ext = true;
+            }
+            selection.range->Release();
+        }
+
+        if (!result_->has_text_ext) {
+            RECT screen_ext = {};
+            if (SUCCEEDED(view->GetScreenExt(&screen_ext)) &&
+                screen_ext.right > screen_ext.left &&
+                screen_ext.bottom > screen_ext.top) {
+                result_->anchor = screen_ext;
+                result_->anchor.right = result_->anchor.left + 24;
+                result_->anchor.bottom = result_->anchor.top + 24;
+                result_->has_screen_ext = true;
+            }
+        }
+
+        view->Release();
+        return result_->has_text_ext || result_->has_screen_ext ? S_OK : S_FALSE;
+    }
+
+private:
+    std::atomic<long> ref_;
+    ITfContext* context_;
+    CandidateAnchorResult* result_;
+};
+
 class TextService final : public ITfTextInputProcessorEx, public ITfKeyEventSink {
 public:
     TextService() : ref_(1) {
@@ -762,6 +903,7 @@ public:
         buffer_.clear();
         candidate_.clear();
         last_candidates_.clear();
+        candidate_page_index_ = 0;
         candidate_window_.Hide();
         return S_OK;
     }
@@ -773,6 +915,7 @@ public:
             buffer_.clear();
             candidate_.clear();
             last_candidates_.clear();
+            candidate_page_index_ = 0;
             candidate_window_.Hide();
         }
         return S_OK;
@@ -801,10 +944,12 @@ public:
             if (!response.ok) {
                 candidate_.clear();
                 last_candidates_.clear();
+                candidate_page_index_ = 0;
                 candidate_window_.Hide();
                 return S_OK;
             }
             last_candidates_ = response.candidates;
+            candidate_page_index_ = 0;
             candidate_ = last_candidates_.empty() ? std::wstring{}
                                                   : last_candidates_[0].text;
             const int buffer_length = static_cast<int>(buffer_.size());
@@ -822,6 +967,7 @@ public:
                 if (buffer_.empty()) {
                     candidate_.clear();
                     last_candidates_.clear();
+                    candidate_page_index_ = 0;
                     WriteStructuralEvent("key_backspace", 0, 0);
                     candidate_window_.Hide();
                     *eaten = TRUE;
@@ -831,11 +977,13 @@ public:
                 if (!response.ok) {
                     candidate_.clear();
                     last_candidates_.clear();
+                    candidate_page_index_ = 0;
                     candidate_window_.Hide();
                     *eaten = TRUE;
                     return S_OK;
                 }
                 last_candidates_ = response.candidates;
+                candidate_page_index_ = 0;
                 candidate_ = last_candidates_.empty() ? std::wstring{}
                                                       : last_candidates_[0].text;
                 const int buffer_length = static_cast<int>(buffer_.size());
@@ -850,6 +998,7 @@ public:
                 *eaten = TRUE;
             } else {
                 last_candidates_.clear();
+                candidate_page_index_ = 0;
                 candidate_window_.Hide();
             }
             return S_OK;
@@ -861,13 +1010,22 @@ public:
             buffer_.clear();
             candidate_.clear();
             last_candidates_.clear();
+            candidate_page_index_ = 0;
             candidate_window_.Hide();
             *eaten = TRUE;
             return S_OK;
         }
+        if ((key == VK_NEXT || key == VK_PRIOR) && !buffer_.empty()) {
+            *eaten = TRUE;
+            PageCandidateWindow(context, key == VK_NEXT ? 1 : -1);
+            return S_OK;
+        }
         if (key >= L'1' && key <= L'9' && !buffer_.empty()) {
             *eaten = TRUE;
-            const size_t index = static_cast<size_t>(key - L'1');
+            const size_t index = static_cast<size_t>(
+                yune_windows::CandidatePageStartIndex(candidate_page_index_,
+                                                      kCandidatePageSize) +
+                static_cast<int>(key - L'1'));
             if (index < last_candidates_.size()) {
                 WriteStructuralEvent("commit_request",
                                      static_cast<int>(buffer_.size()),
@@ -876,8 +1034,19 @@ public:
                     buffer_.clear();
                     candidate_.clear();
                     last_candidates_.clear();
+                    candidate_page_index_ = 0;
                     candidate_window_.Hide();
                 }
+            }
+            return S_OK;
+        }
+        if (IsPunctuationKey(key) && buffer_.empty()) {
+            ServerResponse response = QueryServer(PunctuationInput(key), true);
+            if (response.ok && !response.commit_text.empty()) {
+                *eaten = TRUE;
+                WriteStructuralEvent("punctuation_commit", 0, 0);
+                CommitText(context, response.commit_text);
+                candidate_window_.Hide();
             }
             return S_OK;
         }
@@ -900,6 +1069,7 @@ public:
                     buffer_.clear();
                     candidate_.clear();
                     last_candidates_.clear();
+                    candidate_page_index_ = 0;
                     candidate_window_.Hide();
                 }
             }
@@ -943,8 +1113,11 @@ private:
         }
         if (key == VK_SPACE || key == VK_RETURN ||
             (key >= L'1' && key <= L'9') || key == VK_BACK ||
-            key == VK_ESCAPE) {
+            key == VK_ESCAPE || key == VK_NEXT || key == VK_PRIOR) {
             return !buffer_.empty();
+        }
+        if (IsPunctuationKey(key)) {
+            return buffer_.empty();
         }
         return false;
     }
@@ -983,6 +1156,32 @@ private:
         return true;
     }
 
+    bool PageCandidateWindow(ITfContext* context, int delta) {
+        if (last_candidates_.empty()) {
+            candidate_window_.Hide();
+            return false;
+        }
+        const int page_count = yune_windows::CandidatePageCount(
+            static_cast<int>(last_candidates_.size()), kCandidatePageSize);
+        const int next_page = yune_windows::ClampCandidatePageIndex(
+            candidate_page_index_ + delta,
+            static_cast<int>(last_candidates_.size()), kCandidatePageSize);
+        if (next_page == candidate_page_index_ || page_count <= 1) {
+            return false;
+        }
+        candidate_page_index_ = next_page;
+        const int page_start = yune_windows::CandidatePageStartIndex(
+            candidate_page_index_, kCandidatePageSize);
+        if (page_start >= 0 &&
+            page_start < static_cast<int>(last_candidates_.size())) {
+            candidate_ = last_candidates_[static_cast<size_t>(page_start)].text;
+        }
+        WriteStructuralEvent("candidate_page",
+                             static_cast<int>(buffer_.size()),
+                             static_cast<int>(last_candidates_.size()));
+        return ShowCandidates(context, last_candidates_);
+    }
+
     bool ShowCandidates(ITfContext* context,
                         const std::vector<yune_windows::CandidateWindowCandidate>& candidates) {
         if (candidates.empty()) {
@@ -991,29 +1190,34 @@ private:
         }
 
         try {
-            RECT anchor = {80, 80, 96, 104};
-            UINT dpi = 96;
-            ITfContextView* view = nullptr;
-            if (context && SUCCEEDED(context->GetActiveView(&view)) && view) {
-                RECT screen_ext = {};
-                if (SUCCEEDED(view->GetScreenExt(&screen_ext))) {
-                    anchor = screen_ext;
-                    anchor.right = anchor.left + 24;
-                    anchor.bottom = anchor.top + 24;
+            CandidateAnchorResult anchor_result;
+            if (context && client_id_ != TF_CLIENTID_NULL) {
+                CandidateAnchorEditSession* session = nullptr;
+                try {
+                    session = new (std::nothrow)
+                        CandidateAnchorEditSession(context, &anchor_result);
+                } catch (...) {
                 }
-                HWND owner = nullptr;
-                if (SUCCEEDED(view->GetWnd(&owner)) && owner) {
-                    dpi = GetDpiForWindow(owner);
+                if (session) {
+                    HRESULT edit_hr = E_FAIL;
+                    const HRESULT request_hr =
+                        context->RequestEditSession(client_id_, session,
+                                                    TF_ES_SYNC | TF_ES_READ,
+                                                    &edit_hr);
+                    session->Release();
+                    (void)request_hr;
+                    (void)edit_hr;
                 }
-                view->Release();
             }
 
             yune_windows::CandidateWindowState state;
             state.candidates = candidates;
-            state.anchor = anchor;
-            state.dpi = dpi;
+            state.anchor = anchor_result.anchor;
+            state.owner = anchor_result.owner;
+            state.dpi = anchor_result.dpi;
+            state.page_index = candidate_page_index_;
             state.highlighted_index = 0;
-            state.page_size = 5;
+            state.page_size = kCandidatePageSize;
             if (!candidate_window_.Update(state, true)) {
                 WriteStructuralEvent("candidate_window_failed",
                                      static_cast<int>(candidates.size()),
@@ -1035,6 +1239,7 @@ private:
     std::wstring buffer_;
     std::wstring candidate_;
     std::vector<yune_windows::CandidateWindowCandidate> last_candidates_;
+    int candidate_page_index_ = 0;
     yune_windows::NativeCandidateWindow candidate_window_;
 };
 

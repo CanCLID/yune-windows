@@ -9,6 +9,15 @@
 the candidate window so it appears at the caret and never orphans, clean up the
 candidate comments, and add candidate paging and punctuation/full-width input.
 
+**Closeout status (2026-07-01):** implementation and non-elevated verification
+are complete. Server-side comment hygiene, larger candidate lists, punctuation
+`get_commit`, dev REPL checks, and installed-server reload were runtime-verified.
+DLL-side caret anchoring, owner/no-orphan lifecycle, paging keys, and punctuation
+forwarding were build/static/smoke verified only; live TSF DLL reload and app
+typing proof were not attempted because non-dev desktop processes held
+`YuneWindowsTSF.dll`. See `docs/evidence/p2-win04/README.md` and
+`docs/evidence/p2-win04/tsf-dll-reload-blocker-20260701.md`.
+
 **Architecture:** iterate through the P2-WIN03 dev loop. Comment hygiene is
 server-side and rides the proven fast loop (`dev-reload-server`, no reboot, no
 holder problem). The candidate-window and input-key changes are TSF-DLL-side and
@@ -149,31 +158,37 @@ in a holder-free session because they all reswap the DLL.
   workflow.
 
 ### Task 2: Slice B - candidate window positioning + no-orphan
-- [ ] B1: implement caret positioning via a read edit-session `GetTextExt` with
+- [x] B1: implement caret positioning via a read edit-session `GetTextExt` with
   the fallback chain; keep `ComputeCandidateWindowRect` clamping.
-- [ ] B2: add owner window, audit/complete every hide path, add the foreground
+- [x] B2: add owner window, audit/complete every hide path, add the foreground
   guard; diagnose the stuck-panel repro first and record findings under
   `docs\evidence\p2-win04\`.
-- [ ] Add contracts where static checks are meaningful (e.g. `GetTextExt` used;
+- [x] Add contracts where static checks are meaningful (e.g. `GetTextExt` used;
   candidate window created with an owner). Note behavioral fixes need live proof.
-- [ ] Build; iterate via `dev-reload-tsf` in a holder-free session; live-verify
-  the panel appears at the caret and never orphans on app-switch.
-- [ ] Commit directly to `main`.
+- [x] Build/static/smoke verification completed.
+- [ ] Live-verify via `dev-reload-tsf` in a holder-free session that the panel
+  appears at the caret and never orphans on app-switch. Blocked in this session
+  by non-dev TSF DLL holders; see `docs\evidence\p2-win04\`.
+- [x] Commit directly to `main`.
 
 ### Task 3: Slice C - paging
-- [ ] Add page index + paging keys + page indicator; ensure candidate supply.
-- [ ] Live-verify paging reaches later candidates.
-- [ ] Commit directly to `main`.
+- [x] Add page index + paging keys + page indicator; ensure candidate supply.
+- [ ] Live-verify paging reaches later candidates in an app. Blocked in this
+  session by non-dev TSF DLL holders; server-side 30-candidate supply and
+  candidate-window smoke coverage are captured under `docs\evidence\p2-win04\`.
+- [x] Commit directly to `main`.
 
 ### Task 4: Slice D - punctuation / full-width
-- [ ] Server: add a `get_commit` step so auto-committed punctuation is returned;
+- [x] Server: add a `get_commit` step so auto-committed punctuation is returned;
   verify via `dev-repl` on the fast loop.
-- [ ] TSF: forward punctuation keys in `OnKeyDown`.
-- [ ] Live-verify typing a full sentence with full-width punctuation.
-- [ ] Commit directly to `main` (scoped, reviewed).
+- [x] TSF: forward punctuation keys in `OnKeyDown`.
+- [ ] Live-verify typing a full sentence with full-width punctuation. Blocked in
+  this session by non-dev TSF DLL holders; server punctuation commit is verified
+  by `final-dev-repl-punctuation.txt`.
+- [x] Commit directly to `main` (scoped, reviewed).
 
 ### Task 5: Docs
-- [ ] Update `README.md`, `docs\roadmap.md`, `docs\requirements.md`,
+- [x] Update `README.md`, `docs\roadmap.md`, `docs\requirements.md`,
   `docs\decisions.md` to reflect what shipped and what remains.
 
 ## Reviewer Questions (for GPT)

@@ -3,10 +3,12 @@
 ## Yune Windows Product Requirements
 
 **Status:** public rename baseline, P2-WIN02 product-owned server lifecycle,
-structured cleanup hardening, and P2-WIN03 development inner-loop tooling are
-complete. Fresh post-rename live evidence proves install/register,
-product-owned Notepad and Chromium typing, diagnostics, uninstall, and
-post-reboot no-residue cleanup on the installed IME.
+structured cleanup hardening, P2-WIN03 development inner-loop tooling, and
+P2-WIN04 candidate typing-quality implementation are complete. Fresh
+post-rename live evidence proves install/register, product-owned Notepad and
+Chromium typing, diagnostics, uninstall, and post-reboot no-residue cleanup on
+the installed IME. P2-WIN04 server-side behavior is runtime-verified; DLL-side
+typing behavior still needs holder-free live app proof.
 
 - [x] **WIN-01 - Product identity:** Product name, repo slug, install root,
   TSF DLL, server, profile tool, candidate smoke, named pipe, and TSF
@@ -70,10 +72,15 @@ post-reboot no-residue cleanup on the installed IME.
   ownership before closing the dev-owned test window and safely aborts when
   non-dev desktop apps hold `YuneWindowsTSF.dll`; a full TSF file swap requires
   a holder-free session rather than forced app closure.
-- [ ] **WIN-14 - Daily typing quality:** Candidate paging/mouse selection,
-  punctuation/full-width behavior, learning/userdb, and candidate comment
-  hygiene remain open. P2-WIN03 exposed raw structured CSV-like candidate
-  comments in the dev REPL; fix that as a P2-WIN04 daily-typing issue.
+- [ ] **WIN-14 - Daily typing quality:** P2-WIN04 implements candidate comment
+  hygiene, larger candidate supply for client-side paging, PageUp/PageDown
+  paging, read-session caret anchoring, owner/no-orphan candidate window
+  lifecycle hardening, and punctuation/full-width forwarding through the
+  existing Rime `get_commit` API. Server-side comment, paging-supply, and
+  punctuation paths are runtime-verified through the dev REPL and installed
+  server reload. DLL-side caret, no-orphan, paging-key, and full-sentence
+  punctuation behavior still needs holder-free Notepad/Chromium proof. Mouse
+  selection and learning/userdb remain later daily-typing work.
 
 ## Non-Elevated Verification Gates
 
@@ -95,6 +102,11 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-yune-server-ipc-s
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-candidate-window-smoke.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-install-dir-safety-contract.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-machine-state-approval-gates.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-server-comment-hygiene-contract.ps1 -YuneRoot C:\Users\laubonghaudoi\Documents\GitHub\yune
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-tsf-caret-anchor-contract.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-candidate-window-owner-lifecycle-contract.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-candidate-paging-contract.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-punctuation-commit-contract.ps1
 ```
 
 Add broader non-elevated contract tests as needed for touched behavior.

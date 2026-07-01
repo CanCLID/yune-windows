@@ -28,8 +28,15 @@ DLL and structured cleanup result support in the uninstaller. The approved live
 install/register/type/diagnostics/uninstall/cleanup closeout passed after
 post-reboot delayed-delete validation. P2-WIN03 added a non-elevated development
 inner loop for candidate debugging, installed-server reload, TSF DLL reload, and
-watch-mode routing. The next product gate is P2-WIN04 Daily Typing Quality
-unless dogfood package hardening is explicitly prioritized first.
+watch-mode routing. P2-WIN04 implemented server-side candidate comment hygiene,
+larger candidate supply for client-side paging, read-session caret anchoring,
+owner-window/no-orphan lifecycle hardening, PageUp/PageDown paging, and
+punctuation/full-width forwarding through the existing Rime `get_commit` path.
+The server-side pieces are runtime-verified through the dev REPL and installed
+server reload; DLL-side live app verification still requires a holder-free
+desktop session because non-dev apps held `YuneWindowsTSF.dll` during closeout.
+The next gate is holder-free P2-WIN04 live verification or dogfood package
+hardening if packaging is explicitly prioritized first.
 
 For dogfood package or production installer work, refresh live evidence under
 the Yune Windows names whenever package inputs or installer behavior change:

@@ -77,11 +77,22 @@ test window and must safe-abort if any non-dev process holds
 `YuneWindowsTSF.dll`; full TSF file swap validation can require closing GUI apps
 or signing out, and is not part of the normal dev loop.
 
+### D-11 - Candidate typing fixes stay Windows-side unless engine APIs change explicitly
+
+P2-WIN04 keeps candidate-display and input-quality fixes in Yune Windows when
+the existing packaged Yune ABI is sufficient. Raw `jyut6ping3` candidate
+comments are simplified in the Windows server for display, candidate paging is
+client-side over a larger candidate list, and punctuation commits use the
+existing default Rime `get_commit`/`free_commit` slots. The default
+`rime_get_api()` ABI stays unchanged, and any future engine requirement must be
+a named Yune proposal with tests before this repo depends on it. DLL-side
+candidate-window behavior still needs live app evidence after a holder-free TSF
+DLL reload; static/build proof must not be described as live proof.
+
 ## Last Updated
 
-2026-07-01 - P2-WIN03 Development Inner Loop post-review fixups completed. The
-repo now has non-elevated dev REPL, installed-server reload, TSF DLL reload
-through a dev-owned test window, dry-run watch tooling with exact `-YuneRoot`
-forwarding, stronger process-ownership checks, and installed-server runtime
-evidence. Candidate comment hygiene is recorded as a P2-WIN04 Daily Typing
-Quality follow-up.
+2026-07-01 - P2-WIN04 Candidate Window And Typing Quality implementation
+completed with server-side runtime evidence and DLL-side static/build/smoke
+evidence. Live app proof for caret placement, no-orphan behavior, paging keys,
+and full-sentence punctuation remains blocked until `YuneWindowsTSF.dll` is not
+held by non-dev desktop processes.

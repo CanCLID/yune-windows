@@ -89,15 +89,35 @@ M07 is complete only when:
   paging, shifted punctuation, lone-Shift, preserved-key toggles, and focus
   cleanup are live-verified.
 
-## Final Verification Commands
+## Pre-live Readiness Commands
 
-Run these after recording live evidence and before the final direct-to-main
-commit:
+Run these while M06 and M07 are still live-pending, including after any
+non-elevated prep edit or failed holder-free retry:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-m06-evidence-summary-contract.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-m07-evidence-summary-contract.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-m06-m07-live-closeout-readiness-contract.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-milestone-naming-contract.ps1
+git diff --check
+```
+
+`tools\test-m06-m07-live-closeout-readiness-contract.ps1` is intentionally a
+pre-live guard: it asserts that M06 and M07 remain active, live-pending, and not
+archived. Do not use that readiness contract as the final post-live closeout
+gate after the matrix/checklist has passed and the summaries are updated to a
+completed state.
+
+## Post-live Closeout Commands
+
+After the holder-free live proof passes, update the M06 and M07 summaries,
+machine-readable summaries, and plan locations to the completed state. Then
+update the per-milestone evidence summary contracts to assert that completed
+state and run:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-m06-evidence-summary-contract.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-m07-evidence-summary-contract.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-milestone-naming-contract.ps1
 git diff --check
 ```

@@ -29,6 +29,10 @@ foreach ($Required in @(
         "tools\dev\dev-reload-tsf.ps1 -RestartExplorer",
         "docs/evidence/m06/matrix.md",
         "docs/evidence/m07/live-checklist.md",
+        "## Pre-live Readiness Commands",
+        "pre-live guard: it asserts that M06 and M07 remain active, live-pending, and not",
+        "Do not use that readiness contract as the final post-live closeout",
+        "## Post-live Closeout Commands",
         "tools\test-m06-evidence-summary-contract.ps1",
         "tools\test-m07-evidence-summary-contract.ps1",
         "tools\test-milestone-naming-contract.ps1"

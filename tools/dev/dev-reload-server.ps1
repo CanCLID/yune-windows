@@ -96,16 +96,17 @@ try {
     }
 
     $LastCopyError = ""
+    $SwapAsidePath = ""
     for ($Attempt = 1; $Attempt -le $MaxCopyAttempts; $Attempt += 1) {
-        try {
-            $Stopped = @(Stop-YuneWindowsDevProcessesByPath `
-                    -Path $Paths.server_exe `
-                    -ProcessName "YuneWindowsServer" `
-                    -TimeoutMs 10000)
-            if ($Stopped.Count -gt 0) {
-                Write-Host "Stopped installed server process(es): $(Format-YuneWindowsDevProcessSummary -Processes $Stopped)"
-            }
+        $Stopped = @(Stop-YuneWindowsDevProcessesByPath `
+                -Path $Paths.server_exe `
+                -ProcessName "YuneWindowsServer" `
+                -TimeoutMs 10000)
+        if ($Stopped.Count -gt 0) {
+            Write-Host "Stopped installed server process(es): $(Format-YuneWindowsDevProcessSummary -Processes $Stopped)"
+        }
 
+        try {
             Copy-Item -LiteralPath $ScratchServer -Destination $Paths.server_exe -Force
             Write-Host "Copied scratch YuneWindowsServer.exe into $($Paths.install_dir)"
             $LastCopyError = ""
@@ -113,16 +114,47 @@ try {
         }
         catch {
             $LastCopyError = $_.Exception.Message
-            if ($Attempt -eq $MaxCopyAttempts) {
-                throw "failed to copy scratch server after $Attempt attempt(s): $LastCopyError"
-            }
-            Write-Warning "server copy attempt $Attempt failed; retrying after stopping any relaunched installed server. $LastCopyError"
-            Start-Sleep -Milliseconds $RetryDelayMs
         }
+
+        # A loaded TSF DLL (e.g. Explorer) can warm-relaunch the installed server
+        # between the stop and the copy, re-locking the exe faster than we can win
+        # the race. Windows lets us rename a running executable aside (it is opened
+        # share-delete), which frees the name so the new binary drops in; we then
+        # stop the old renamed server below so the new one can take over.
+        try {
+            if (Test-Path -LiteralPath $Paths.server_exe -PathType Leaf) {
+                $Candidate = "{0}.swap-{1}-{2}" -f $Paths.server_exe, $Timestamp, $Attempt
+                Move-Item -LiteralPath $Paths.server_exe -Destination $Candidate -Force
+                $SwapAsidePath = $Candidate
+                Copy-Item -LiteralPath $ScratchServer -Destination $Paths.server_exe -Force
+                Write-Host "Copied scratch YuneWindowsServer.exe into $($Paths.install_dir) (renamed the locked running exe aside)"
+                $LastCopyError = ""
+                break
+            }
+        }
+        catch {
+            $LastCopyError = $_.Exception.Message
+        }
+
+        if ($Attempt -eq $MaxCopyAttempts) {
+            throw "failed to copy scratch server after $Attempt attempt(s): $LastCopyError"
+        }
+        Write-Warning "server copy attempt $Attempt failed; retrying (will rename the locked exe aside if needed). $LastCopyError"
+        Start-Sleep -Milliseconds $RetryDelayMs
     }
 
     if (-not [string]::IsNullOrWhiteSpace($LastCopyError)) {
         throw "server copy did not complete: $LastCopyError"
+    }
+
+    if ($SwapAsidePath -ne "") {
+        # The old server keeps running from the renamed-aside path and still holds
+        # the single-instance mutex; stop it so the freshly copied binary can start
+        # and serve.
+        Stop-YuneWindowsDevProcessesByPath `
+            -Path $SwapAsidePath `
+            -ProcessName "YuneWindowsServer" `
+            -TimeoutMs 10000 | Out-Null
     }
 
     $ExistingInstalledServers = @(Get-YuneWindowsDevProcessesByPath `
@@ -166,6 +198,12 @@ try {
     Remove-YuneWindowsDevOldBackups -Directory $Paths.install_dir -Filter "YuneWindowsServer.exe.dev-backup-*" -RetainCount $BackupRetentionCount | Out-Null
     Remove-YuneWindowsDevOldBackups -Directory $Paths.install_dir -Filter "schema.dev-backup-*" -RetainCount $BackupRetentionCount | Out-Null
     Remove-YuneWindowsDevOldBackups -Directory $Paths.install_dir -Filter "user-data.dev-backup-*" -RetainCount $BackupRetentionCount | Out-Null
+
+    # Remove any renamed-aside server binaries now that the old process is stopped.
+    # A .swap file may still be locked briefly by an exiting process; ignore those.
+    Get-ChildItem -LiteralPath $Paths.install_dir -Filter "YuneWindowsServer.exe.swap-*" -File -ErrorAction SilentlyContinue | ForEach-Object {
+        try { Remove-Item -LiteralPath $_.FullName -Force -ErrorAction Stop } catch { }
+    }
 }
 catch {
     $ReloadError = $_.Exception.Message

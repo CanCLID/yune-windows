@@ -57,6 +57,15 @@ Iterate via the M03 dev loop.
   `crates/yune-rime-api/tests/frontend_client/composition_dictionary_userdb.rs`
   and `input_editing_runtime.rs` — and are the **reference contract** M07 should
   mirror.
+- **A selection can commit *and* keep composing (critical for F3).** Yune's oracle
+  test proves selecting a candidate returns the committed segment while the
+  composition stays active with the remaining input:
+  `yune_web_select_candidate` returns `commits: [東]`, `context.input: "datkyut"`,
+  `status.is_composing: true`, then each further select commits the next segment
+  until input is empty (`../yune/crates/yune-rime-api/tests/yune_web.rs:2103-2142`).
+  So the frontend must handle three cases per response — commit + remaining preedit,
+  preedit-only advancement, and final commit — and must **not** treat any commit as
+  "composition ended."
 - **The Windows server is stateless per keystroke.** `ProcessInput`
   (`src/server/yune_windows_server.cpp:741-804`) does `create_session` → replay
   **all** keys from `request.input` → read commit/context → `destroy_session`,
@@ -115,17 +124,28 @@ model with a real composition).
   (schema + options, `disable_learning` forced), returns a token. Subsequent ops
   carry `session=<token>`. Idle sessions are garbage-collected after a bounded TTL
   (and on explicit `end`). Cap the number of live sessions.
+- **Every compose response returns three independent things** (this is the crux —
+  see Current Facts: a select can commit *and* keep composing): `committed_text`
+  (text to insert into the host doc **this step**, may be empty), the remaining
+  `composition`/`input` + `is_composing` (the preedit to keep showing, may be
+  non-empty even when `committed_text` is set), and the current `candidates`. Never
+  conflate "has `committed_text`" with "composition ended" — read `is_composing`
+  (from `get_status`) / empty input for that.
 - **Incremental verbs** (extend `ParseRequest`/`Process`):
   - `op=compose-begin` → `{ token, composition, candidates, state }`.
-  - `op=compose-key\nsession=<t>\nkey=<vk-or-char>\n.` — feed one key to the live
-    session; return the updated `composition` (preedit text + cursor/segments),
-    `candidates` (current page), and `commit_text` if Rime committed.
-  - `op=compose-select\nsession=<t>\nindex=<i>\n.` — `select_candidate_on_current_
-    page(session, i)`; return updated `composition`/`candidates`/`commit_text`.
-  - `op=compose-back` / `op=compose-page` / `op=compose-cancel` /
-    `op=compose-commit` / `op=compose-end` as needed for editing and teardown.
-  - Every response carries the M05 state block (consistency with the rest of the
-    protocol).
+  - `op=compose-key\nsession=<t>\nkey=<vk-or-char>\n.` — feed one key; after it,
+    read `get_commit` (→ `committed_text`), `get_context` (→ preedit + candidates),
+    `get_status` (→ `is_composing`). Return all three.
+  - `op=compose-select\nsession=<t>\nindex=<i>\n.` —
+    `select_candidate_on_current_page(session, i)`, then the same read-back.
+  - `op=compose-commit-raw\nsession=<t>\n.` — commit the **raw input** verbatim for
+    F6 (Enter): read the raw input (e.g. `get_input`) and return it as
+    `committed_text`, then clear the session. **Do not** use `commit_composition`
+    for this — that commits the *candidate* composition, not the raw letters
+    (`../yune/crates/yune-rime-api/src/lib.rs:1258`).
+  - `op=compose-commit` (Space: commit the selected/first candidate) /
+    `op=compose-back` / `op=compose-page` / `op=compose-cancel` / `op=compose-end`.
+  - Every response carries the M05 state block (consistency with the protocol).
 - **Return the composition, not just candidates.** Read `RimeContext.composition`
   (preedit, cursor, selection) so the DLL can render an inline preedit; keep the
   existing candidate extraction (`candidate_list_begin/next/end`, plus
@@ -146,11 +166,20 @@ model with a real composition).
   preedit (with the composing display attribute / underline) and place the caret
   per Rime's cursor. Keep the native candidate window for the menu, anchored to the
   composition as today (M04 caret anchoring).
-- **Selection routes to Rime.** Number keys (and later, clickable candidates) send
-  `op=compose-select index=<i>`; update the composition from the response. Only
-  when the response carries `commit_text` (Rime committed) do we **end the
-  composition** by replacing it with the committed text and starting fresh.
-  Backspace → `compose-back`; Esc → `compose-cancel`; Space/Enter → `compose-commit`.
+- **Selection routes to Rime — and every response is handled in three cases.**
+  Number keys (and later, clickable candidates) send `op=compose-select index=<i>`.
+  For **every** compose response (key or select), do both, independently:
+  1. if `committed_text` is non-empty, **insert it into the host doc now** (it may
+     be a partial segment like 東); and
+  2. if `is_composing` is still true, **keep/update the inline composition** to the
+     remaining preedit and refresh candidates; only when `is_composing` is false /
+     input is empty do we **end** the composition.
+  So a select can *both* commit 東 *and* keep composing `datkyut` — that is exactly
+  the F3 flow (see Current Facts / the `yune_web` oracle). **Never** treat a
+  non-empty `committed_text` as "composition ended."
+  - Backspace → `compose-back`; Esc → `compose-cancel`.
+  - **Space** → `compose-commit` (commit the selected/first candidate, Chinese).
+  - **Enter** → `compose-commit-raw` (F6: commit the raw typed letters), then end.
 - **Replace the fake-selection path.** Remove the "grab `last_candidates_[index]`
   + clear `buffer_`" logic (`:1224-1243`); `buffer_` as a raw-romanization store
   goes away in favor of the server-held session + the composition preedit.
@@ -158,10 +187,10 @@ model with a real composition).
   ascii), the lone-Shift/preserved-key toggles (M05), punctuation (M04), and the
   **M06 fixes must all be preserved in the new model** — F1 (Shift-aware
   punctuation forwarding), F5 (`WH_KEYBOARD_LL` lone-Shift), and especially **F6
-  (Enter commits the raw input verbatim, Space commits the candidate)**, which now
-  maps to "commit the session's raw input on Enter." Toggling mid-composition
-  commits or cancels the composition first (reuse
-  `CommitOrClearCompositionBeforeStateChange`).
+  (Enter commits the raw letters, Space commits the candidate)**, which now maps to
+  `op=compose-commit-raw` (raw input via `get_input`) on Enter — **not**
+  `commit_composition`. Toggling mid-composition commits or cancels the composition
+  first (reuse `CommitOrClearCompositionBeforeStateChange`).
 - **Verify live:** holder-free swap; the `dungdatkyut` → 東 → 突 → 厥 flow inline in
   a real app, plus regression of single-word commit, punctuation, paging, toggles.
 

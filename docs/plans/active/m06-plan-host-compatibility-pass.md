@@ -59,12 +59,15 @@ verification in each host.
   the single most likely thing to be flaky in non-Win32 hosts (Chromium/Electron
   route keyboard input differently), and M06 is where we get the evidence to
   decide whether the fallback becomes real work.
-- **M04 removed the candidate-window fallback anchor.** The M04 review deleted the
-  old top-left fallback and now *rejects* clipped or zero-size `GetTextExt`
-  anchors (`docs/roadmap.md`, M04 section). Consequence: in a host where
-  `ITfContextView::GetTextExt` misbehaves (common in web/Electron fields), the
-  candidate window may **mis-anchor or fail to show** rather than fall back — a
-  prime thing to observe.
+- **Candidate anchoring rejects bad `GetTextExt`, then falls back to
+  `GetScreenExt`.** The anchor edit session takes a clipped/zero-size `GetTextExt`
+  rect as "no text ext" and, when it has none, falls back to `GetScreenExt`
+  (view/field rect, top-left, sized 24×24) —
+  `src/tsf/yune_windows_tsf.cpp:936-954`. Consequence: in a host where
+  `GetTextExt` misbehaves (common in web/Electron fields), the candidate window
+  still **shows but mis-anchors** to the field/window corner instead of the caret,
+  rather than not showing at all — a prime thing to observe. (This corrects an
+  earlier note that said the fallback was removed entirely.)
 - **The native candidate window and language bar are focus-scoped GDI popups**
   (`WS_EX_NOACTIVATE|WS_EX_TOOLWINDOW|WS_EX_TOPMOST`) with owner-window and
   foreground guards (M04/M05). Cross-app focus models differ; orphan/stale/
@@ -260,13 +263,20 @@ append new user-reported blockers here as they come in.
     that timed out and disconnected mid-response must be a no-op, not a
     server-killer.
   - **F2b (responsiveness mitigation — bounded, M06):** stop hard-freezing the key
-    thread on cold launch. **Warm the server asynchronously** on `ActivateEx` /
-    first focus (a background thread calls `RequestSharedServerLaunch`, which is
-    already mutex+cooldown guarded, so the deploy runs before the user types), and
-    **cap the synchronous key-path wait** so a not-yet-ready server never blocks the
-    foreground app for many seconds — if the server is not ready, pass the keystroke
-    through / drop it and let the next keystroke retry against the now-warming
-    server, rather than blocking in the 15s launch wait on the UI thread.
+    thread on cold launch.
+    - **Warm the server asynchronously** on `ActivateEx` / first focus: a
+      background thread calls `RequestSharedServerLaunch` (already mutex+cooldown
+      guarded) so the deploy runs before the user types. Guard it with **one
+      in-flight warm-up flag** (no thundering herd of launch threads) and have the
+      thread **hold a DLL lifetime ref** (`DllAddRef`/`DllRelease`) so the module
+      cannot unload while it runs.
+    - **Cap the synchronous key-path wait** so a not-yet-ready server never blocks
+      the foreground app for many seconds. **Decide pass-through vs. eaten in
+      `OnTestKeyDown` and keep `OnKeyDown` consistent:** if the test reported the
+      key eaten, `OnKeyDown` must eat/drop it on a server-not-ready failure rather
+      than leak the same key into the host; if the test reported not-eaten, both
+      pass it through. Never a 15s launch-wait on the UI thread; the next keystroke
+      retries against the now-warming server.
 - **Boundary:** the *complete* elimination of cold start — a per-user
   broker/autostart keeping the server warm across the whole session and working in
   AppContainer hosts — stays the separate **Non-blocking cold-start / broker**
@@ -293,10 +303,20 @@ append new user-reported blockers here as they come in.
     fires. This is exactly the risk M06 flagged for non-Win32 hosts.
 - **Fix — implement the `WH_KEYBOARD_LL` low-level keyboard-hook fallback**
   (promoted from reactive to **required**: Telegram confirms a Tier-1 host fails
-  without it). The hook detects a lone-Shift key-up globally and drives the same
-  `op=set-option` toggle path, guarded so Shift+other-key never toggles and so it
-  composes cleanly with the existing TSF key-sink path (no double-toggle when both
-  deliver the key-up). This is the approach Weasel and other IMEs use.
+  without it). This is the approach Weasel and other IMEs use. Design constraints:
+  - **Process singleton, focus-gated.** Install one process-wide hook (not one per
+    `TextService`), and only act on the toggle when a Yune `TextService` is the
+    focused/active service — so a background instance never toggles.
+  - **Do no COM/TSF/server work in the hook callback.** An `LL` hook must return
+    fast and runs off the service's apartment thread. On detecting a lone-Shift
+    key-up, **post/defer** the toggle onto the owning TSF thread (e.g. a posted
+    message) which then runs the existing `op=set-option` path.
+  - **Physical-key double-toggle guard.** In Win32 hosts the normal `OnKeyUp`
+    (`src/tsf/yune_windows_tsf.cpp:1287`) *and* the hook may both see the lone-Shift
+    key-up. Guard with a physical-key event token (e.g. debounce on the key event's
+    identity/time) so exactly one toggle fires.
+  - The lone-Shift detection must still honor the F5 guards: Shift+other-key never
+    toggles; autorepeat/hold does not re-arm.
 - **Verify:** in Telegram (and every Tier-1 host) a lone Shift toggles 中/英;
   Shift+letter still capitalizes with no toggle; no double-toggle in Win32 hosts
   where both the sink and the hook see the key-up. **Confirm the hook actually
@@ -314,10 +334,15 @@ append new user-reported blockers here as they come in.
   (`src/tsf/yune_windows_tsf.cpp:1251-1274`) that commits `response.commit_text` or
   the first candidate. Enter has no distinct "commit the raw input" behavior.
 - **Fix — split Enter from Space.** **Space** keeps committing the selected / first
-  candidate (Chinese). **Enter** with a non-empty composition commits the **raw
-  typed characters verbatim** (the literal romanization), then clears — in the
-  current model `CommitText(context, <widened raw buffer_>)`, no conversion and no
+  candidate (Chinese). **Enter** with a non-empty composition commits the **current
+  composition buffer** (the romanization the user typed), then clears — in the
+  current model `CommitText(context, <widened buffer_>)`, no conversion and no
   candidate. Enter with an empty buffer still passes through as a newline.
+  - **Precision:** `buffer_` is already **normalized to lowercase** on input
+    (`LowerAscii`, `src/tsf/yune_windows_tsf.cpp:1138`), so Enter commits the
+    lowercased romanization (`caksi`), not original physical casing. Preserving
+    typed case would require storing the raw case in the buffer — out of scope for
+    F6; call it out if it matters.
 - **Verify:** in Chinese mode, type `caksi` + Enter → the host receives literal
   `caksi` (not 測試); Space still commits 測試; Enter with no composition still
   inserts a newline. Add a contract for the split Enter/Space commit behavior.
@@ -390,10 +415,11 @@ a reboot per bug.
 - **Prioritize the remaining discovered findings by likelihood (from Current
   Facts):**
   - **Candidate anchoring in web/Electron fields (items 1–2).** If `GetTextExt`
-    yields no/clipped anchor and the window mis-places or fails to show, decide a
-    scoped, principled fallback (e.g. anchor to the composition range's
-    `GetScreenExt`, or the host caret via `GUITHREADINFO`) — without reintroducing
-    the top-left corner fallback M04 deliberately removed.
+    yields no/clipped anchor, the window currently falls back to `GetScreenExt`
+    (field/window corner, `:944-954`) — so it shows but mis-anchors away from the
+    caret. If the observation pass finds this jarring, improve the fallback (e.g.
+    the host caret via `GUITHREADINFO`, or a better composition-range ext) — keep a
+    principled fallback, do not regress to a whole-screen top-left corner.
   - **Language-bar / reconciliation / indicator** fixes as findings dictate.
 - Each fix: implement, add/extend a non-elevated contract, `dev-reload-server`
   (server fixes iterate instantly) or a **batched** holder-free `dev-reload-tsf`

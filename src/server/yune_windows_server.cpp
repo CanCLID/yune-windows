@@ -3,6 +3,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <map>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -15,6 +16,8 @@ namespace {
 
 using GetProfileApiFn = RimeYuneWindowsProfileApi* (*)();
 constexpr int kMaxReturnedCandidates = 30;
+constexpr ULONGLONG kComposeSessionIdleTtlMs = 10ull * 60 * 1000;
+constexpr size_t kMaxComposeSessions = 64;
 
 struct Args {
     std::wstring rime_dll;
@@ -30,6 +33,11 @@ struct Request {
     std::string name;
     std::string value;
     std::string schema;
+    std::string session;
+    std::string key;
+    std::string mask;
+    std::string index;
+    std::string direction;
     std::vector<std::string> unknown_fields;
     bool commit = false;
 };
@@ -49,6 +57,22 @@ struct SchemaInfo {
 struct Candidate {
     std::string text;
     std::string comment;
+};
+
+struct CompositionSnapshot {
+    std::string schema_id;
+    std::string raw_input;
+    std::string preedit;
+    int length = 0;
+    int cursor_pos = 0;
+    int sel_start = 0;
+    int sel_end = 0;
+    std::vector<Candidate> candidates;
+};
+
+struct ComposeSession {
+    RimeSessionId session_id = 0;
+    ULONGLONG last_used_ms = 0;
 };
 
 struct DeployDiagnostics {
@@ -337,6 +361,44 @@ bool ParseProtocolBool(std::string_view value) {
     throw std::runtime_error("expected boolean protocol value");
 }
 
+int ParseProtocolInt(std::string_view value, const char* field_name) {
+    Require(!value.empty(), field_name);
+    size_t parsed = 0;
+    int base = 10;
+    if (value.size() > 2 && value[0] == '0' &&
+        (value[1] == 'x' || value[1] == 'X')) {
+        base = 16;
+    }
+    const long parsed_value = std::stol(std::string(value), &parsed, base);
+    Require(parsed == value.size(), field_name);
+    return static_cast<int>(parsed_value);
+}
+
+int ParseNonNegativeProtocolInt(std::string_view value, const char* field_name) {
+    const int parsed = ParseProtocolInt(value, field_name);
+    Require(parsed >= 0, field_name);
+    return parsed;
+}
+
+int ParseProtocolKeyCode(std::string_view value) {
+    Require(!value.empty(), "missing key");
+    if (value.size() == 1) {
+        return static_cast<unsigned char>(value[0]);
+    }
+    return ParseProtocolInt(value, "invalid key");
+}
+
+bool ParsePageBackward(std::string_view value) {
+    if (value == "prev" || value == "previous" || value == "back" ||
+        value == "backward" || value == "up") {
+        return true;
+    }
+    if (value == "next" || value == "forward" || value == "down") {
+        return false;
+    }
+    throw std::runtime_error("invalid page direction");
+}
+
 std::filesystem::path StateFilePathForArgs(const Args& args) {
     const std::filesystem::path shared_parent =
         std::filesystem::path(args.shared_dir).parent_path();
@@ -432,6 +494,16 @@ Request ParseRequest(const std::string& payload) {
             request.value = line.substr(6);
         } else if (line.rfind("schema=", 0) == 0) {
             request.schema = line.substr(7);
+        } else if (line.rfind("session=", 0) == 0) {
+            request.session = line.substr(8);
+        } else if (line.rfind("key=", 0) == 0) {
+            request.key = line.substr(4);
+        } else if (line.rfind("mask=", 0) == 0) {
+            request.mask = line.substr(5);
+        } else if (line.rfind("index=", 0) == 0) {
+            request.index = line.substr(6);
+        } else if (line.rfind("direction=", 0) == 0) {
+            request.direction = line.substr(10);
         } else if (line == "commit=1") {
             request.commit = true;
         } else if (line == "commit=0") {
@@ -486,11 +558,14 @@ public:
                     api_->select_schema && api_->set_option &&
                     api_->get_option && api_->process_key && api_->get_status &&
                     api_->free_status && api_->get_commit &&
-                    api_->free_commit && api_->get_context &&
+                    api_->free_commit && api_->commit_composition &&
+                    api_->clear_composition && api_->get_context &&
                     api_->get_schema_list && api_->free_schema_list &&
                     api_->get_current_schema &&
                     api_->free_context && api_->candidate_list_begin &&
                     api_->candidate_list_next && api_->candidate_list_end &&
+                    api_->get_input && api_->select_candidate_on_current_page &&
+                    api_->candidate_list_from_index && api_->change_page &&
                     api_->destroy_session &&
                     api_->finalize,
                 "profile API table is missing required slots");
@@ -529,6 +604,7 @@ public:
 
     ~YuneRuntime() {
         if (api_ && initialized_) {
+            DestroyAllComposeSessions();
             if (api_->cleanup_all_sessions) {
                 api_->cleanup_all_sessions();
             }
@@ -706,7 +782,311 @@ private:
         api_->set_option(session, "disable_learning", True);
     }
 
+    void ApplyStateToComposeSessions() {
+        for (const auto& entry : compose_sessions_) {
+            ApplyState(entry.second.session_id);
+        }
+    }
+
+    void DestroyAllComposeSessions() {
+        for (const auto& entry : compose_sessions_) {
+            if (entry.second.session_id != 0) {
+                api_->destroy_session(entry.second.session_id);
+            }
+        }
+        compose_sessions_.clear();
+    }
+
+    void GarbageCollectComposeSessions() {
+        const ULONGLONG now = GetTickCount64();
+        for (auto it = compose_sessions_.begin(); it != compose_sessions_.end();) {
+            if (now - it->second.last_used_ms >= kComposeSessionIdleTtlMs) {
+                api_->destroy_session(it->second.session_id);
+                it = compose_sessions_.erase(it);
+            } else {
+                ++it;
+            }
+        }
+    }
+
+    void EnforceComposeSessionCap() {
+        while (compose_sessions_.size() >= kMaxComposeSessions) {
+            auto oldest = compose_sessions_.begin();
+            for (auto it = compose_sessions_.begin(); it != compose_sessions_.end(); ++it) {
+                if (it->second.last_used_ms < oldest->second.last_used_ms) {
+                    oldest = it;
+                }
+            }
+            api_->destroy_session(oldest->second.session_id);
+            compose_sessions_.erase(oldest);
+        }
+    }
+
+    RimeSessionId RequireComposeSession(std::string_view token) {
+        Require(!token.empty(), "missing compose session");
+        GarbageCollectComposeSessions();
+        const auto it = compose_sessions_.find(std::string(token));
+        Require(it != compose_sessions_.end(), "unknown compose session");
+        it->second.last_used_ms = GetTickCount64();
+        return it->second.session_id;
+    }
+
+    std::string NewComposeToken() {
+        std::ostringstream token;
+        token << "session-" << next_compose_session_token_++;
+        return token.str();
+    }
+
+    std::vector<std::string> DrainCommits(RimeSessionId session) {
+        std::vector<std::string> commits;
+        while (true) {
+            RimeCommit commit = {};
+            RIME_STRUCT_INIT(RimeCommit, commit);
+            if (api_->get_commit(session, &commit) != True) {
+                break;
+            }
+            commits.push_back(CStringOrEmpty(commit.text));
+            api_->free_commit(&commit);
+        }
+        return commits;
+    }
+
+    std::string JoinedCommits(const std::vector<std::string>& commits) const {
+        std::string joined;
+        for (const std::string& commit : commits) {
+            joined += commit;
+        }
+        return joined;
+    }
+
+    std::vector<Candidate> CaptureCandidates(RimeSessionId session) {
+        std::vector<Candidate> candidates;
+        RimeCandidateListIterator iterator = {};
+        bool iterator_active = false;
+        try {
+            if (api_->candidate_list_from_index(session, &iterator, 0) == True) {
+                iterator_active = true;
+                while (static_cast<int>(candidates.size()) < kMaxReturnedCandidates &&
+                       api_->candidate_list_next(&iterator) == True) {
+                    candidates.push_back(
+                        CandidateFromRimeCandidate(iterator.candidate));
+                }
+                api_->candidate_list_end(&iterator);
+                iterator_active = false;
+            }
+            return candidates;
+        } catch (...) {
+            if (iterator_active) {
+                api_->candidate_list_end(&iterator);
+            }
+            throw;
+        }
+    }
+
+    CompositionSnapshot CaptureCompositionSnapshot(RimeSessionId session) {
+        CompositionSnapshot snapshot;
+        snapshot.schema_id = state_.schema_id;
+        snapshot.raw_input = CStringOrEmpty(api_->get_input(session));
+
+        RimeStatus status = {};
+        bool status_active = false;
+        RimeContext context = {};
+        bool context_active = false;
+        try {
+            RIME_STRUCT_INIT(RimeStatus, status);
+            if (api_->get_status(session, &status) == True) {
+                status_active = true;
+                snapshot.schema_id = CStringOrEmpty(status.schema_id);
+                api_->free_status(&status);
+                status_active = false;
+            }
+
+            RIME_STRUCT_INIT(RimeContext, context);
+            if (api_->get_context(session, &context) == True) {
+                context_active = true;
+                snapshot.length = context.composition.length;
+                snapshot.cursor_pos = context.composition.cursor_pos;
+                snapshot.sel_start = context.composition.sel_start;
+                snapshot.sel_end = context.composition.sel_end;
+                snapshot.preedit = CStringOrEmpty(context.composition.preedit);
+                snapshot.candidates = CaptureCandidates(session);
+                if (snapshot.candidates.empty() && context.menu.candidates != nullptr) {
+                    for (int i = 0; i < context.menu.num_candidates &&
+                                    static_cast<int>(snapshot.candidates.size()) <
+                                        kMaxReturnedCandidates;
+                         ++i) {
+                        snapshot.candidates.push_back(CandidateFromRimeCandidate(
+                            context.menu.candidates[i]));
+                    }
+                }
+                api_->free_context(&context);
+                context_active = false;
+            }
+            return snapshot;
+        } catch (...) {
+            if (context_active) {
+                api_->free_context(&context);
+            }
+            if (status_active) {
+                api_->free_status(&status);
+            }
+            throw;
+        }
+    }
+
+    void WriteCandidatesJson(std::ostringstream& out,
+                             const std::vector<Candidate>& candidates) const {
+        for (size_t i = 0; i < candidates.size(); ++i) {
+            out << "{\"text\":\"" << JsonEscape(candidates[i].text)
+                << "\",\"comment\":\"" << JsonEscape(candidates[i].comment)
+                << "\"}";
+            if (i + 1 < candidates.size()) {
+                out << ",";
+            }
+        }
+    }
+
+    void WriteCommitsJson(std::ostringstream& out,
+                          const std::vector<std::string>& commits) const {
+        for (size_t i = 0; i < commits.size(); ++i) {
+            out << "\"" << JsonEscape(commits[i]) << "\"";
+            if (i + 1 < commits.size()) {
+                out << ",";
+            }
+        }
+    }
+
+    std::string ComposeResponseJson(std::string_view token,
+                                    RimeSessionId session,
+                                    const std::vector<std::string>& commits,
+                                    int handled = -1) {
+        const CompositionSnapshot snapshot = CaptureCompositionSnapshot(session);
+        const std::string commit_text = JoinedCommits(commits);
+        std::ostringstream out;
+        out << "{\"ready\":true,\"session\":\"" << JsonEscape(token)
+            << "\",\"schema_id\":\"" << JsonEscape(snapshot.schema_id)
+            << "\",\"state\":" << StateJson()
+            << ",\"raw_input\":\"" << JsonEscape(snapshot.raw_input)
+            << "\",\"composition\":{\"length\":" << snapshot.length
+            << ",\"cursor_pos\":" << snapshot.cursor_pos
+            << ",\"sel_start\":" << snapshot.sel_start
+            << ",\"sel_end\":" << snapshot.sel_end
+            << ",\"preedit\":\"" << JsonEscape(snapshot.preedit) << "\"}"
+            << ",\"candidate_count\":" << snapshot.candidates.size()
+            << ",\"commit_text\":\"" << JsonEscape(commit_text)
+            << "\",\"commits\":[";
+        WriteCommitsJson(out, commits);
+        out << "],\"candidates\":[";
+        WriteCandidatesJson(out, snapshot.candidates);
+        out << "]";
+        if (handled >= 0) {
+            out << ",\"handled\":" << (handled ? "true" : "false");
+        }
+        out << "}\n";
+        return out.str();
+    }
+
+    std::string ComposeEndedResponseJson(std::string_view token) const {
+        std::ostringstream out;
+        out << "{\"ready\":true,\"session\":\"" << JsonEscape(token)
+            << "\",\"ended\":true,\"state\":" << StateJson() << "}\n";
+        return out.str();
+    }
+
+    std::string BeginComposeSession() {
+        GarbageCollectComposeSessions();
+        EnforceComposeSessionCap();
+        const RimeSessionId session = api_->create_session();
+        Require(session != 0, "failed to create compose session");
+        bool session_owned = true;
+        try {
+            ApplyState(session);
+            const std::string token = NewComposeToken();
+            compose_sessions_[token] =
+                ComposeSession{session, GetTickCount64()};
+            session_owned = false;
+            return ComposeResponseJson(token, session, {});
+        } catch (...) {
+            if (session_owned) {
+                api_->destroy_session(session);
+            }
+            throw;
+        }
+    }
+
+    std::string ProcessComposeOperation(const Request& request) {
+        if (request.op == "compose-begin") {
+            return BeginComposeSession();
+        }
+        if (request.op == "compose-end") {
+            Require(!request.session.empty(), "missing compose session");
+            GarbageCollectComposeSessions();
+            const auto it = compose_sessions_.find(request.session);
+            Require(it != compose_sessions_.end(), "unknown compose session");
+            api_->destroy_session(it->second.session_id);
+            compose_sessions_.erase(it);
+            return ComposeEndedResponseJson(request.session);
+        }
+
+        const RimeSessionId session = RequireComposeSession(request.session);
+        if (request.op == "compose-key") {
+            const int keycode = ParseProtocolKeyCode(request.key);
+            const int mask =
+                request.mask.empty() ? 0 : ParseProtocolInt(request.mask, "invalid mask");
+            const Bool handled = api_->process_key(session, keycode, mask);
+            std::vector<std::string> commits = DrainCommits(session);
+            return ComposeResponseJson(request.session, session, commits,
+                                       handled == True ? 1 : 0);
+        }
+        if (request.op == "compose-select") {
+            const int index =
+                ParseNonNegativeProtocolInt(request.index, "invalid candidate index");
+            Require(api_->select_candidate_on_current_page(
+                        session, static_cast<size_t>(index)) == True,
+                    "failed to select candidate");
+            std::vector<std::string> commits = DrainCommits(session);
+            return ComposeResponseJson(request.session, session, commits);
+        }
+        if (request.op == "compose-back") {
+            constexpr int kBackspaceKey = 0xff08;
+            const Bool handled = api_->process_key(session, kBackspaceKey, 0);
+            std::vector<std::string> commits = DrainCommits(session);
+            return ComposeResponseJson(request.session, session, commits,
+                                       handled == True ? 1 : 0);
+        }
+        if (request.op == "compose-page") {
+            const bool backward = ParsePageBackward(request.direction);
+            const Bool handled = api_->change_page(session, ToRimeBool(backward));
+            std::vector<std::string> commits = DrainCommits(session);
+            return ComposeResponseJson(request.session, session, commits,
+                                       handled == True ? 1 : 0);
+        }
+        if (request.op == "compose-commit") {
+            Require(api_->commit_composition(session) == True,
+                    "failed to commit composition");
+            std::vector<std::string> commits = DrainCommits(session);
+            return ComposeResponseJson(request.session, session, commits);
+        }
+        if (request.op == "compose-commit-raw") {
+            const std::string raw_input = CStringOrEmpty(api_->get_input(session));
+            api_->clear_composition(session);
+            std::vector<std::string> commits;
+            if (!raw_input.empty()) {
+                commits.push_back(raw_input);
+            }
+            return ComposeResponseJson(request.session, session, commits);
+        }
+        if (request.op == "compose-cancel") {
+            api_->clear_composition(session);
+            return ComposeResponseJson(request.session, session, {});
+        }
+        throw std::runtime_error("unknown op verb");
+    }
+
     std::string ProcessOperation(const Request& request) {
+        if (request.op.rfind("compose-", 0) == 0) {
+            return ProcessComposeOperation(request);
+        }
         if (request.op == "get-state") {
             return StateResponseJson();
         }
@@ -725,6 +1105,7 @@ private:
             } else {
                 throw std::runtime_error("unknown option name");
             }
+            ApplyStateToComposeSessions();
             PersistState();
             return StateResponseJson();
         }
@@ -732,6 +1113,7 @@ private:
             Require(!request.schema.empty(), "missing schema id");
             Require(SchemaExists(request.schema), "unknown schema id");
             state_.schema_id = request.schema;
+            ApplyStateToComposeSessions();
             PersistState();
             return StateResponseJson();
         }
@@ -847,6 +1229,8 @@ private:
     std::string staging_dir_;
     std::filesystem::path state_file_;
     YuneState state_;
+    std::map<std::string, ComposeSession> compose_sessions_;
+    unsigned long long next_compose_session_token_ = 1;
     bool initialized_ = false;
 };
 

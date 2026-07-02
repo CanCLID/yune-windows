@@ -16,12 +16,35 @@ $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 function Write-YuneWindowsDevResponse {
     param([Parameter(Mandatory = $true)]$Response)
 
+    if (($Response.PSObject.Properties.Name -contains "ready") -and
+        ([bool]$Response.ready -eq $false)) {
+        Write-Host "ready: false"
+        if ($Response.PSObject.Properties.Name -contains "error") {
+            Write-Host "error: $($Response.error)"
+        }
+    }
     if ($Response.PSObject.Properties.Name -contains "state") {
         $State = $Response.state
         Write-Host "state: schema=$($State.schema_id) ascii_mode=$($State.ascii_mode) full_shape=$($State.full_shape) output_standard=$($State.output_standard)"
     }
+    if ($Response.PSObject.Properties.Name -contains "session") {
+        Write-Host "session: $($Response.session)"
+    }
+    if ($Response.PSObject.Properties.Name -contains "ended") {
+        Write-Host "ended: $($Response.ended)"
+    }
     if ($Response.PSObject.Properties.Name -contains "schema_id") {
         Write-Host "schema_id: $($Response.schema_id)"
+    }
+    if ($Response.PSObject.Properties.Name -contains "handled") {
+        Write-Host "handled: $($Response.handled)"
+    }
+    if ($Response.PSObject.Properties.Name -contains "raw_input") {
+        Write-Host "raw_input: $($Response.raw_input)"
+    }
+    if (($Response.PSObject.Properties.Name -contains "composition") -and
+        ($null -ne $Response.composition)) {
+        Write-Host "preedit: $($Response.composition.preedit)"
     }
     if ($Response.PSObject.Properties.Name -contains "candidate_count") {
         Write-Host "candidate_count: $($Response.candidate_count)"
@@ -38,7 +61,7 @@ function Write-YuneWindowsDevResponse {
     }
 
     if ($Response.PSObject.Properties.Name -contains "candidates") {
-        $Index = 1
+        $Index = 0
         foreach ($Candidate in @($Response.candidates)) {
             if ($null -eq $Candidate -or
                 [string]::IsNullOrWhiteSpace([string]$Candidate.text)) {
@@ -57,7 +80,10 @@ function Write-YuneWindowsDevResponse {
 }
 
 function Convert-YuneWindowsDevReplCommandToPayload {
-    param([Parameter(Mandatory = $true)][string]$Line)
+    param(
+        [Parameter(Mandatory = $true)][string]$Line,
+        [string]$ComposeSession = ""
+    )
 
     $Trimmed = $Line.Trim()
     if ($Trimmed -eq ":state") {
@@ -78,7 +104,78 @@ function Convert-YuneWindowsDevReplCommandToPayload {
     if ($Trimmed -match '^:schema\s+(.+)$') {
         return "op=select-schema`nschema=$($Matches[1].Trim())`n.`n"
     }
+    if ($Trimmed -eq ":compose-begin") {
+        return "op=compose-begin`n.`n"
+    }
+    if ($Trimmed -match '^:compose-key\s+(.+)$') {
+        if ([string]::IsNullOrWhiteSpace($ComposeSession)) {
+            throw "run :compose-begin before :compose-key"
+        }
+        return "op=compose-key`nsession=$ComposeSession`nkey=$($Matches[1].Trim())`nmask=0`n.`n"
+    }
+    if ($Trimmed -match '^:compose-select\s+(\d+)$') {
+        if ([string]::IsNullOrWhiteSpace($ComposeSession)) {
+            throw "run :compose-begin before :compose-select"
+        }
+        return "op=compose-select`nsession=$ComposeSession`nindex=$($Matches[1])`n.`n"
+    }
+    if ($Trimmed -eq ":compose-back") {
+        if ([string]::IsNullOrWhiteSpace($ComposeSession)) {
+            throw "run :compose-begin before :compose-back"
+        }
+        return "op=compose-back`nsession=$ComposeSession`n.`n"
+    }
+    if ($Trimmed -match '^:compose-page\s+(next|forward|down|prev|previous|back|backward|up)$') {
+        if ([string]::IsNullOrWhiteSpace($ComposeSession)) {
+            throw "run :compose-begin before :compose-page"
+        }
+        return "op=compose-page`nsession=$ComposeSession`ndirection=$($Matches[1])`n.`n"
+    }
+    if ($Trimmed -eq ":compose-cancel") {
+        if ([string]::IsNullOrWhiteSpace($ComposeSession)) {
+            throw "run :compose-begin before :compose-cancel"
+        }
+        return "op=compose-cancel`nsession=$ComposeSession`n.`n"
+    }
+    if ($Trimmed -eq ":compose-commit") {
+        if ([string]::IsNullOrWhiteSpace($ComposeSession)) {
+            throw "run :compose-begin before :compose-commit"
+        }
+        return "op=compose-commit`nsession=$ComposeSession`n.`n"
+    }
+    if ($Trimmed -eq ":compose-commit-raw") {
+        if ([string]::IsNullOrWhiteSpace($ComposeSession)) {
+            throw "run :compose-begin before :compose-commit-raw"
+        }
+        return "op=compose-commit-raw`nsession=$ComposeSession`n.`n"
+    }
+    if ($Trimmed -eq ":compose-end") {
+        if ([string]::IsNullOrWhiteSpace($ComposeSession)) {
+            throw "run :compose-begin before :compose-end"
+        }
+        return "op=compose-end`nsession=$ComposeSession`n.`n"
+    }
     return ""
+}
+
+function Get-YuneWindowsDevUpdatedComposeSession {
+    param(
+        [string]$CurrentSession,
+        [Parameter(Mandatory = $true)]$Response
+    )
+
+    if (($Response.PSObject.Properties.Name -contains "ended") -and
+        ([bool]$Response.ended)) {
+        return ""
+    }
+    if (($Response.PSObject.Properties.Name -contains "ready") -and
+        ([bool]$Response.ready -eq $false)) {
+        return $CurrentSession
+    }
+    if ($Response.PSObject.Properties.Name -contains "session") {
+        return [string]$Response.session
+    }
+    return $CurrentSession
 }
 
 function New-YuneWindowsDevReplPipeName {
@@ -120,18 +217,24 @@ try {
         -UserDir $UserDir `
         -PipeName $PipeName
     Write-Host "Started dev server PID $($ServerProcess.Id) on $PipeName"
+    $ComposeSession = ""
 
     if ($Once) {
         if ([string]::IsNullOrWhiteSpace($InputText)) {
             throw "-InputText is required with -Once"
         }
-        $StatePayload = Convert-YuneWindowsDevReplCommandToPayload -Line $InputText
+        $StatePayload = Convert-YuneWindowsDevReplCommandToPayload `
+            -Line $InputText `
+            -ComposeSession $ComposeSession
         if (-not [string]::IsNullOrWhiteSpace($StatePayload)) {
             $Response = Invoke-YuneWindowsDevServerRawRequest `
                 -PipeName $PipeName `
                 -Payload $StatePayload `
                 -Process $ServerProcess `
                 -TimeoutMs $TimeoutMs
+            $ComposeSession = Get-YuneWindowsDevUpdatedComposeSession `
+                -CurrentSession $ComposeSession `
+                -Response $Response
         }
         else {
             $Response = Invoke-YuneWindowsDevServerRequest `
@@ -145,7 +248,7 @@ try {
         return
     }
 
-    Write-Host "Enter jyutping, :commit <input>, :state, :schemas, :ascii <0|1>, :full-shape <0|1>, :standard <id>, :schema <id>, or :quit."
+    Write-Host "Enter jyutping, :commit <input>, :state, :schemas, :ascii <0|1>, :full-shape <0|1>, :standard <id>, :schema <id>, :compose-begin, :compose-type <input>, :compose-key <key>, :compose-select <0-based-index>, :compose-back, :compose-page <next|prev>, :compose-cancel, :compose-commit, :compose-commit-raw, :compose-end, or :quit."
     while ($true) {
         $Line = Read-Host "yune-dev"
         if ($null -eq $Line) {
@@ -158,13 +261,39 @@ try {
             continue
         }
 
-        $StatePayload = Convert-YuneWindowsDevReplCommandToPayload -Line $Line
+        if ($Line.Trim() -match '^:compose-type\s+(.+)$') {
+            if ([string]::IsNullOrWhiteSpace($ComposeSession)) {
+                Write-Warning "run :compose-begin before :compose-type"
+                continue
+            }
+            $Response = $null
+            foreach ($Char in $Matches[1].ToCharArray()) {
+                $Payload = "op=compose-key`nsession=$ComposeSession`nkey=$Char`nmask=0`n.`n"
+                $Response = Invoke-YuneWindowsDevServerRawRequest `
+                    -PipeName $PipeName `
+                    -Payload $Payload `
+                    -Process $ServerProcess `
+                    -TimeoutMs $TimeoutMs
+                $ComposeSession = Get-YuneWindowsDevUpdatedComposeSession `
+                    -CurrentSession $ComposeSession `
+                    -Response $Response
+            }
+            Write-YuneWindowsDevResponse -Response $Response
+            continue
+        }
+
+        $StatePayload = Convert-YuneWindowsDevReplCommandToPayload `
+            -Line $Line `
+            -ComposeSession $ComposeSession
         if (-not [string]::IsNullOrWhiteSpace($StatePayload)) {
             $Response = Invoke-YuneWindowsDevServerRawRequest `
                 -PipeName $PipeName `
                 -Payload $StatePayload `
                 -Process $ServerProcess `
                 -TimeoutMs $TimeoutMs
+            $ComposeSession = Get-YuneWindowsDevUpdatedComposeSession `
+                -CurrentSession $ComposeSession `
+                -Response $Response
             Write-YuneWindowsDevResponse -Response $Response
             continue
         }

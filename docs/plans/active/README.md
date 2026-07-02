@@ -8,8 +8,9 @@
 - `m07-plan-persistent-composition-selection.md` — **next.** Persistent per-client
   Rime session + inline `ITfComposition` + Rime-driven candidate selection so
   multi-syllable words can be composed by picking characters one at a time
-  (`dungdatkyut` → 東突厥). Fixes F3; no Yune ABI change. Starts once M06 lands
-  (server side can proceed in parallel).
+  (`dungdatkyut` → 東突厥), and the input is shown inline at the caret while
+  composing. Fixes F3 + F4; no Yune ABI change. Starts once M06 lands (server side
+  can proceed in parallel).
 
 M01 through M05 have moved to `docs/plans/history/`. See
 `docs/roadmap.md` for candidate next milestones.

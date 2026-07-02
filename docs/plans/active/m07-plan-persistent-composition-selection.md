@@ -10,12 +10,24 @@ multi-syllable input that is not a single lexicon entry (e.g. `dungdatkyut` →
 東突厥) and picking the characters one at a time (東, then 突, then 厥) — with the
 composition *advancing* through the input instead of committing the first
 candidate and discarding the rest. This is the core "compose a phrase from parts"
-capability every IME has.
+capability every IME has. It also makes the **input visible inline at the caret**
+while composing (the preedit, e.g. `cak si`), matching yune-web — today the host
+field shows nothing until commit.
 
-**The bug this fixes (F3):** picking a candidate for a partial input commits only
-that candidate and clears the whole buffer, throwing away the remaining syllables.
-Root cause is architectural: selection never goes through Rime, and there is no
-composition state with a lifetime longer than one keystroke.
+**The bugs this fixes (F3 + F4):**
+- **F3 — selection does not advance the composition.** Picking a candidate for a
+  partial input commits only that candidate and clears the whole buffer, throwing
+  away the remaining syllables.
+- **F4 — the input is not shown inline at the caret.** While composing, the typed
+  romanization (`caksi`) is displayed **nowhere** in the host app — the field stays
+  empty and only the floating candidate list appears — whereas yune-web shows the
+  preedit (`cak si`) inline at the cursor. The caret should show exactly what was
+  typed.
+
+Both share one architectural root cause: there is no inline `ITfComposition`, and
+no composition state with a lifetime longer than one keystroke — selection never
+goes through Rime, and the preedit is never rendered at the caret. F3 is the
+*selection* half and F4 is the *display* half of the same missing feature.
 
 **Architecture change:** move from the current **stateless per-keystroke** model
 (server replays the whole buffer and destroys the session each call; the DLL fakes
@@ -52,11 +64,15 @@ Iterate via the M03 dev loop.
   list (`:481-496`) does not yet include the selection/`candidate_list_from_index`
   slots (they must be added).
 - **The DLL has no real composition and fakes selection.** There is no
-  `ITfComposition`; the typed romanization lives only in `buffer_` and is shown by
-  the native candidate window. Pressing a number to "select" a candidate takes
-  `last_candidates_[index].text`, inserts it via `InsertTextEditSession`, and
-  clears `buffer_`/candidates (`src/tsf/yune_windows_tsf.cpp:1224-1243`). Nothing
-  is routed to Rime, so a partial selection cannot advance the composition.
+  `ITfComposition`; the typed romanization lives only in `buffer_` and is rendered
+  **nowhere inline** in the host app — the composing field stays empty (F4). The
+  native candidate window carries only the candidate list: `CandidateWindowState`
+  (`src/candidate_window/yune_windows_candidate_window.h:18-26`) has no input /
+  preedit field, so it cannot show what was typed either. Pressing a number to
+  "select" a candidate takes `last_candidates_[index].text`, inserts it via
+  `InsertTextEditSession`, and clears `buffer_`/candidates
+  (`src/tsf/yune_windows_tsf.cpp:1224-1243`). Nothing is routed to Rime, so a
+  partial selection cannot advance the composition (F3).
 - **The pipe is one request/response per connection.** `ServeOnce`
   (`src/server/yune_windows_server.cpp`) accepts one client, reads one request,
   writes one response, disconnects. Persistent composition therefore needs a
@@ -192,7 +208,9 @@ model with a real composition).
 - Typing `dungdatkyut` and selecting 東, then 突, then 厥 composes 東突厥 — the
   composition **advances** through the input (does not clear after the first pick)
   — and the final result is committed as the full phrase.
-- Rime's preedit is shown inline via `ITfComposition`; text reaches the host app
+- **(F4)** While composing, the input romanization is shown **inline at the caret**
+  via `ITfComposition` (Rime's preedit, e.g. `cak si`) — parity with yune-web — not
+  an empty field with only a floating candidate list. Text reaches the host app
   only on Rime commit; single-word commit, phrase commit, punctuation, paging, and
   the M05/M06 toggles all still work.
 - The server holds a persistent per-client session with bounded lifetime, survives

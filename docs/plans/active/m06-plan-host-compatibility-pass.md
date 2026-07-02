@@ -200,12 +200,27 @@ append new user-reported blockers here as they come in.
     digits fall through to the `IsPunctuationKey` check.
   - Keep ascii-mode passthrough intact: in ascii mode with an empty buffer,
     shifted punctuation and digits still pass through as half-width.
+  - **Paging keys are unshifted-only.** The `-`/`=` candidate-paging block
+    (`OnKeyDown`, `VK_OEM_MINUS`/`VK_OEM_PLUS`, `src/tsf/yune_windows_tsf.cpp:1216`)
+    must match only the **unshifted** keys, so Shift+`-` / Shift+`=` reach the
+    punctuation path (forwarding `_` / `+`) instead of being swallowed as
+    page-prev/next while composing. Mid-composition, treat them like composing
+    punctuation (commit the current candidate first, then insert).
+- **This is what the "Shift+= → =" / "no ——" report was.** Forwarding the shifted
+  char is the whole fix: the deployed `default.yaml` punctuator already maps input
+  `_` → `——`, `+` → `＋` (first candidate), and `=` → `＝` (see
+  `../yune/apps/yune-web/public/schema/build/default.yaml:185-193`; the Windows
+  server deploys the same `default.yaml`). So Shift+= must forward `+` (→ `＋`, not
+  `=`) and Shift+- must forward `_` (→ `——`). **No schema change needed** — this is
+  purely the Windows-side shift-awareness bug; the Chinese-keyboard glyphs come
+  from Rime, matching yune-web.
 - **Verify:** in Chinese mode, Shift+/ → ？, Shift+1 → ！, Shift+; → ：,
-  Shift+' → ＂, and `,`/`.`/`\` produce their Rime-mapped full-width forms;
-  Shift+letter still types a capital and does **not** toggle 中/英; English mode
-  still yields half-width. Add a source/behavior contract asserting
-  `PunctuationInput` is shift-differentiated (OEM_2 shifted ≠ unshifted; a digit
-  is empty unshifted and non-empty shifted).
+  Shift+' → ＂, **Shift+= → ＋** (not `=`), **Shift+- → ——**, and `,`/`.`/`\`
+  produce their Rime-mapped full-width forms; Shift+letter still types a capital and
+  does **not** toggle 中/英; English mode still yields half-width. `-`/`=` still page
+  candidates while composing (unshifted). Add a source/behavior contract asserting
+  `PunctuationInput` is shift-differentiated (OEM_2 and OEM_PLUS shifted ≠ unshifted;
+  a digit is empty unshifted and non-empty shifted).
 - **Layout note:** this preserves the existing hard-coded **US-layout** assumption.
   A layout-correct derivation via `ToUnicodeEx` is a possible follow-up but carries
   dead-key / `OnTestKeyDown` side-effect risk; out of scope unless a non-US layout
@@ -430,7 +445,9 @@ a reboot per bug.
 ### Task 3: Slice C — triage + fixes
 - [ ] **F1 (Shift+punctuation):** make `PunctuationInput`/`IsPunctuationKey`
   shift-aware, thread shift through the key handlers, add the digit-row shifted
-  symbols, add the shift-differentiation contract; re-verify Shift+/ → ？ etc.
+  symbols, make the `-`/`=` paging block unshifted-only (so Shift+=/Shift+- reach
+  punctuation), add the shift-differentiation contract; re-verify Shift+/ → ？,
+  Shift+= → ＋, Shift+- → ——.
 - [ ] **F2a (server resilience):** the serve loop catches per-request / pipe-I/O
   failures and continues; a client timeout/disconnect no longer kills the server;
   add the server-survives-disconnect contract.
@@ -481,9 +498,10 @@ a reboot per bug.
   with a recorded reason.
 - Every **folded-in typing-blocker fix** (F1, F2, and any later Fn) is
   implemented, has a contract, and is live-verified:
-  - **F1:** in Chinese mode Shift+/ → ？, Shift+1 → ！, and the other shifted
-    symbols map correctly, with Shift+letter still capitalizing and English mode
-    still half-width.
+  - **F1:** in Chinese mode Shift+/ → ？, Shift+1 → ！, **Shift+= → ＋** (not `=`),
+    **Shift+- → ——**, and the other shifted symbols map correctly; `-`/`=` still
+    page candidates while composing (unshifted); Shift+letter still capitalizes and
+    English mode stays half-width.
   - **F2:** a client timeout/disconnect no longer kills the server (it answers the
     next request), and toggling En→Cn after an English stretch does not hard-freeze
     the foreground app. Full broker/autostart stays deferred.

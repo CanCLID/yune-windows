@@ -96,8 +96,21 @@ foreach ($Required in @(
 $KeyUpBody = [regex]::Match(
     $Source,
     'STDMETHODIMP OnKeyUp\(ITfContext\* context, WPARAM key, LPARAM, BOOL\* eaten\) override \{(?s:.*?)\n    \}').Value
-if ($KeyUpBody -notmatch 'TryAcquireLoneShiftToggle\(\)') {
-    throw "F5 OnKeyUp must use the shared double-toggle guard."
+if ($KeyUpBody -notmatch 'PerformLoneShiftToggle\(context\)') {
+    throw "F5 OnKeyUp must route the lone-Shift toggle through PerformLoneShiftToggle."
+}
+
+# The double-toggle guard must live in the single toggle entry point, and it must
+# be acquired only after the not-focused early-out so a no-op path cannot spend
+# the guard and suppress a real toggle.
+$PerformBody = [regex]::Match(
+    $Source,
+    'void PerformLoneShiftToggle\(ITfContext\* context\) \{(?s:.*?)\n    \}').Value
+if ($PerformBody -notmatch 'TryAcquireLoneShiftToggle\(\)') {
+    throw "F5 PerformLoneShiftToggle must use the shared double-toggle guard."
+}
+if ($PerformBody -notmatch '(?s)!focused_(?:.*?)TryAcquireLoneShiftToggle\(\)') {
+    throw "F5 PerformLoneShiftToggle must check focus before spending the toggle guard."
 }
 
 Write-Host "M06 key-path source contract covers F1/F2b/F5/F6."

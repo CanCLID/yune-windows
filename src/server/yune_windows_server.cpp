@@ -1273,23 +1273,60 @@ private:
 // so a persistently failing path cannot spin the CPU at 100%.
 constexpr DWORD kServeRequestErrorBackoffMs = 50;
 
-// Grant the IME pipe to every process in the interactive logon session, at any
-// integrity level, so sandboxed hosts can reach the server: IU (interactive
-// users) covers normal apps at any IL; AC (all application packages) covers
-// AppContainer/UWP hosts (e.g. Chrome renderers); the Low mandatory label lets
-// lower-integrity clients past the default No-Write-Up policy. Without this the
-// default descriptor only admits the server creator's own token, so hosts like
-// Chrome, Telegram, Zed, and Explorer get ERROR_ACCESS_DENIED and typing
-// produces no output. The descriptor still excludes other users on the machine.
-// Returns nullptr sd + false on failure; the caller then falls back to default.
-constexpr const wchar_t* kPipeSecuritySddl =
+// Grant the IME pipe to the current user's own processes at any integrity level
+// (including sandboxed AppContainer hosts such as Chrome renderers), and to no
+// other user. The current user's SID covers normal same-user apps at any IL; AC
+// (all application packages) covers AppContainer/UWP tokens whose user SID is
+// restricted; the Low mandatory label lets lower-integrity clients past the
+// default No-Write-Up policy. Without an explicit descriptor the pipe uses the
+// default, which admits only the server creator's own token, so sandboxed or
+// differently-scoped host processes get ERROR_ACCESS_DENIED and typing produces
+// no output. Scoping to the current user's SID (rather than the broad IU =
+// interactive-users alias) keeps other machine users -- interactive or not --
+// off this user's IME pipe. If the SID cannot be resolved we fall back to the
+// interactive-users grant so the server still admits sandboxed hosts.
+constexpr const wchar_t* kPipeSecurityFallbackSddl =
     L"D:(A;;GRGW;;;IU)(A;;GRGW;;;AC)S:(ML;;NW;;;LW)";
+
+std::wstring CurrentUserSidString() {
+    HANDLE token = nullptr;
+    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &token)) {
+        return {};
+    }
+    std::wstring result;
+    DWORD needed = 0;
+    GetTokenInformation(token, TokenUser, nullptr, 0, &needed);
+    if (needed > 0) {
+        std::vector<unsigned char> buffer(needed);
+        if (GetTokenInformation(token, TokenUser, buffer.data(), needed,
+                                &needed)) {
+            const auto* user =
+                reinterpret_cast<const TOKEN_USER*>(buffer.data());
+            LPWSTR sid_string = nullptr;
+            if (ConvertSidToStringSidW(user->User.Sid, &sid_string)) {
+                result = sid_string;
+                LocalFree(sid_string);
+            }
+        }
+    }
+    CloseHandle(token);
+    return result;
+}
+
+std::wstring PipeSecuritySddl() {
+    const std::wstring user_sid = CurrentUserSidString();
+    if (user_sid.empty()) {
+        return kPipeSecurityFallbackSddl;
+    }
+    return L"D:(A;;GRGW;;;" + user_sid + L")(A;;GRGW;;;AC)S:(ML;;NW;;;LW)";
+}
 
 bool BuildPipeSecurityAttributes(SECURITY_ATTRIBUTES& sa,
                                  PSECURITY_DESCRIPTOR& sd) {
     sd = nullptr;
+    const std::wstring sddl = PipeSecuritySddl();
     if (!ConvertStringSecurityDescriptorToSecurityDescriptorW(
-            kPipeSecuritySddl, SDDL_REVISION_1, &sd, nullptr)) {
+            sddl.c_str(), SDDL_REVISION_1, &sd, nullptr)) {
         return false;
     }
     sa.nLength = sizeof(sa);

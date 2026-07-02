@@ -85,14 +85,20 @@ try {
     if ($Sddl -notmatch '\;\;\;AC\)') {
         throw "pipe DACL does not grant ALL APPLICATION PACKAGES (AC); sandboxed hosts will be denied. SDDL: $Sddl"
     }
-    if ($Sddl -notmatch '\;\;\;IU\)') {
-        throw "pipe DACL does not grant INTERACTIVE USERS (IU). SDDL: $Sddl"
+    # Scoped to the current user's own SID, not the broad interactive-users (IU),
+    # Everyone (WD), or authenticated-users (AU) aliases, so other machine users
+    # cannot reach this user's IME pipe.
+    if ($Sddl -match '\;\;\;IU\)' -or $Sddl -match '\;\;\;WD\)' -or $Sddl -match '\;\;\;AU\)') {
+        throw "pipe DACL is broader than the current user (grants IU/WD/AU). SDDL: $Sddl"
+    }
+    if ($Sddl -notmatch '\;\;\;S-1-5-21-') {
+        throw "pipe DACL does not grant a specific user SID. SDDL: $Sddl"
     }
     if (-not $Ready) {
         throw "server did not answer a normal request with the hardened pipe descriptor"
     }
 
-    Write-Host "Server pipe admits AppContainer (AC) and interactive (IU) clients and still answers. SDDL: $Sddl"
+    Write-Host "Server pipe admits the current user (SID) and AppContainer (AC) clients only, and still answers. SDDL: $Sddl"
 }
 finally {
     if ($Process -and -not $Process.HasExited) {

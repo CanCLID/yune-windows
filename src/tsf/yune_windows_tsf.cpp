@@ -1464,7 +1464,15 @@ public:
                 (void)CommitRawFallback(context, buffer_ + key_text);
                 return S_OK;
             }
-            (void)ApplyComposeResponse(context, response);
+            if (!ApplyComposeResponse(context, response)) {
+                // The server answered but the inline composition could not be
+                // applied in this host (edit session / ITfComposition failed).
+                // Don't leave the key eaten with no output: fall back to the raw
+                // input (which ApplyComposeResponse set from the server) so typing
+                // still produces text instead of silently disappearing.
+                (void)CommitRawFallback(context, buffer_);
+                return S_OK;
+            }
             const int buffer_length = static_cast<int>(buffer_.size());
             const int candidate_count = static_cast<int>(last_candidates_.size());
             WriteStructuralEvent("key_down", buffer_length, candidate_count);

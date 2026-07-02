@@ -36,7 +36,7 @@ foreach ($Required in @(
 
 $PagingBlock = [regex]::Match(
     $Source,
-    'if \(!shift_pressed &&(?s:.*?)key == VK_OEM_MINUS(?s:.*?)key == VK_OEM_PLUS(?s:.*?)PageCandidateWindow\(context, page_delta\);(?s:.*?)return S_OK;').Value
+    'if \(!shift_pressed &&(?s:.*?)key == VK_OEM_MINUS(?s:.*?)key == VK_OEM_PLUS(?s:.*?)PageComposition\(context, page_delta\);(?s:.*?)return S_OK;').Value
 if ([string]::IsNullOrWhiteSpace($PagingBlock) -or
     $PagingBlock -notmatch '!shift_pressed') {
     throw "F1 paging shortcuts for -/= must be unshifted-only so Shift+-/= reach punctuation."
@@ -44,9 +44,11 @@ if ([string]::IsNullOrWhiteSpace($PagingBlock) -or
 
 foreach ($Required in @(
         'bool CommitRawBuffer\(ITfContext\* context\)',
-        'if \(key == VK_RETURN && !buffer_\.empty\(\)\)',
+        'if \(key == VK_RETURN && IsComposing\(\)\)',
         'CommitRawBuffer\(context\)',
-        'if \(key == VK_SPACE && !buffer_\.empty\(\)\)'
+        'if \(key == VK_SPACE && IsComposing\(\)\)',
+        'ComposePayload\("compose-commit-raw"\)',
+        'ComposePayload\("compose-commit"\)'
     )) {
     if ($Source -notmatch $Required) {
         throw "F6 raw Enter contract missing pattern: $Required"

@@ -14,6 +14,9 @@ foreach ($Required in @(
         'STDMETHODIMP OnSetFocus\(BOOL focused\) override',
         'WriteStructuralEvent\("focus_lost"',
         'ClearShiftState\(\)',
+        'ClearCompositionState\(true\)',
+        'EndComposeSession\(notify_server\)',
+        'ClearInlineCompositionText\(\)',
         'candidate_window_\.Hide\(\)'
     )) {
     if ($Source -notmatch $Required) {
@@ -25,11 +28,8 @@ $FocusLossPattern = @'
 if \(!focused\) \{
 (?s:.*?)WriteStructuralEvent\("focus_lost", static_cast<int>\(buffer_\.size\(\)\),
 \s+static_cast<int>\(last_candidates_\.size\(\)\)\);
-\s+buffer_\.clear\(\);
-\s+candidate_\.clear\(\);
-\s+last_candidates_\.clear\(\);
-(?s:.*?)
-\s+candidate_window_\.Hide\(\);
+\s+ClearCompositionState\(true\);
+\s+language_bar_\.Hide\(\);
 \s+\}
 '@
 

@@ -560,6 +560,9 @@ struct ImeState {
 struct ServerResponse {
     bool ok = false;
     ImeState state;
+    std::wstring session;
+    std::wstring raw_input;
+    std::wstring composition_preedit;
     std::wstring commit_text;
     std::vector<std::wstring> schemas;
     std::vector<yune_windows::CandidateWindowCandidate> candidates;
@@ -802,7 +805,12 @@ ServerResponse QueryServerOperation(
             ServerResponse result;
             result.ok = true;
             result.state = JsonImeState(json);
+            result.session = Widen(JsonStringValue(json, "session"));
+            result.raw_input = Widen(JsonStringValue(json, "raw_input"));
+            result.composition_preedit = Widen(JsonStringValue(json, "preedit"));
+            result.commit_text = Widen(JsonStringValue(json, "commit_text"));
             result.schemas = JsonSchemaIds(json);
+            result.candidates = JsonCandidates(json);
             return result;
         }
 
@@ -1044,7 +1052,222 @@ private:
     CandidateAnchorResult* result_;
 };
 
-class TextService final : public ITfTextInputProcessorEx, public ITfKeyEventSink {
+class InlineCompositionEditSession final : public ITfEditSession {
+public:
+    InlineCompositionEditSession(ITfContext* context, ITfCompositionSink* sink,
+                                 ITfComposition** composition,
+                                 ITfRange** range,
+                                 std::wstring commit_text,
+                                 std::wstring preedit)
+        : ref_(1),
+          context_(context),
+          sink_(sink),
+          composition_(composition),
+          range_(range),
+          commit_text_(std::move(commit_text)),
+          preedit_(std::move(preedit)) {
+        if (context_) {
+            context_->AddRef();
+        }
+        if (sink_) {
+            sink_->AddRef();
+        }
+        DllAddRef();
+    }
+
+    ~InlineCompositionEditSession() {
+        if (context_) {
+            context_->Release();
+        }
+        if (sink_) {
+            sink_->Release();
+        }
+        DllRelease();
+    }
+
+    STDMETHODIMP QueryInterface(REFIID iid, void** object) override {
+        if (!object) {
+            return E_INVALIDARG;
+        }
+        *object = nullptr;
+        if (IsEqualIID(iid, IID_IUnknown) || IsEqualIID(iid, IID_ITfEditSession)) {
+            *object = static_cast<ITfEditSession*>(this);
+            AddRef();
+            return S_OK;
+        }
+        return E_NOINTERFACE;
+    }
+
+    STDMETHODIMP_(ULONG) AddRef() override {
+        return static_cast<ULONG>(++ref_);
+    }
+
+    STDMETHODIMP_(ULONG) Release() override {
+        const ULONG count = static_cast<ULONG>(--ref_);
+        if (count == 0) {
+            delete this;
+        }
+        return count;
+    }
+
+    STDMETHODIMP DoEditSession(TfEditCookie cookie) override {
+        if (!context_ || !composition_ || !range_) {
+            return E_FAIL;
+        }
+
+        ITfRange* working_range = nullptr;
+        if (*range_) {
+            working_range = *range_;
+            working_range->AddRef();
+        }
+
+        EndCurrentComposition(cookie);
+
+        const std::wstring replacement = commit_text_ + preedit_;
+        HRESULT replace_hr = S_OK;
+        if (working_range) {
+            replace_hr = working_range->SetText(
+                cookie, 0, replacement.c_str(),
+                static_cast<LONG>(replacement.size()));
+        } else if (!replacement.empty()) {
+            replace_hr = InsertAtSelection(cookie, replacement, &working_range);
+        }
+
+        if (FAILED(replace_hr)) {
+            if (working_range) {
+                working_range->Release();
+            }
+            return replace_hr;
+        }
+
+        if (preedit_.empty()) {
+            SetSelectionToEnd(cookie, working_range);
+            ReplaceRange(nullptr);
+            if (working_range) {
+                working_range->Release();
+            }
+            return S_OK;
+        }
+
+        if (!working_range) {
+            return E_FAIL;
+        }
+
+        ITfRange* preedit_range = nullptr;
+        HRESULT range_hr = working_range->Clone(&preedit_range);
+        if (SUCCEEDED(range_hr) && preedit_range) {
+            range_hr = preedit_range->Collapse(cookie, TF_ANCHOR_END);
+        }
+        if (SUCCEEDED(range_hr) && preedit_range) {
+            LONG shifted = 0;
+            range_hr = preedit_range->ShiftStart(
+                cookie, -static_cast<LONG>(preedit_.size()), &shifted, nullptr);
+        }
+        if (FAILED(range_hr) || !preedit_range) {
+            if (preedit_range) {
+                preedit_range->Release();
+            }
+            working_range->Release();
+            return FAILED(range_hr) ? range_hr : E_FAIL;
+        }
+
+        ITfContextComposition* composition_context = nullptr;
+        HRESULT query_hr = context_->QueryInterface(
+            IID_ITfContextComposition,
+            reinterpret_cast<void**>(&composition_context));
+        if (FAILED(query_hr) || !composition_context) {
+            preedit_range->Release();
+            working_range->Release();
+            return FAILED(query_hr) ? query_hr : E_NOINTERFACE;
+        }
+
+        ITfComposition* new_composition = nullptr;
+        HRESULT start_hr = composition_context->StartComposition(
+            cookie, preedit_range, sink_, &new_composition);
+        composition_context->Release();
+        if (FAILED(start_hr) || !new_composition) {
+            preedit_range->Release();
+            working_range->Release();
+            return FAILED(start_hr) ? start_hr : E_FAIL;
+        }
+
+        ReplaceComposition(new_composition);
+        ReplaceRange(preedit_range);
+        SetSelectionToEnd(cookie, preedit_range);
+        working_range->Release();
+        return S_OK;
+    }
+
+private:
+    HRESULT InsertAtSelection(TfEditCookie cookie,
+                              const std::wstring& text,
+                              ITfRange** range) {
+        ITfInsertAtSelection* insert = nullptr;
+        const HRESULT query_hr =
+            context_->QueryInterface(IID_ITfInsertAtSelection,
+                                     reinterpret_cast<void**>(&insert));
+        if (FAILED(query_hr) || !insert) {
+            return FAILED(query_hr) ? query_hr : E_NOINTERFACE;
+        }
+        const HRESULT insert_hr = insert->InsertTextAtSelection(
+            cookie, 0, text.c_str(), static_cast<LONG>(text.size()), range);
+        insert->Release();
+        return insert_hr;
+    }
+
+    void EndCurrentComposition(TfEditCookie cookie) {
+        if (*composition_) {
+            ITfComposition* current = *composition_;
+            *composition_ = nullptr;
+            (void)current->EndComposition(cookie);
+            current->Release();
+        }
+    }
+
+    void ReplaceComposition(ITfComposition* value) {
+        if (*composition_) {
+            (*composition_)->Release();
+        }
+        *composition_ = value;
+    }
+
+    void ReplaceRange(ITfRange* value) {
+        if (*range_) {
+            (*range_)->Release();
+        }
+        *range_ = value;
+    }
+
+    void SetSelectionToEnd(TfEditCookie cookie, ITfRange* range) {
+        if (!range) {
+            return;
+        }
+        ITfRange* selection_range = nullptr;
+        if (FAILED(range->Clone(&selection_range)) || !selection_range) {
+            return;
+        }
+        if (SUCCEEDED(selection_range->Collapse(cookie, TF_ANCHOR_END))) {
+            TF_SELECTION selection = {};
+            selection.range = selection_range;
+            selection.style.ase = TF_AE_NONE;
+            selection.style.fInterimChar = FALSE;
+            (void)context_->SetSelection(cookie, 1, &selection);
+        }
+        selection_range->Release();
+    }
+
+    std::atomic<long> ref_;
+    ITfContext* context_;
+    ITfCompositionSink* sink_;
+    ITfComposition** composition_;
+    ITfRange** range_;
+    std::wstring commit_text_;
+    std::wstring preedit_;
+};
+
+class TextService final : public ITfTextInputProcessorEx,
+                          public ITfKeyEventSink,
+                          public ITfCompositionSink {
 public:
     TextService() : ref_(1) {
         language_bar_.SetClickHandler(&TextService::LanguageBarClickThunk, this);
@@ -1068,6 +1291,8 @@ public:
             *object = static_cast<ITfTextInputProcessorEx*>(this);
         } else if (IsEqualIID(iid, IID_ITfKeyEventSink)) {
             *object = static_cast<ITfKeyEventSink*>(this);
+        } else if (IsEqualIID(iid, IID_ITfCompositionSink)) {
+            *object = static_cast<ITfCompositionSink*>(this);
         }
         if (*object) {
             AddRef();
@@ -1137,9 +1362,13 @@ public:
     STDMETHODIMP Deactivate() override {
         const bool was_active = thread_mgr_ != nullptr ||
                                 client_id_ != TF_CLIENTID_NULL ||
-                                !buffer_.empty() ||
-                                !candidate_.empty() ||
-                                !last_candidates_.empty();
+                                IsComposing();
+        if (was_active) {
+            WriteStructuralEvent("profile_deactivate",
+                                 static_cast<int>(buffer_.size()),
+                                 static_cast<int>(last_candidates_.size()));
+        }
+        ClearCompositionState(true);
         if (thread_mgr_) {
             ITfKeystrokeMgr* keystroke_mgr = nullptr;
             if (SUCCEEDED(thread_mgr_->QueryInterface(
@@ -1158,16 +1387,6 @@ public:
         focused_ = false;
         RegisterFocusedTextService(nullptr);
         ClearShiftState();
-        if (was_active) {
-            WriteStructuralEvent("profile_deactivate",
-                                 static_cast<int>(buffer_.size()),
-                                 static_cast<int>(last_candidates_.size()));
-        }
-        buffer_.clear();
-        candidate_.clear();
-        last_candidates_.clear();
-        candidate_page_index_ = 0;
-        candidate_window_.Hide();
         language_bar_.Hide();
         return S_OK;
     }
@@ -1179,11 +1398,7 @@ public:
             ClearShiftState();
             WriteStructuralEvent("focus_lost", static_cast<int>(buffer_.size()),
                                  static_cast<int>(last_candidates_.size()));
-            buffer_.clear();
-            candidate_.clear();
-            last_candidates_.clear();
-            candidate_page_index_ = 0;
-            candidate_window_.Hide();
+            ClearCompositionState(true);
             language_bar_.Hide();
         } else {
             focused_ = true;
@@ -1224,67 +1439,46 @@ public:
         }
         if (!shift_pressed &&
             ((key >= L'A' && key <= L'Z') || (key >= L'a' && key <= L'z'))) {
-            buffer_.push_back(LowerAscii(key));
-            ServerResponse response = QueryInput(buffer_, false);
             *eaten = TRUE;
-            if (!response.ok) {
-                candidate_.clear();
-                last_candidates_.clear();
-                candidate_page_index_ = 0;
-                candidate_window_.Hide();
+            if (!EnsureComposeSession(context)) {
+                ClearCompositionState(false);
                 return S_OK;
             }
-            last_candidates_ = response.candidates;
-            candidate_page_index_ = 0;
-            candidate_ = last_candidates_.empty() ? std::wstring{}
-                                                  : last_candidates_[0].text;
+            std::wstring key_text(1, LowerAscii(key));
+            std::string payload = "op=compose-key\nsession=";
+            payload += Narrow(compose_session_);
+            payload += "\nkey=";
+            payload += Narrow(key_text);
+            payload += "\nmask=0\n.\n";
+            ServerResponse response = QueryComposeOperation(payload, context);
+            if (!response.ok) {
+                ClearCompositionState(false);
+                return S_OK;
+            }
+            (void)ApplyComposeResponse(context, response);
             const int buffer_length = static_cast<int>(buffer_.size());
             const int candidate_count = static_cast<int>(last_candidates_.size());
             WriteStructuralEvent("key_down", buffer_length, candidate_count);
-            if (ShowCandidates(context, last_candidates_)) {
-                WriteStructuralEvent("candidate_update", buffer_length,
-                                     candidate_count);
-            }
             return S_OK;
         }
         if (key == VK_BACK) {
-            if (!buffer_.empty()) {
-                buffer_.pop_back();
-                if (buffer_.empty()) {
-                    candidate_.clear();
-                    last_candidates_.clear();
-                    candidate_page_index_ = 0;
-                    WriteStructuralEvent("key_backspace", 0, 0);
-                    candidate_window_.Hide();
-                    *eaten = TRUE;
-                    return S_OK;
-                }
-                ServerResponse response = QueryInput(buffer_, false);
-                if (!response.ok) {
-                    candidate_.clear();
-                    last_candidates_.clear();
-                    candidate_page_index_ = 0;
-                    candidate_window_.Hide();
-                    *eaten = TRUE;
-                    return S_OK;
-                }
-                last_candidates_ = response.candidates;
-                candidate_page_index_ = 0;
-                candidate_ = last_candidates_.empty() ? std::wstring{}
-                                                      : last_candidates_[0].text;
-                const int buffer_length = static_cast<int>(buffer_.size());
-                const int candidate_count =
-                    static_cast<int>(last_candidates_.size());
-                WriteStructuralEvent("key_backspace", buffer_length,
-                                     candidate_count);
-                if (ShowCandidates(context, last_candidates_)) {
-                    WriteStructuralEvent("candidate_update", buffer_length,
-                                         candidate_count);
-                }
+            if (IsComposing()) {
                 *eaten = TRUE;
+                if (compose_session_.empty()) {
+                    ClearCompositionState(false);
+                    return S_OK;
+                }
+                ServerResponse response =
+                    QueryComposeOperation(ComposePayload("compose-back"), context);
+                if (!response.ok) {
+                    ClearCompositionState(false);
+                    return S_OK;
+                }
+                (void)ApplyComposeResponse(context, response);
+                WriteStructuralEvent("key_backspace",
+                                     static_cast<int>(buffer_.size()),
+                                     static_cast<int>(last_candidates_.size()));
             } else {
-                last_candidates_.clear();
-                candidate_page_index_ = 0;
                 candidate_window_.Hide();
             }
             return S_OK;
@@ -1293,79 +1487,77 @@ public:
             WriteStructuralEvent("composition_cancel",
                                  static_cast<int>(buffer_.size()),
                                  static_cast<int>(last_candidates_.size()));
-            buffer_.clear();
-            candidate_.clear();
-            last_candidates_.clear();
-            candidate_page_index_ = 0;
-            candidate_window_.Hide();
+            if (!compose_session_.empty()) {
+                ServerResponse response = QueryComposeOperation(
+                    ComposePayload("compose-cancel"), context);
+                if (response.ok) {
+                    (void)ApplyComposeResponse(context, response);
+                }
+            }
+            ClearCompositionState(true);
             *eaten = TRUE;
             return S_OK;
         }
         if (!shift_pressed &&
             (key == VK_NEXT || key == VK_PRIOR || key == VK_OEM_MINUS ||
-             key == VK_OEM_PLUS) && !buffer_.empty()) {
+             key == VK_OEM_PLUS) && IsComposing()) {
             *eaten = TRUE;
             const int page_delta =
                 (key == VK_NEXT || key == VK_OEM_PLUS) ? 1 : -1;
-            PageCandidateWindow(context, page_delta);
+            PageComposition(context, page_delta);
             return S_OK;
         }
-        if (!shift_pressed && key >= L'1' && key <= L'9' && !buffer_.empty()) {
+        if (!shift_pressed && key >= L'1' && key <= L'9' && IsComposing()) {
             *eaten = TRUE;
-            const size_t index = static_cast<size_t>(
+            const int page_relative_index = static_cast<int>(key - L'1');
+            const int visible_index =
                 yune_windows::CandidatePageStartIndex(candidate_page_index_,
                                                       kCandidatePageSize) +
-                static_cast<int>(key - L'1'));
-            if (index < last_candidates_.size()) {
+                page_relative_index;
+            if (!compose_session_.empty() && visible_index >= 0 &&
+                visible_index < static_cast<int>(last_candidates_.size())) {
                 WriteStructuralEvent("commit_request",
                                      static_cast<int>(buffer_.size()),
                                      static_cast<int>(last_candidates_.size()));
-                if (CommitText(context, last_candidates_[index].text)) {
-                    buffer_.clear();
-                    candidate_.clear();
-                    last_candidates_.clear();
-                    candidate_page_index_ = 0;
-                    candidate_window_.Hide();
+                std::string payload = "op=compose-select\nsession=";
+                payload += Narrow(compose_session_);
+                payload += "\nindex=";
+                payload += std::to_string(page_relative_index);
+                payload += "\n.\n";
+                ServerResponse response = QueryComposeOperation(payload, context);
+                if (!response.ok) {
+                    ClearCompositionState(false);
+                    return S_OK;
                 }
+                (void)ApplyComposeResponse(context, response);
             }
             return S_OK;
         }
         if (IsPunctuationKey(key, shift_pressed)) {
-            const bool was_composing = !buffer_.empty();
+            const bool was_composing = IsComposing();
             if (CommitCompositionForPunctuation(context, key, shift_pressed) ||
                 was_composing) {
                 *eaten = TRUE;
             }
             return S_OK;
         }
-        if (key == VK_RETURN && !buffer_.empty()) {
+        if (key == VK_RETURN && IsComposing()) {
             *eaten = TRUE;
             (void)CommitRawBuffer(context);
             return S_OK;
         }
-        if (key == VK_SPACE && !buffer_.empty()) {
+        if (key == VK_SPACE && IsComposing()) {
             *eaten = TRUE;
-            ServerResponse response = QueryInput(buffer_, true);
+            ServerResponse response =
+                QueryComposeOperation(ComposePayload("compose-commit"), context);
             if (!response.ok) {
-                *eaten = TRUE;
+                ClearCompositionState(false);
                 return S_OK;
             }
-            std::wstring commit = response.commit_text;
-            if (commit.empty()) {
-                commit = candidate_;
-            }
-            if (!commit.empty()) {
-                WriteStructuralEvent("commit_request",
-                                     static_cast<int>(buffer_.size()),
-                                     static_cast<int>(last_candidates_.size()));
-                if (CommitText(context, commit)) {
-                    buffer_.clear();
-                    candidate_.clear();
-                    last_candidates_.clear();
-                    candidate_page_index_ = 0;
-                    candidate_window_.Hide();
-                }
-            }
+            WriteStructuralEvent("commit_request",
+                                 static_cast<int>(buffer_.size()),
+                                 static_cast<int>(last_candidates_.size()));
+            (void)ApplyComposeResponse(context, response);
         }
         return S_OK;
     }
@@ -1415,6 +1607,11 @@ public:
         return S_OK;
     }
 
+    STDMETHODIMP OnCompositionTerminated(TfEditCookie, ITfComposition*) override {
+        ReleaseInlineCompositionRefs();
+        return S_OK;
+    }
+
     void HandleDeferredLoneShiftToggle() {
         if (!focused_) {
             return;
@@ -1451,6 +1648,92 @@ private:
         ServerResponse response = QueryServerOperation(payload, mode, timeout_ms);
         ReconcileState(response, context);
         return response;
+    }
+
+    ServerResponse QueryComposeOperation(const std::string& payload,
+                                         ITfContext* context) {
+        ServerResponse response =
+            QueryOperation(payload, context, RefreshStateMode::ExistingServerOnly,
+                           kServerKeyPathQueryTimeoutMs);
+        if (!response.ok) {
+            RequestSharedServerWarmupAsync();
+        }
+        return response;
+    }
+
+    bool IsComposing() const {
+        return !compose_session_.empty() || !buffer_.empty() ||
+               composition_ != nullptr || !last_candidates_.empty();
+    }
+
+    bool EnsureComposeSession(ITfContext* context) {
+        if (!compose_session_.empty()) {
+            return true;
+        }
+        ServerResponse response =
+            QueryComposeOperation("op=compose-begin\n.\n", context);
+        if (!response.ok || response.session.empty()) {
+            return false;
+        }
+        compose_session_ = response.session;
+        buffer_ = response.raw_input;
+        composition_preedit_ = response.composition_preedit;
+        return true;
+    }
+
+    std::string ComposePayload(const char* op) const {
+        std::string payload = "op=";
+        payload += op;
+        payload += "\nsession=";
+        payload += Narrow(compose_session_);
+        payload += "\n.\n";
+        return payload;
+    }
+
+    bool ApplyComposeResponse(ITfContext* context,
+                              const ServerResponse& response,
+                              bool reset_page = true) {
+        if (!response.ok) {
+            return false;
+        }
+        if (!response.session.empty()) {
+            compose_session_ = response.session;
+        }
+        buffer_ = response.raw_input;
+        composition_preedit_ = response.composition_preedit;
+        last_candidates_ = response.candidates;
+        if (reset_page) {
+            candidate_page_index_ = 0;
+        }
+        candidate_.clear();
+        const int page_start = yune_windows::CandidatePageStartIndex(
+            candidate_page_index_, kCandidatePageSize);
+        if (page_start >= 0 &&
+            page_start < static_cast<int>(last_candidates_.size())) {
+            candidate_ = last_candidates_[static_cast<size_t>(page_start)].text;
+        }
+
+        if (!ApplyInlineComposition(context, response.commit_text,
+                                    composition_preedit_)) {
+            return false;
+        }
+
+        const bool still_composing =
+            !buffer_.empty() || !composition_preedit_.empty() ||
+            !last_candidates_.empty();
+        if (!still_composing) {
+            EndComposeSession(true);
+            ClearCompositionState(false, false);
+            return true;
+        }
+
+        const int buffer_length = static_cast<int>(buffer_.size());
+        const int candidate_count = static_cast<int>(last_candidates_.size());
+        if (ShowCandidates(context, last_candidates_)) {
+            WriteStructuralEvent("candidate_update", buffer_length,
+                                 candidate_count);
+        }
+        return true;
     }
 
     void ReconcileState(const ServerResponse& response, ITfContext* context) {
@@ -1542,12 +1825,111 @@ private:
         (void)language_bar_.Update(bar_state, true);
     }
 
-    void ClearCompositionState() {
+    void ReleaseInlineCompositionRefs() {
+        if (composition_) {
+            composition_->Release();
+            composition_ = nullptr;
+        }
+        if (composition_range_) {
+            composition_range_->Release();
+            composition_range_ = nullptr;
+        }
+        if (composition_context_) {
+            composition_context_->Release();
+            composition_context_ = nullptr;
+        }
+    }
+
+    void RememberCompositionContext(ITfContext* context) {
+        if (composition_context_ == context) {
+            return;
+        }
+        if (composition_context_) {
+            composition_context_->Release();
+            composition_context_ = nullptr;
+        }
+        if (context) {
+            composition_context_ = context;
+            composition_context_->AddRef();
+        }
+    }
+
+    bool ApplyInlineComposition(ITfContext* context,
+                                const std::wstring& commit_text,
+                                const std::wstring& preedit) {
+        if (!context || client_id_ == TF_CLIENTID_NULL) {
+            if (preedit.empty()) {
+                ReleaseInlineCompositionRefs();
+            }
+            return commit_text.empty() && preedit.empty();
+        }
+        InlineCompositionEditSession* session = nullptr;
+        try {
+            session = new (std::nothrow) InlineCompositionEditSession(
+                context, static_cast<ITfCompositionSink*>(this), &composition_,
+                &composition_range_, commit_text, preedit);
+        } catch (...) {
+            return false;
+        }
+        if (!session) {
+            return false;
+        }
+        HRESULT edit_hr = E_FAIL;
+        const HRESULT request_hr =
+            context->RequestEditSession(client_id_, session,
+                                        TF_ES_SYNC | TF_ES_READWRITE, &edit_hr);
+        session->Release();
+        if (FAILED(request_hr) || FAILED(edit_hr)) {
+            WriteStructuralEvent("inline_composition_failed",
+                                 static_cast<int>(preedit.size()));
+            return false;
+        }
+        if (preedit.empty()) {
+            if (composition_context_) {
+                composition_context_->Release();
+                composition_context_ = nullptr;
+            }
+        } else {
+            RememberCompositionContext(context);
+            WriteStructuralEvent("inline_composition_update",
+                                 static_cast<int>(preedit.size()));
+        }
+        return true;
+    }
+
+    void ClearInlineCompositionText() {
+        ITfContext* context = composition_context_;
+        if (context) {
+            context->AddRef();
+            (void)ApplyInlineComposition(context, L"", L"");
+            context->Release();
+        }
+        ReleaseInlineCompositionRefs();
+    }
+
+    void EndComposeSession(bool notify_server) {
+        if (compose_session_.empty()) {
+            return;
+        }
+        if (notify_server) {
+            (void)QueryComposeOperation(ComposePayload("compose-end"),
+                                        composition_context_);
+        }
+        compose_session_.clear();
+    }
+
+    void ClearCompositionState(bool notify_server = true,
+                               bool clear_inline = true) {
+        EndComposeSession(notify_server);
         buffer_.clear();
+        composition_preedit_.clear();
         candidate_.clear();
         last_candidates_.clear();
         candidate_page_index_ = 0;
         candidate_window_.Hide();
+        if (clear_inline) {
+            ClearInlineCompositionText();
+        }
     }
 
     void ClearShiftState() {
@@ -1560,32 +1942,27 @@ private:
     }
 
     bool CommitOrClearCompositionBeforeStateChange(ITfContext* context) {
-        if (buffer_.empty()) {
+        if (!IsComposing()) {
             return true;
         }
 
         const int buffer_length = static_cast<int>(buffer_.size());
         const int candidate_count = static_cast<int>(last_candidates_.size());
         bool committed = false;
-        if (context) {
-            ServerResponse response = QueryInput(buffer_, true);
+        if (context && !compose_session_.empty()) {
+            ServerResponse response =
+                QueryComposeOperation(ComposePayload("compose-commit"), context);
             if (response.ok) {
-                std::wstring commit = response.commit_text;
-                if (commit.empty()) {
-                    commit = candidate_;
-                }
-                if (!commit.empty()) {
-                    WriteStructuralEvent("commit_request", buffer_length,
-                                         candidate_count);
-                    committed = CommitText(context, commit);
-                }
+                WriteStructuralEvent("commit_request", buffer_length,
+                                     candidate_count);
+                committed = ApplyComposeResponse(context, response);
             }
         }
 
         WriteStructuralEvent(committed ? "composition_flush_commit"
                                        : "composition_flush_clear",
                              buffer_length, candidate_count);
-        ClearCompositionState();
+        ClearCompositionState(true);
         return committed;
     }
 
@@ -1691,7 +2068,7 @@ private:
         if (IsShortcutModifierDown()) {
             return false;
         }
-        if (state_.present && state_.ascii_mode && buffer_.empty()) {
+        if (state_.present && state_.ascii_mode && !IsComposing()) {
             if ((key >= L'A' && key <= L'Z') || (key >= L'a' && key <= L'z') ||
                 (key >= L'0' && key <= L'9') || key == VK_SPACE ||
                 key == VK_RETURN || IsPunctuationKey(key, shift_pressed)) {
@@ -1704,10 +2081,10 @@ private:
         }
         if (key == VK_SPACE || key == VK_RETURN || key == VK_BACK ||
             key == VK_ESCAPE || key == VK_NEXT || key == VK_PRIOR) {
-            return !buffer_.empty();
+            return IsComposing();
         }
         if (!shift_pressed && key >= L'1' && key <= L'9') {
-            return !buffer_.empty();
+            return IsComposing();
         }
         if (IsPunctuationKey(key, shift_pressed)) {
             return true;
@@ -1750,22 +2127,24 @@ private:
     }
 
     bool CommitRawBuffer(ITfContext* context) {
-        if (buffer_.empty()) {
+        if (!IsComposing()) {
             return true;
         }
         const int buffer_length = static_cast<int>(buffer_.size());
         const int candidate_count = static_cast<int>(last_candidates_.size());
         WriteStructuralEvent("raw_commit_request", buffer_length,
                              candidate_count);
-        if (!CommitText(context, buffer_)) {
+        if (compose_session_.empty()) {
+            ClearCompositionState(false);
             return false;
         }
-        buffer_.clear();
-        candidate_.clear();
-        last_candidates_.clear();
-        candidate_page_index_ = 0;
-        candidate_window_.Hide();
-        return true;
+        ServerResponse response =
+            QueryComposeOperation(ComposePayload("compose-commit-raw"), context);
+        if (!response.ok) {
+            ClearCompositionState(false);
+            return false;
+        }
+        return ApplyComposeResponse(context, response);
     }
 
     bool CommitCompositionForPunctuation(ITfContext* context, WPARAM key,
@@ -1778,31 +2157,22 @@ private:
         }
 
         bool committed_composition = false;
-        if (!buffer_.empty()) {
-            ServerResponse composition_response = QueryInput(buffer_, true);
+        if (IsComposing()) {
+            ServerResponse composition_response =
+                compose_session_.empty()
+                    ? ServerResponse{}
+                    : QueryComposeOperation(ComposePayload("compose-commit"),
+                                            context);
             if (!composition_response.ok) {
                 return false;
             }
-            std::wstring composition_commit = composition_response.commit_text;
-            if (composition_commit.empty()) {
-                composition_commit = candidate_;
-            }
-            if (composition_commit.empty()) {
-                return false;
-            }
-
             WriteStructuralEvent("commit_request",
                                  static_cast<int>(buffer_.size()),
                                  static_cast<int>(last_candidates_.size()));
-            if (!CommitText(context, composition_commit)) {
+            if (!ApplyComposeResponse(context, composition_response)) {
                 return false;
             }
             committed_composition = true;
-            buffer_.clear();
-            candidate_.clear();
-            last_candidates_.clear();
-            candidate_page_index_ = 0;
-            candidate_window_.Hide();
         }
 
         WriteStructuralEvent("punctuation_commit", 0, 0);
@@ -1813,7 +2183,7 @@ private:
         return committed_composition;
     }
 
-    bool PageCandidateWindow(ITfContext* context, int delta) {
+    bool PageComposition(ITfContext* context, int delta) {
         if (last_candidates_.empty()) {
             candidate_window_.Hide();
             return false;
@@ -1826,17 +2196,25 @@ private:
         if (next_page == candidate_page_index_ || page_count <= 1) {
             return false;
         }
-        candidate_page_index_ = next_page;
-        const int page_start = yune_windows::CandidatePageStartIndex(
-            candidate_page_index_, kCandidatePageSize);
-        if (page_start >= 0 &&
-            page_start < static_cast<int>(last_candidates_.size())) {
-            candidate_ = last_candidates_[static_cast<size_t>(page_start)].text;
+        if (compose_session_.empty()) {
+            return false;
         }
+        std::string payload = "op=compose-page\nsession=";
+        payload += Narrow(compose_session_);
+        payload += "\ndirection=";
+        payload += delta > 0 ? "next" : "prev";
+        payload += "\n.\n";
+        ServerResponse response = QueryComposeOperation(payload, context);
+        if (!response.ok) {
+            ClearCompositionState(false);
+            return false;
+        }
+        candidate_page_index_ = next_page;
+        (void)ApplyComposeResponse(context, response, false);
         WriteStructuralEvent("candidate_page",
                              static_cast<int>(buffer_.size()),
                              static_cast<int>(last_candidates_.size()));
-        return ShowCandidates(context, last_candidates_);
+        return true;
     }
 
     bool ShowCandidates(ITfContext* context,
@@ -1901,10 +2279,15 @@ private:
     std::atomic<long> ref_;
     ITfThreadMgr* thread_mgr_ = nullptr;
     TfClientId client_id_ = TF_CLIENTID_NULL;
+    std::wstring compose_session_;
     std::wstring buffer_;
+    std::wstring composition_preedit_;
     std::wstring candidate_;
     std::vector<yune_windows::CandidateWindowCandidate> last_candidates_;
     int candidate_page_index_ = 0;
+    ITfComposition* composition_ = nullptr;
+    ITfRange* composition_range_ = nullptr;
+    ITfContext* composition_context_ = nullptr;
     ImeState state_;
     bool shift_down_ = false;
     bool shift_consumed_ = false;

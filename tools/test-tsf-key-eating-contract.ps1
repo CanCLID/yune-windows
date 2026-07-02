@@ -10,17 +10,15 @@ if (-not (Test-Path -LiteralPath $TsfSource)) {
 
 $Source = Get-Content -Raw -LiteralPath $TsfSource
 
-$LetterBranchPattern = @'
-if \(!shift_pressed &&
-\s+\(\(key >= L'A' && key <= L'Z'\) \|\| \(key >= L'a' && key <= L'z'\)\)\) \{(?s:.*?)ServerResponse response = QueryInput\(buffer_, false\);
-\s+\*eaten = TRUE;
-(?s:.*?)if \(ShowCandidates\(context, last_candidates_\)\) \{
-\s+WriteStructuralEvent\("candidate_update", buffer_length,
-\s+candidate_count\);
-\s+\}
-'@
-
-if ($Source -notmatch $LetterBranchPattern) {
+$LetterStart = $Source.IndexOf("if (!shift_pressed &&", [System.StringComparison]::Ordinal)
+$EatenIndex = $Source.IndexOf("*eaten = TRUE;", $LetterStart, [System.StringComparison]::Ordinal)
+$EnsureIndex = $Source.IndexOf("EnsureComposeSession(context)", $LetterStart, [System.StringComparison]::Ordinal)
+$ComposeKeyIndex = $Source.IndexOf("op=compose-key", $LetterStart, [System.StringComparison]::Ordinal)
+$QueryIndex = $Source.IndexOf("QueryComposeOperation(payload, context)", $LetterStart, [System.StringComparison]::Ordinal)
+$ApplyIndex = $Source.IndexOf("ApplyComposeResponse(context, response)", $LetterStart, [System.StringComparison]::Ordinal)
+if ($LetterStart -lt 0 -or $EatenIndex -lt $LetterStart -or
+    $EnsureIndex -lt $EatenIndex -or $ComposeKeyIndex -lt $EnsureIndex -or
+    $QueryIndex -lt $ComposeKeyIndex -or $ApplyIndex -lt $QueryIndex) {
     throw "TSF letter-key path must consume composition input after querying Yune so raw ASCII cannot leak before candidates arrive."
 }
 
@@ -64,7 +62,7 @@ if ($Source -notmatch $KeyDownGuardPattern) {
 $CompositionControlPattern = @'
 if \(key == VK_SPACE \|\| key == VK_RETURN \|\| key == VK_BACK \|\|
 \s+key == VK_ESCAPE \|\| key == VK_NEXT \|\| key == VK_PRIOR\) \{
-\s+return !buffer_\.empty\(\);
+\s+return IsComposing\(\);
 \s+\}
 '@
 
@@ -73,9 +71,9 @@ if ($Source -notmatch $CompositionControlPattern) {
 }
 
 $NumberSelectionPattern = @'
-if \(!shift_pressed && key >= L'1' && key <= L'9' && !buffer_\.empty\(\)\) \{
+if \(!shift_pressed && key >= L'1' && key <= L'9' && IsComposing\(\)\) \{
 \s+\*eaten = TRUE;
-(?s:.*?)if \(index < last_candidates_\.size\(\)\) \{
+(?s:.*?)visible_index < static_cast<int>\(last_candidates_\.size\(\)\)
 '@
 
 if ($Source -notmatch $NumberSelectionPattern) {
@@ -83,9 +81,9 @@ if ($Source -notmatch $NumberSelectionPattern) {
 }
 
 $CommitKeyPattern = @'
-if \(key == VK_SPACE && !buffer_\.empty\(\)\) \{
+if \(key == VK_SPACE && IsComposing\(\)\) \{
 \s+\*eaten = TRUE;
-\s+ServerResponse response = QueryInput\(buffer_, true\);
+(?s:.*?)ComposePayload\("compose-commit"\)
 '@
 
 if ($Source -notmatch $CommitKeyPattern) {
@@ -93,7 +91,7 @@ if ($Source -notmatch $CommitKeyPattern) {
 }
 
 $RawEnterPattern = @'
-if \(key == VK_RETURN && !buffer_\.empty\(\)\) \{
+if \(key == VK_RETURN && IsComposing\(\)\) \{
 \s+\*eaten = TRUE;
 \s+\(void\)CommitRawBuffer\(context\);
 '@

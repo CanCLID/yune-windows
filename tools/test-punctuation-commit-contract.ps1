@@ -51,14 +51,11 @@ if ([string]::IsNullOrWhiteSpace($CompositionPunctuationSource)) {
     throw "missing composing punctuation helper"
 }
 foreach ($Required in @(
-        'if \(!buffer_\.empty\(\)\)',
-        'ServerResponse composition_response = QueryInput\(buffer_, true\)',
-        'CommitText\(context,\s*composition_commit\)',
+        'if \(IsComposing\(\)\)',
+        'QueryComposeOperation\(ComposePayload\("compose-commit"\)',
+        'ApplyComposeResponse\(context,\s*composition_response\)',
         'ServerResponse punctuation_response\s*=\s*QueryInput\(PunctuationInput\(key,\s*shift\), true\)',
-        'CommitText\(context,\s*punctuation_response\.commit_text\)',
-        'buffer_\.clear\(\)',
-        'last_candidates_\.clear\(\)',
-        'candidate_page_index_ = 0'
+        'CommitText\(context,\s*punctuation_response\.commit_text\)'
     )) {
     if ($CompositionPunctuationSource -notmatch $Required) {
         throw "composing punctuation helper missing pattern: $Required"
@@ -74,7 +71,7 @@ if ([string]::IsNullOrWhiteSpace($PunctuationBlock)) {
 if ($PunctuationBlock -notmatch 'CommitCompositionForPunctuation\(context,\s*key,\s*shift_pressed\)') {
     throw "punctuation key path should route through the composing punctuation helper"
 }
-if ($PunctuationBlock -notmatch 'const bool was_composing = !buffer_\.empty\(\)') {
+if ($PunctuationBlock -notmatch 'const bool was_composing = IsComposing\(\)') {
     throw "punctuation key path should remember whether composition was active"
 }
 if ($PunctuationBlock -match '\*eaten\s*=\s*TRUE;\s*ServerResponse') {

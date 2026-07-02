@@ -117,7 +117,23 @@ lone-Shift fallback whose callback only posts work back to the focused text
 service. Non-US keyboard-layout derivation, full broker/autostart cold-start
 removal, and sandboxed/AppContainer host support remain later milestones.
 
+### D-14 - Persistent composition is server-session backed
+
+M07 makes the shared server own per-client Rime composition sessions addressed by
+one-shot pipe request tokens. The TSF DLL renders Rime preedit through inline
+`ITfComposition`, routes number-key selection through `compose-select`, treats
+Enter as `compose-commit-raw`, and treats Space as `compose-commit`. The old
+TSF-only fake-selection path is removed. Learning/userdb stays disabled and
+deferred; persistent sessions are the prerequisite architecture, not a decision
+to enable learning.
+
 ## Last Updated
+
+2026-07-02 - M07 persistent composition landed the server-owned `compose-*`
+protocol and TSF inline `ITfComposition` key path, preserving M06 Shift,
+punctuation, raw Enter, and hotkey behavior. Local contracts and
+`docs/evidence/m07/summary.md` are green; M07 remains active until holder-free
+installed-DLL live proof is captured.
 
 2026-07-02 - M06 compatibility relief landed server resilience, async warm-up
 plus capped foreground key-path waits, shifted punctuation forwarding,

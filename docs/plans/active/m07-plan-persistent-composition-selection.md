@@ -1,9 +1,10 @@
 # M07 Persistent Composition and Candidate Selection Implementation Plan
 
-> **Status:** active (next milestone, planned 2026-07-01). Selected after F3 was
-> found to be an architecture gap rather than a small fix. **M06 remains the
-> current focus**; M07 is captured here and starts once M06 lands (or in parallel
-> on the server side, which does not need a DLL swap).
+> **Status:** active, live proof pending. Selected after F3 was found to be an
+> architecture gap rather than a small fix. The server protocol, TSF inline
+> composition key path, contracts, and compact evidence are implemented and
+> pushed. The milestone remains active until holder-free installed-DLL live proof
+> is captured.
 
 **Goal:** make the IME support real incremental composition — typing a
 multi-syllable input that is not a single lexicon entry (e.g. `dungdatkyut` →
@@ -66,22 +67,15 @@ Iterate via the M03 dev loop.
   So the frontend must handle three cases per response — commit + remaining preedit,
   preedit-only advancement, and final commit — and must **not** treat any commit as
   "composition ended."
-- **The Windows server is stateless per keystroke.** `ProcessInput`
-  (`src/server/yune_windows_server.cpp:741-804`) does `create_session` → replay
-  **all** keys from `request.input` → read commit/context → `destroy_session`,
-  every request. It never calls `select_candidate*`, and its `Require()` presence
-  list (`:481-496`) does not yet include the selection/`candidate_list_from_index`
-  slots (they must be added).
-- **The DLL has no real composition and fakes selection.** There is no
-  `ITfComposition`; the typed romanization lives only in `buffer_` and is rendered
-  **nowhere inline** in the host app — the composing field stays empty (F4). The
-  native candidate window carries only the candidate list: `CandidateWindowState`
-  (`src/candidate_window/yune_windows_candidate_window.h:18-26`) has no input /
-  preedit field, so it cannot show what was typed either. Pressing a number to
-  "select" a candidate takes `last_candidates_[index].text`, inserts it via
-  `InsertTextEditSession`, and clears `buffer_`/candidates
-  (`src/tsf/yune_windows_tsf.cpp:1224-1243`). Nothing is routed to Rime, so a
-  partial selection cannot advance the composition (F3).
+- **The Windows server persistent-session protocol is implemented.** The server
+  now owns a bounded token map for `compose-*` requests, applies M05 state with
+  `disable_learning` forced, returns raw input/preedit/candidates/commits, and
+  calls Rime selection/page/edit APIs without changing Yune's default ABI.
+- **The DLL inline composition path is implemented locally.** The TSF DLL now
+  implements `ITfCompositionSink`, starts inline `ITfComposition` ranges for
+  Rime preedit, routes letters/backspace/page/select/commit/cancel through the
+  `compose-*` protocol, and removes the old cached-candidate fake-selection
+  path. Holder-free installed-DLL proof is still pending.
 - **The pipe is one request/response per connection.** `ServeOnce`
   (`src/server/yune_windows_server.cpp`) accepts one client, reads one request,
   writes one response, disconnects. Persistent composition therefore needs a
@@ -204,24 +198,26 @@ model with a real composition).
 ## Tasks
 
 ### Task 1: Slice A — server session + protocol
-- [ ] Session token map + lifecycle (`begin`/`end`, idle GC, cap), applying M05
+- [x] Session token map + lifecycle (`begin`/`end`, idle GC, cap), applying M05
   state with `disable_learning` forced.
-- [ ] `compose-*` verbs returning composition + candidates + commit; add the
+- [x] `compose-*` verbs returning composition + candidates + commit; add the
   selection/`candidate_list_from_index` slots to `Require()`.
-- [ ] `dev-repl` compose harness + a server contract mirroring Yune's
+- [x] `dev-repl` compose harness + a server contract mirroring Yune's
   `frontend_client` composition test. Verify on `dev-reload-server`. Commit to
   `main`.
 
 ### Task 2: Slice B — TSF inline composition + selection
-- [ ] `ITfComposition` + `ITfCompositionSink`; render Rime preedit; route
+- [x] `ITfComposition` + `ITfCompositionSink`; render Rime preedit; route
   key/select/back/cancel/commit to the session; commit only on Rime commit.
-- [ ] Remove the fake-selection/`buffer_`-commit path; keep ascii pass-through,
+- [x] Remove the fake-selection/`buffer_`-commit path; keep ascii pass-through,
   toggles, punctuation working (commit/cancel composition on toggle).
-- [ ] Contracts + build; holder-free live-verify. Commit to `main`.
+- [x] Contracts + build. Commit to `main`.
+- [ ] Holder-free installed-DLL live-verify.
 
 ### Task 3: Slice C — evidence + docs
-- [ ] `docs\evidence\m07\` summary + contract; roadmap/README/decisions updates.
-  Move this plan to history. Commit to `main`.
+- [x] `docs\evidence\m07\` summary + contract; roadmap/README/decisions updates.
+  Keep this plan active until holder-free live proof lands. Commit to `main`.
+- [ ] Move this plan to history after holder-free live proof is captured.
 
 ## Reviewer Questions (for the user / Codex)
 

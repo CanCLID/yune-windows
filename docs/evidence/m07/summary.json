@@ -1,0 +1,48 @@
+{
+  "milestone": "M07",
+  "title": "Persistent Composition and Candidate Selection",
+  "status": "implementation_complete_live_pending",
+  "evidence_policy": "compact-summary",
+  "raw_artifacts_pruned": [],
+  "executed_proof": [
+    "persistent composition server protocol contract passed",
+    "M07 TSF inline composition source contract passed",
+    "M06 key-path regression contract passed after M07 rewrite",
+    "punctuation commit contract passed after persistent composition rewrite",
+    "TSF key-eating contract passed after persistent composition rewrite",
+    "TSF IME state, key-up pass-through, and focus-loss contracts passed",
+    "TSF shell build, DLL export contract, and milestone naming contract passed"
+  ],
+  "live_proof": [],
+  "manual_live_required": true,
+  "live_proof_status": "pending_holder_free_installed_tsf_verification",
+  "follow_up_coverage": [
+    "segmented preedit display attributes",
+    "mouse candidate selection",
+    "learning and userdb persistence"
+  ],
+  "deferred": [
+    "Yune learning/userdb persistence",
+    "full mid-composition cursor editing",
+    "broker/autostart cold-start architecture",
+    "sandboxed/AppContainer host support"
+  ],
+  "regeneration_commands": [
+    "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\test-server-persistent-composition-contract.ps1",
+    "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\test-m07-tsf-composition-contract.ps1",
+    "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\test-m06-key-path-fixes-contract.ps1",
+    "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\test-punctuation-commit-contract.ps1",
+    "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\test-tsf-key-eating-contract.ps1",
+    "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\test-tsf-ime-state-hotkey-contract.ps1",
+    "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\test-tsf-key-up-pass-through-contract.ps1",
+    "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\test-tsf-focus-loss-clears-composition-contract.ps1",
+    "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\test-tsf-shell-build.ps1",
+    "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\test-tsf-dll-export-contract.ps1",
+    "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\test-m07-evidence-summary-contract.ps1",
+    "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\test-milestone-naming-contract.ps1"
+  ],
+  "live_machine_state_required": true,
+  "live_machine_state_approval_in_current_session": false,
+  "elevated_machine_state_steps_run": false,
+  "plan_archived": false
+}

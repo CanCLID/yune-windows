@@ -7,7 +7,8 @@ structured cleanup hardening, M03 development inner-loop tooling, M04
 candidate typing-quality implementation, and M05 IME controls implementation
 are complete for non-elevated build/contract/runtime coverage. M06
 implementation relief is landed for the folded-in host compatibility blockers,
-with the holder-free live host matrix still pending. Fresh
+and M07 persistent composition is landed for local server/TSF contracts, with
+holder-free live TSF proof still pending. Fresh
 post-rename live evidence proves install/register, product-owned Notepad and
 Chromium typing, diagnostics, uninstall, and post-reboot no-residue cleanup on
 the installed IME. M04 server-side behavior is runtime-verified; M05 has
@@ -122,6 +123,13 @@ controls.
   contracts and evidence summary are green under `docs\evidence\m06\`; this
   gate remains open until a holder-free installed TSF DLL run fills the Tier-1
   host matrix for Notepad, Chromium, a daily editor, and Telegram.
+- [ ] **WIN-17 - Persistent composition and selection:** M07 replaces the
+  stateless TSF replay/fake-selection path with persistent per-client Rime
+  sessions, `compose-*` server verbs, inline `ITfComposition` preedit, Rime-routed
+  number-key candidate selection, raw Enter commit, and Space candidate commit.
+  Local server/TSF contracts, build, and regression tests are green under
+  `docs\evidence\m07\`; this gate remains open until a holder-free installed TSF
+  DLL run proves inline preedit and partial selection advancement in a real host.
 
 ## Non-Elevated Verification Gates
 

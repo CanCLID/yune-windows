@@ -40,15 +40,20 @@ warms the server asynchronously, foreground key-path queries are capped, shifted
 punctuation and number-row symbols are forwarded to Rime, Enter commits the raw
 typed buffer, and a focus-gated low-level Shift hook covers hosts that do not
 deliver lone-Shift key-up through the TSF sink.
+M07 persistent composition is also implemented in the non-elevated path: the
+server owns per-client Rime sessions, the TSF DLL renders Rime preedit through
+inline `ITfComposition`, number-key selection routes to Rime, Enter uses raw
+commit, and Space uses candidate commit.
 
 After a post-reboot holder-free reload, the installed server, TSF DLL, active
 profile, and settings executable were refreshed from the M05 build. Manual dev
 Notepad verification confirmed `ngohaig` input, Shift Chinese/English toggle,
 English pass-through, toggling back to Cantonese, PageUp/PageDown paging,
-punctuation behavior, and the settings entrypoint. The M06 non-elevated proof
-and operator scripts live under `docs/evidence/m06/`; the next M06 gate is a
-holder-free installed TSF DLL host matrix for Notepad, Chromium, a daily editor,
-and Telegram. Do not mark M06 complete from local contracts alone.
+punctuation behavior, and the settings entrypoint. The M06 and M07 non-elevated
+proof lives under `docs/evidence/m06/` and `docs/evidence/m07/`; the next live
+gate is a holder-free installed TSF DLL run that fills the M06 host matrix and
+proves M07 inline preedit plus partial candidate selection in a real host. Do
+not mark either milestone complete from local contracts alone.
 
 For dogfood package or production installer work, refresh live evidence under
 the Yune Windows names whenever package inputs or installer behavior change:

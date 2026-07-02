@@ -8,11 +8,12 @@
   Status note: F1, F2a/F2b, F5, F6, the M06 evidence harness, and the M07
   server-side prerequisite are implemented and pushed. The holder-free live
   host matrix is still pending, so M06 stays active.
-- `m07-plan-persistent-composition-selection.md` — **next.** Persistent per-client
+- `m07-plan-persistent-composition-selection.md` — **active, live proof pending.** Persistent per-client
   Rime session + inline `ITfComposition` + Rime-driven candidate selection so
   multi-syllable words can be composed by picking characters one at a time
   (`dungdatkyut` → 東突厥), and the input is shown inline at the caret while
-  composing. Fixes F3 + F4; no Yune ABI change.
+  composing. F3/F4 implementation and contracts are pushed; holder-free
+  installed-DLL proof is still pending. No Yune ABI change.
 
 ## Bug ledger (folded into the plans above)
 
@@ -48,12 +49,14 @@ commits directly to `main`.
    roadmap/README updates. Move the plan to history only after the holder-free
    live host matrix is filled.
 5. **Phase 5 — M07 server-side (fast loop, no swap):** Slice A persistent-session
-   protocol + `compose-*` verbs. Depends on F2a. Can be built in parallel with
-   M06 Phases 2–4 since it does not touch the DLL.
+    protocol + `compose-*` verbs. Depends on F2a. Can be built in parallel with
+    M06 Phases 2–4 since it does not touch the DLL.
 6. **Phase 6 — M07 DLL rewrite (holder-free swap):** Slice B inline
-   `ITfComposition` + Rime-driven selection, **preserving F1/F5/F6 semantics** in
-   the new composition model. Verify F3 + F4.
-7. **Phase 7 — M07 closeout:** evidence + docs.
+    `ITfComposition` + Rime-driven selection, **preserving F1/F5/F6 semantics** in
+    the new composition model. Implementation and contracts are landed; verify
+    F3 + F4 in a holder-free installed-DLL live run.
+7. **Phase 7 — M07 closeout:** evidence + docs. Move the plan to history only
+   after holder-free live proof is captured.
 
 M01 through M05 have moved to `docs/plans/history/`. See `docs/roadmap.md` for the
 milestone table and candidate later milestones (broker/cold-start, dogfood

@@ -15,6 +15,7 @@ $RequiredDevScripts = @(
     "dev-reload-server.ps1",
     "dev-test-window.ps1",
     "dev-reload-tsf.ps1",
+    "dev-live-closeout-preflight.ps1",
     "dev-watch.ps1"
 )
 foreach ($ScriptName in $RequiredDevScripts) {

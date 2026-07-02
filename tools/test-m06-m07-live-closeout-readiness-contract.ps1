@@ -25,6 +25,8 @@ foreach ($Required in @(
         "Do not force-close non-dev holder applications.",
         "Do not run elevated install/register/unregister/cleanup/AppVerifier/PageHeap",
         "Do not mark M06 or M07 complete until the required live evidence is recorded.",
+        "tools\dev\dev-live-closeout-preflight.ps1 -RestartExplorerPlanned",
+        "preflight must pass before attempting the TSF DLL swap",
         "tools\dev\dev-reload-server.ps1 -RefreshSchema",
         "tools\dev\dev-reload-tsf.ps1 -RestartExplorer",
         "docs/evidence/m06/matrix.md",
@@ -35,6 +37,7 @@ foreach ($Required in @(
         "## Post-live Closeout Commands",
         "tools\test-m06-evidence-summary-contract.ps1",
         "tools\test-m07-evidence-summary-contract.ps1",
+        "tools\test-dev-live-closeout-preflight-contract.ps1",
         "tools\test-milestone-naming-contract.ps1"
     )) {
     if ($Runbook -notmatch [regex]::Escape($Required)) {

@@ -37,37 +37,45 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\collect-m06-compatibil
 ## Run Order
 
 1. Start from a holder-free desktop session.
-2. Refresh the installed server:
+2. Confirm the installed TSF DLL is not held by this Codex process or another
+   non-dev desktop holder. If the planned reload will restart Explorer, include
+   `-RestartExplorerPlanned`; the preflight must pass before attempting the TSF DLL swap:
+
+   ```powershell
+   powershell -NoProfile -ExecutionPolicy Bypass -File tools\dev\dev-live-closeout-preflight.ps1 -RestartExplorerPlanned
+   ```
+
+3. Refresh the installed server:
 
    ```powershell
    powershell -NoProfile -ExecutionPolicy Bypass -File tools\dev\dev-reload-server.ps1 -RefreshSchema
    ```
 
-3. Swap the installed TSF DLL only from a holder-free state:
+4. Swap the installed TSF DLL only from a holder-free state:
 
    ```powershell
    powershell -NoProfile -ExecutionPolicy Bypass -File tools\dev\dev-reload-tsf.ps1 -RestartExplorer
    ```
 
-4. Fill the M06 Tier-1 host matrix in `docs/evidence/m06/matrix.md`:
+5. Fill the M06 Tier-1 host matrix in `docs/evidence/m06/matrix.md`:
    Notepad, Chromium browser, VS Code or daily editor, and Telegram Desktop.
-5. For each M06 host, capture a structural log window:
+6. For each M06 host, capture a structural log window:
 
    ```powershell
    powershell -NoProfile -ExecutionPolicy Bypass -File tools\capture-m06-tsf-events-window.ps1 -Label m06-<host>
    ```
 
-6. Run the M07 live checklist in `docs/evidence/m07/live-checklist.md`.
-7. Capture M07 structural logs under `docs/evidence/m07/logs/`:
+7. Run the M07 live checklist in `docs/evidence/m07/live-checklist.md`.
+8. Capture M07 structural logs under `docs/evidence/m07/logs/`:
 
    ```powershell
    powershell -NoProfile -ExecutionPolicy Bypass -File tools\capture-m06-tsf-events-window.ps1 -Label m07-<host> -OutputDir docs\evidence\m07\logs
    ```
 
-8. Update `docs/evidence/m06/summary.md`, `docs/evidence/m06/summary.json`,
+9. Update `docs/evidence/m06/summary.md`, `docs/evidence/m06/summary.json`,
    `docs/evidence/m07/summary.md`, and `docs/evidence/m07/summary.json` with
    the live proof.
-9. Only after the live evidence passes, move the M06 and M07 plans from
+10. Only after the live evidence passes, move the M06 and M07 plans from
    `docs/plans/active/` to `docs/plans/history/` and update
    `docs/plans/active/README.md`.
 
@@ -98,6 +106,7 @@ non-elevated prep edit or failed holder-free retry:
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-m06-evidence-summary-contract.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-m07-evidence-summary-contract.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-m06-m07-live-closeout-readiness-contract.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-dev-live-closeout-preflight-contract.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-milestone-naming-contract.ps1
 git diff --check
 ```

@@ -1,7 +1,7 @@
 {
   "milestone": "M05",
   "title": "IME Toggles, Language Bar, and Settings",
-  "status": "implementation-review-blockers-fixed-live-dll-proof-pending",
+  "status": "complete",
   "evidence_policy": "compact-summary-only",
   "raw_artifacts_pruned": [],
   "executed_proof": [
@@ -21,17 +21,22 @@
     "focus refresh existing-server-only for ActivateEx and OnSetFocus(TRUE)",
     "focus-scoped native language bar source contract",
     "native settings executable uses server verbs and not direct state-file writes",
-    "evidence summary separates executed proof, source contracts, deferred work, and live-only gaps"
+    "evidence summary separates executed proof, source contracts, holder-free live proof, follow-up coverage, and deferred work"
   ],
-  "live_only_gaps": [
-    "holder-free Notepad proof for lone Shift and preserved-key toggles",
-    "holder-free Chromium proof for state reconciliation across apps",
-    "holder-free language-bar click proof",
-    "holder-free settings-to-typing proof",
-    "native Windows input-mode indicator live proof"
+  "live_proof": [
+    "post-reboot dev-reload-server -RefreshSchema rebuilt and hot-swapped the installed server; readiness passed on installed server PID 2548",
+    "post-reboot dev-reload-tsf -RestartExplorer rebuilt and swapped the installed TSF DLL; DLL swap validation passed and a dev-owned Notepad window opened",
+    "YuneWindowsProfileTool.exe --activate followed by --state returned registered:true and active:true",
+    "freshly built YuneWindowsSettings.exe was copied into the install root",
+    "manual operator verification in dev-owned Notepad confirmed ngohaig input, Shift Chinese/English toggle, English pass-through, toggling back to Cantonese, PageUp/PageDown paging, punctuation behavior, and the settings entrypoint"
+  ],
+  "follow_up_coverage": [
+    "Chromium cross-app state reconciliation should be rechecked during the next compatibility or dogfood package pass",
+    "native Windows input-mode indicator behavior should be observed explicitly in a focused compatibility pass",
+    "broader language-bar click and settings-to-typing coverage across multiple desktop hosts should be captured when compatibility breadth is the active gate"
   ],
   "deferred": [
-    "WH_KEYBOARD_LL fallback for lone-Shift delivery if holder-free live proof shows TSF key-up is unreliable",
+    "WH_KEYBOARD_LL fallback for lone-Shift delivery if future host compatibility evidence shows TSF key-up is unreliable",
     "non-blocking first cold keystroke remains a product-owned server lifecycle follow-up"
   ],
   "regeneration_commands": [
@@ -45,9 +50,12 @@
     "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\test-settings-ime-state-contract.ps1",
     "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\test-tsf-key-up-pass-through-contract.ps1",
     "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\test-m05-evidence-summary-contract.ps1",
-    "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\build-tsf-shell.ps1 -YuneRoot C:\\Users\\laubonghaudoi\\Documents\\GitHub\\yune"
+    "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\build-tsf-shell.ps1 -YuneRoot C:\\Users\\laubonghaudoi\\Documents\\GitHub\\yune",
+    "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\dev\\dev-reload-server.ps1 -YuneRoot C:\\Users\\laubonghaudoi\\Documents\\GitHub\\yune -RefreshSchema",
+    "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\dev\\dev-reload-tsf.ps1 -YuneRoot C:\\Users\\laubonghaudoi\\Documents\\GitHub\\yune -RestartExplorer"
   ],
   "live_machine_state_required": true,
-  "live_machine_state_approval_in_current_session": false,
-  "plan_archived": false
+  "live_machine_state_approval_in_current_session": true,
+  "elevated_machine_state_steps_run": false,
+  "plan_archived": true
 }

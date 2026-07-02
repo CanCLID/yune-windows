@@ -86,10 +86,9 @@ client-side over a larger candidate list, and punctuation commits use the
 existing default Rime `get_commit`/`free_commit` slots. The default
 `rime_get_api()` ABI stays unchanged, and any future engine requirement must be
 a named Yune proposal with tests before this repo depends on it. DLL-side
-candidate-window behavior still needs live app evidence after a holder-free TSF
-DLL reload; static/build proof must not be described as live proof. Review
-follow-up hardening may improve the TSF code path and dev harness without
-changing that live-proof boundary.
+candidate-window behavior must keep live app evidence separate from
+static/build proof. Review follow-up hardening may improve the TSF code path
+and dev harness without changing that evidence boundary.
 
 ### D-12 - IME state is server-owned
 
@@ -113,6 +112,8 @@ bar, and native settings entrypoint with non-elevated build/contract/runtime
 evidence. Review crash blockers for ascii pass-through, persisted ascii restart,
 invalid requests, settings/schema-cycle fallback, mid-composition toggles,
 lone-Shift guards, and focus-time sync are fixed or explicitly deferred in
-`docs/evidence/m05/summary.md`. Live app proof for M04/M05 DLL-side behavior
-remains blocked until `YuneWindowsTSF.dll` is not held by non-dev desktop
-processes.
+`docs/evidence/m05/summary.md`. Post-reboot holder-free installed-path proof
+refreshed the installed server, swapped the TSF DLL, activated the profile,
+installed the settings executable, and manually verified the M05 typing controls
+in a dev-owned Notepad window. Chromium/native-indicator and broader multi-host
+coverage remain follow-up compatibility evidence.

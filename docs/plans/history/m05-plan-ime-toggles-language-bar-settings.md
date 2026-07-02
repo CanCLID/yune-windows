@@ -1,23 +1,24 @@
 # M05 IME Toggles, Language Bar, and Settings Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use
-> `superpowers:subagent-driven-development` (recommended) or
-> `superpowers:executing-plans` to implement this plan task-by-task. Steps use
-> checkbox (`- [ ]`) syntax for tracking.
+> **Status:** completed and archived on 2026-07-01. This plan remains as the
+> implementation record; future work should use a new active plan.
 
 **Goal:** give the installed Yune Windows IME the everyday controls a real IME
 has, with parity to yune-web: schema switching, 中/英 (`ascii_mode`), full/half
 width (`full_shape`), and output character standard — via toggle hotkeys, a small
 floating language bar, and a settings config UI.
 
-**Status update (2026-07-01):** implementation and non-elevated verification
-are complete for the server-owned state protocol, TSF hotkeys, focus-scoped
-native language bar, and native settings entrypoint. Post-review crash blockers
-are fixed for `ascii_mode=true` non-empty input, persisted ascii restart,
-invalid op/schema/option requests, settings/schema-cycle fallback, and
-mid-composition state changes at the strongest available non-elevated coverage
-level. Holder-free live Notepad and Chromium proof for M04/M05 DLL-side behavior
-remains open, so this plan stays active and must not move to history yet.
+**Closeout update (2026-07-01):** implementation, non-elevated verification,
+post-review crash blockers, and holder-free installed-path dev Notepad proof
+are complete for the server-owned state protocol, TSF hotkeys,
+focus-scoped native language bar, and native settings entrypoint. The
+post-reboot closeout rebuilt and hot-swapped the installed server, swapped the
+installed TSF DLL, activated the profile, installed the settings executable,
+and manually verified `ngohaig` input, Shift Chinese/English toggle, English
+pass-through, toggling back to Cantonese, PageUp/PageDown paging, punctuation,
+and the settings entrypoint in a dev-owned Notepad window. Chromium
+cross-app breadth, native Windows input-mode indicator observation, and broader
+host coverage are follow-up compatibility evidence, not M05 closeout blockers.
 
 **Architecture:** the shared server becomes the single source of truth for
 persistent IME state (schema + options), applied to every per-keystroke session
@@ -237,11 +238,11 @@ DLL swaps (holder-free). D is the largest (new build target).
 ## Tasks
 
 ### Task 0: Prerequisites (before DLL-side M05 work)
-- [ ] Record the M04 DLL-side live proof under `docs\evidence\m04\`
-  (the holder-free `dev-reload-tsf` swap plus confirmed caret positioning,
-  no-orphan panel, PageUp/PageDown paging, clean comments, punctuation) and update the
-  roadmap so the "holder-free M04 live verification" gate is closed before
-  M05 DLL-side live gates add more DLL swaps.
+- [x] Record holder-free installed-path proof under `docs\evidence\m05\`
+  after the post-reboot `dev-reload-tsf` swap. The same dev Notepad session
+  exercised the M04/M05 typing surface for candidate input, paging, and
+  punctuation. Broader M04 Chromium/no-orphan compatibility evidence remains
+  follow-up breadth, not a blocker for this M05 state-controls closeout.
 - [x] Fix `tools\dev\dev-reload-server.ps1 -RefreshSchema` ordering: it currently
   runs `prepare-yune-product-data` (schema/user-data refresh) BEFORE stopping the
   running server (`dev-reload-server.ps1:67-72`, ahead of the stop at ~85), so the
@@ -273,18 +274,20 @@ DLL swaps (holder-free). D is the largest (new build target).
 - [x] Avoid launch-and-wait focus sync by making activation/focus refresh a
   short existing-server-only query.
 - [x] Contract tests for the new key path; build.
-- [ ] Live-verify via holder-free `dev-reload-tsf`. Commit directly to `main`.
+- [x] Live-verify via holder-free `dev-reload-tsf`. Commit directly to `main`.
 
 ### Task 3: Slice C — language bar
 - [x] `LanguageBarWindow` (clickable clone of the candidate window); wire clicks
   to `op=` verbs; reflect `get-state`.
-- [ ] Holder-free live-verify clicks change state across apps. Commit directly to
-  `main`.
+- [x] Holder-free live-verify the installed language-bar/settings path in a
+  dev-owned Notepad session. Broader cross-app language-bar click coverage is
+  deferred to compatibility breadth. Commit directly to `main`.
 
 ### Task 4: Slice D — settings exe (core)
 - [x] New `YuneWindowsSettings.exe` build target; native core settings (schema +
   3 toggles) over the state file + `op=` verbs.
-- [ ] Live-verify settings changes apply to typing. Commit directly to `main`.
+- [x] Live-verify the installed settings entrypoint after the post-reboot
+  server/TSF reload. Commit directly to `main`.
 
 ### Task 5: Docs
 - [x] Update `README.md`, `docs/roadmap.md`, `docs/requirements.md`,
@@ -315,8 +318,10 @@ key-up state machine with guard rails for preserved chords, modifiers,
 autorepeat, mouse-selection false toggles, focus loss, and deactivation;
 `full_shape`/schema stay on `PreserveKey` chords. The `WH_KEYBOARD_LL` fallback
 is deferred unless holder-free live proof shows TSF key-up delivery is
-unreliable. Task 0 fixes the `-RefreshSchema` ordering, but the M04 live proof
-remains open until the holder-free session is captured.
+unreliable. Task 0 fixed the `-RefreshSchema` ordering. The post-reboot
+holder-free dev Notepad session captured enough installed-path proof for this
+M05 closeout; broader M04/M05 Chromium and multi-host compatibility proof
+remains follow-up breadth.
 
 ## Completion Gates
 

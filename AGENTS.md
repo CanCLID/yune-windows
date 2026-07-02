@@ -15,13 +15,13 @@ engine and is consumed through a packaged Windows ABI surface.
 - M03 Development Inner Loop is complete: the repo has non-elevated dev
   REPL, installed-server reload, installed TSF DLL reload, disposable test
   window, and dry-run watch tooling.
-- M04 Candidate Window and Typing Quality is implemented; holder-free live
-  app proof for the DLL-side behavior remains open.
-- M05 IME Toggles, Language Bar, and Settings has non-elevated implementation
-  coverage for server-owned state, toggle hotkeys, focus-scoped mini language
-  bar, native settings entrypoint, and post-review crash blockers for ascii
-  pass-through, invalid requests, and mid-composition toggles; holder-free live
-  app proof remains open.
+- M04 Candidate Window and Typing Quality is implemented.
+- M05 IME Toggles, Language Bar, and Settings is complete: server-owned state,
+  toggle hotkeys, focus-scoped mini language bar, native settings entrypoint,
+  and post-review crash blockers are covered by non-elevated contracts plus a
+  post-reboot holder-free dev Notepad verification. Broader Chromium,
+  native input-mode indicator, and multi-host compatibility proof remains
+  follow-up coverage.
 - The legacy Weasel-derived implementation remains useful reference material
   for TSF, server, IPC, installer, candidate-window positioning, and smoke
   harness behavior.

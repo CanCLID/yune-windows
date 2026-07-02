@@ -8,8 +8,10 @@ candidate typing-quality implementation, and M05 IME controls implementation
 are complete for non-elevated build/contract/runtime coverage. Fresh
 post-rename live evidence proves install/register, product-owned Notepad and
 Chromium typing, diagnostics, uninstall, and post-reboot no-residue cleanup on
-the installed IME. M04 server-side behavior is runtime-verified; DLL-side
-M04/M05 typing and control behavior still needs holder-free live app proof.
+the installed IME. M04 server-side behavior is runtime-verified; M05 has
+post-reboot holder-free dev Notepad proof for installed server/TSF/settings
+controls, with broader Chromium/native-indicator compatibility coverage
+deferred.
 
 - [x] **WIN-01 - Product identity:** Product name, repo slug, install root,
   TSF DLL, server, profile tool, candidate smoke, named pipe, and TSF
@@ -85,10 +87,11 @@ M04/M05 typing and control behavior still needs holder-free live app proof.
   server reload. The review follow-up prevents the old top-left anchor fallback,
   rejects clipped or zero-size caret rectangles, and commits the current
   composition before schema-produced punctuation for natural sentence flow.
-  DLL-side caret, no-orphan, paging-key, and full-sentence punctuation behavior
-  still needs holder-free Notepad/Chromium proof. Mouse selection and
-  learning/userdb remain later daily-typing work.
-- [ ] **WIN-15 - IME controls and settings:** M05 implements server-owned
+  A post-reboot holder-free dev Notepad session during M05 closeout exercised
+  the installed TSF path for input, paging, and punctuation. Broader
+  Chromium/no-orphan coverage, mouse selection, and learning/userdb remain
+  later daily-typing work.
+- [x] **WIN-15 - IME controls and settings:** M05 implements server-owned
   persistent schema/options state under `state\ime-state.json`, `op=` IPC
   verbs, state blocks on every server response, focus/activation state refresh,
   lone-Shift Chinese/English toggle, `Ctrl+Shift+2` schema cycle,
@@ -99,9 +102,15 @@ M04/M05 typing and control behavior still needs holder-free live app proof.
   non-empty input, persisted ascii restart, invalid op/schema/option requests,
   and settings/schema-cycle fallback. TSF/language-bar/settings paths are build
   and contract verified, including mid-composition toggle cleanup, lone-Shift
-  false-toggle guards, and non-launching focus refresh. Holder-free
-  Notepad/Chromium proof for DLL-side hotkeys, bar clicks, settings-driven state
-  reconciliation, and native Windows indicator behavior remains open.
+  false-toggle guards, and non-launching focus refresh. Post-reboot
+  holder-free installed-path proof refreshed the installed server, swapped the
+  TSF DLL, activated the profile, installed the settings executable, and
+  manually verified `ngohaig` input, Shift Chinese/English toggle, English
+  pass-through, toggling back to Cantonese, PageUp/PageDown paging,
+  punctuation behavior, and the settings entrypoint in a dev-owned Notepad
+  window. Chromium cross-app reconciliation, native Windows input-mode
+  indicator observation, and broader multi-host language-bar/settings coverage
+  remain follow-up compatibility evidence.
 
 ## Non-Elevated Verification Gates
 

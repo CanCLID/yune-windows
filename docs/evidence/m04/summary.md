@@ -9,7 +9,9 @@ punctuation/full-width behavior.
 - Status: implementation complete
 - Evidence retained here: compact summary only
 - Raw retained artifacts: none
-- Remaining gate: holder-free live app proof for DLL-side behavior.
+- Live proof: post-reboot holder-free dev Notepad proof for installed input,
+  paging, and punctuation was captured during M05 closeout.
+- Remaining coverage: broader Chromium/no-orphan compatibility breadth.
 
 ## Proven Behaviors
 
@@ -20,9 +22,12 @@ punctuation/full-width behavior.
   lifecycle, paging keys, and punctuation forwarding.
 - Review follow-up hardening removed the old no-anchor top-left fallback and
   made dev REPL pipes unique by default.
+- Post-reboot holder-free dev Notepad verification during M05 closeout
+  exercised the installed TSF path for input, PageUp/PageDown paging, and
+  punctuation behavior.
 
 Old TSF holder dumps and dev REPL outputs are intentionally pruned. Capture
-fresh holder-free evidence only when the DLL can be swapped safely.
+fresh compatibility evidence only when it is the active gate.
 
 ## Regeneration Commands
 
@@ -34,5 +39,5 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-tsf-caret-anchor-
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-candidate-window-owner-lifecycle-contract.ps1
 ```
 
-The remaining live proof requires a holder-free TSF DLL session; tooling must
-not force-close non-dev desktop applications.
+Broader compatibility proof still requires a holder-free TSF DLL session for
+file swaps; tooling must not force-close non-dev desktop applications.

@@ -10,5 +10,7 @@ Completed implementation plans live here for auditability.
   tooling: dev REPL, server reload, TSF DLL reload, and watch wrapper.
 - `m04-plan-candidate-window-typing-quality.md` - candidate comment
   hygiene, caret anchoring implementation, owner/no-orphan lifecycle hardening,
-  candidate paging, and punctuation/full-width input. DLL-side live proof remains
-  blocked until a holder-free desktop session is available.
+  candidate paging, and punctuation/full-width input.
+- `m05-plan-ime-toggles-language-bar-settings.md` - server-owned IME state,
+  toggle hotkeys, focus-scoped mini language bar, and native settings
+  entrypoint.

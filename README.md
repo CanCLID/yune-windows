@@ -32,17 +32,16 @@ watch-mode routing. M04 implemented server-side candidate comment hygiene,
 larger candidate supply for client-side paging, read-session caret anchoring,
 owner-window/no-orphan lifecycle hardening, PageUp/PageDown paging, and
 punctuation/full-width forwarding through the existing Rime `get_commit` path.
-The server-side pieces are runtime-verified through the dev REPL and installed
-server reload; DLL-side live app verification still requires a holder-free
-desktop session because non-dev apps held `YuneWindowsTSF.dll` during closeout.
 M05 adds server-owned persistent IME state, `op=` IPC verbs, toggle hotkeys,
-a focus-scoped native mini language bar, and `YuneWindowsSettings.exe`. The
-post-review crash blockers for ascii pass-through, persisted ascii restart,
-invalid op/schema/option requests, settings/schema-cycle fallback, and
-mid-composition state changes are covered by non-elevated runtime or source
-contracts. Live app proof remains gated on the same holder-free TSF DLL session.
-The next gate is holder-free M04/M05 live verification or dogfood package
-hardening if packaging is explicitly prioritized first.
+a focus-scoped native mini language bar, and `YuneWindowsSettings.exe`.
+
+After a post-reboot holder-free reload, the installed server, TSF DLL, active
+profile, and settings executable were refreshed from the M05 build. Manual dev
+Notepad verification confirmed `ngohaig` input, Shift Chinese/English toggle,
+English pass-through, toggling back to Cantonese, PageUp/PageDown paging,
+punctuation behavior, and the settings entrypoint. The next gate is dogfood
+package hardening or a broader compatibility pass for Chromium, native Windows
+input-mode indicator observation, and multi-host language-bar/settings breadth.
 
 For dogfood package or production installer work, refresh live evidence under
 the Yune Windows names whenever package inputs or installer behavior change:

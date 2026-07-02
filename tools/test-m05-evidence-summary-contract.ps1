@@ -19,7 +19,8 @@ $Evidence = Get-Content -Raw -LiteralPath $JsonPath | ConvertFrom-Json
 foreach ($RequiredSection in @(
         "## Executed Proof",
         "## Source Contracts",
-        "## Live-only Gaps",
+        "## Holder-free Live Proof",
+        "## Follow-up Coverage",
         "## Deferred"
     )) {
     if ($Summary -notmatch [regex]::Escape($RequiredSection)) {
@@ -31,7 +32,7 @@ if ($Summary -match "## Proven Behaviors") {
     throw "M05 evidence summary must not use a single Proven Behaviors bucket for mixed executed and source-contract evidence."
 }
 
-foreach ($Property in @("executed_proof", "source_contracts", "live_only_gaps", "deferred")) {
+foreach ($Property in @("executed_proof", "source_contracts", "live_proof", "follow_up_coverage", "deferred")) {
     if ($null -eq $Evidence.$Property -or @($Evidence.$Property).Count -eq 0) {
         throw "M05 summary JSON must include non-empty $Property."
     }
@@ -61,9 +62,27 @@ foreach ($Required in @(
     }
 }
 
-$LiveGapText = (@($Evidence.live_only_gaps) -join "`n")
-if ($LiveGapText -notmatch "holder-free") {
-    throw "M05 live gaps must keep holder-free proof open."
+$LiveProofText = (@($Evidence.live_proof) -join "`n")
+foreach ($Required in @(
+        "post-reboot dev-reload-server",
+        "post-reboot dev-reload-tsf",
+        "manual operator verification"
+    )) {
+    if ($LiveProofText -notmatch [regex]::Escape($Required)) {
+        throw "M05 live proof is missing: $Required"
+    }
 }
 
-Write-Host "M05 evidence summary separates executed proof, source contracts, deferred work, and live-only gaps."
+$FollowUpText = (@($Evidence.follow_up_coverage) -join "`n")
+if ($FollowUpText -notmatch "Chromium") {
+    throw "M05 follow-up coverage must retain Chromium breadth as follow-up evidence."
+}
+
+if ($Evidence.status -ne "complete") {
+    throw "M05 summary status must be complete after closeout."
+}
+if ($Evidence.plan_archived -ne $true) {
+    throw "M05 summary must record that the plan is archived after closeout."
+}
+
+Write-Host "M05 evidence summary separates executed proof, source contracts, live proof, follow-up coverage, and deferred work."

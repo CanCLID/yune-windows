@@ -62,9 +62,6 @@ if ($BadTrackedPaths.Count -gt 0) {
 foreach ($Index in 1..5) {
     $Current = "m{0:D2}" -f $Index
     $EvidenceSummary = Join-Path $RepoRoot "docs\evidence\$Current\summary.json"
-    if ($Index -eq 5) {
-        $EvidenceSummary = Join-Path $RepoRoot "docs\evidence\$Current\README.md"
-    }
     if (-not (Test-Path -LiteralPath $EvidenceSummary -PathType Leaf)) {
         throw "missing compact evidence root file: $EvidenceSummary"
     }
@@ -75,7 +72,7 @@ foreach ($Expected in @(
         "docs\plans\history\m02-plan-server-lifecycle-cleanup-hardening.md",
         "docs\plans\history\m03-plan-dev-inner-loop.md",
         "docs\plans\history\m04-plan-candidate-window-typing-quality.md",
-        "docs\plans\active\m05-plan-ime-toggles-language-bar-settings.md",
+        "docs\plans\history\m05-plan-ime-toggles-language-bar-settings.md",
         "tools\run-m01-live-smoke.ps1",
         "tools\start-m01-elevated-live-smoke.ps1",
         "tools\run-m01-detached-live-smoke-helper.ps1",

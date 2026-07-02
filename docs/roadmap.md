@@ -7,7 +7,7 @@ intentionally separate from Yune engine-performance work.
 
 | Lane | Current state | Next gate |
 | --- | --- | --- |
-| Product shell | Renamed public baseline with TSF DLL, shared server, native candidate window, diagnostics tooling, installer scripts, non-elevated contract tests, M02 product-owned server startup, M03 development inner-loop tooling, M04 candidate typing-quality implementation, and M05 IME controls implementation. Latest approved live closeout reached install/register, profile activation, Notepad, Chromium, diagnostics export, uninstall, and post-reboot no-residue cleanup. M04 runtime evidence covers clean candidate comments, 30-candidate server supply, full-width punctuation via `get_commit`, and installed-server reload/readiness. M05 adds server-owned persistent schema/options state in `state\ime-state.json`, `op=` IPC verbs, state reconciliation on every server response, lone-Shift and preserved-key toggles, a focus-scoped native mini language bar, and `YuneWindowsSettings.exe`. M05 review crash blockers are fixed in non-elevated scratch-server coverage: `ascii_mode=true` non-empty input, persisted ascii restart, invalid op/schema/option requests, and settings/schema-cycle fallback no longer kill the shared server. DLL-side M04/M05 behavior is build/static/smoke verified; live app proof remains blocked until a holder-free TSF DLL session. Activation/focus refresh is now a short existing-server-only query, but cold start is still synchronous in the TSF key path for up to `kServerLaunchReadyWaitMs = 15000`. Compact milestone summaries live under `docs/evidence/m01/` through `docs/evidence/m05/`; bulky raw artifacts are regenerated only when a fresh gate needs them. | Holder-free M04/M05 live verification, or dogfood package hardening if packaging is prioritized first. |
+| Product shell | Renamed public baseline with TSF DLL, shared server, native candidate window, diagnostics tooling, installer scripts, non-elevated contract tests, M02 product-owned server startup, M03 development inner-loop tooling, M04 candidate typing-quality implementation, and M05 IME controls implementation. Latest approved live closeout reached install/register, profile activation, Notepad, Chromium, diagnostics export, uninstall, and post-reboot no-residue cleanup. M04 runtime evidence covers clean candidate comments, 30-candidate server supply, full-width punctuation via `get_commit`, and installed-server reload/readiness. M05 adds server-owned persistent schema/options state in `state\ime-state.json`, `op=` IPC verbs, state reconciliation on every server response, lone-Shift and preserved-key toggles, a focus-scoped native mini language bar, and `YuneWindowsSettings.exe`. M05 review crash blockers are fixed in non-elevated scratch-server coverage: `ascii_mode=true` non-empty input, persisted ascii restart, invalid op/schema/option requests, and settings/schema-cycle fallback no longer kill the shared server. Post-reboot holder-free installed-path proof refreshed the installed server, swapped the TSF DLL, activated the profile, installed the settings executable, and manually verified the M05 typing controls in a dev-owned Notepad window. Activation/focus refresh is now a short existing-server-only query, but cold start is still synchronous in the TSF key path for up to `kServerLaunchReadyWaitMs = 15000`. Compact milestone summaries live under `docs/evidence/m01/` through `docs/evidence/m05/`; bulky raw artifacts are regenerated only when a fresh gate needs them. | Dogfood package hardening, or a broader compatibility pass for Chromium, native input-mode indicator observation, and multi-host language-bar/settings breadth. |
 | Yune boundary | Windows consumes packaged Yune through `rime_get_api()` plus the opt-in `rime_get_yune_windows_profile_api()` surface. | Keep default `rime_get_api()` unchanged; send new engine needs to Yune as named proposals with tests. |
 | Reference code | Legacy Weasel-derived implementation is reference material only. | Extract no more code without a focused audit and smoke proof. |
 | Dogfood release | Public repo starts from clean initial history and omits old private evidence. Fresh post-rename live evidence exists, including Notepad, Chromium, diagnostics, recovered cleanup, compatibility target, signing decision, and complete closeout audit under the product-owned server contract. Compatibility target and signing decision are retained in compact M01 summary evidence; dogfood packaging, release signing, non-blocking cold-start, and user-data preservation remain open. | Start dogfood package hardening when selected. |
@@ -52,7 +52,10 @@ intentionally separate from Yune engine-performance work.
    review follow-up hardening for dev REPL pipe isolation and composing
    punctuation.
    Server-side behavior is runtime-proven through the dev REPL and installed
-   server reload. DLL-side app behavior still needs holder-free live proof.
+   server reload. A post-reboot holder-free dev Notepad session during M05
+   closeout exercised the installed TSF path for input, paging, and
+   punctuation; broader Chromium/no-orphan coverage remains compatibility
+   breadth.
    Historical plan:
    `docs/plans/history/m04-plan-candidate-window-typing-quality.md`.
 8. **IME toggles, language bar, and settings implementation** - server-owned
@@ -63,8 +66,11 @@ intentionally separate from Yune engine-performance work.
    the post-review crash blockers for `ascii_mode`, persisted restart, invalid
    op/schema/option requests, and settings/schema-cycle fallback. Source
    contracts cover mid-composition toggle cleanup, lone-Shift false-toggle
-   guards, and non-launching focus refresh. Holder-free live Notepad and
-   Chromium proof remains open, so the active plan has not moved to history.
+   guards, and non-launching focus refresh. Post-reboot holder-free installed
+   proof refreshed the server, TSF DLL, profile, and settings executable, then
+   manually verified the M05 typing controls in a dev-owned Notepad window.
+   Historical plan:
+   `docs/plans/history/m05-plan-ime-toggles-language-bar-settings.md`.
 
 ## Scope Ledger
 
@@ -136,9 +142,9 @@ Historical plan:
 
 ### M04 - Candidate Window And Typing Quality
 
-Status: implementation complete, with DLL-side live proof pending a holder-free
-desktop session. The implementation cleans raw `jyut6ping3` CSV candidate
-comments server-side, returns up to 30 candidates for client-side paging, uses a
+Status: implementation complete. The implementation cleans raw `jyut6ping3`
+CSV candidate comments server-side, returns up to 30 candidates for
+client-side paging, uses a
 read-only TSF edit session to anchor the candidate window near the caret, gives
 the native candidate window an owner and foreground guard, adds PageUp/PageDown
 paging, and forwards punctuation keys so full-width punctuation can commit via
@@ -151,23 +157,45 @@ fallback.
 
 Runtime evidence proves the server-side paths through the dev REPL and installed
 server reload. DLL-side behavior is covered by static contracts, the TSF shell
-build, and the candidate-window smoke. Live Notepad/Chromium proof for caret
-placement, no-orphan behavior, paging keys, and full-sentence punctuation was
-not attempted because non-dev desktop processes held `YuneWindowsTSF.dll`; see
-`docs/evidence/m04/summary.md`.
+build, and the candidate-window smoke. A post-reboot holder-free dev Notepad
+session during M05 closeout manually confirmed the installed TSF path for input,
+paging, and punctuation. Broader Chromium/no-orphan coverage remains
+compatibility breadth; see `docs/evidence/m04/summary.md` and
+`docs/evidence/m05/summary.md`.
 
 Historical plan:
 `docs/plans/history/m04-plan-candidate-window-typing-quality.md`.
 
+### M05 - IME Toggles, Language Bar, And Settings
+
+Status: complete. The implementation makes the shared server the single writer
+for schema/options state in `state\ime-state.json`, adds `op=` IPC verbs,
+returns state on every server response, adds lone-Shift Chinese/English toggle,
+preserved-key schema/full-shape toggles, ASCII pass-through, a focus-scoped
+native mini language bar, and `YuneWindowsSettings.exe`. Review follow-up
+hardening prevents the ascii-mode crash loop, keeps invalid requests from
+killing the shared server, commits or clears composition before state changes,
+guards lone-Shift false toggles, and makes focus refresh a short
+existing-server-only query.
+
+Non-elevated scratch-server and dev REPL evidence prove the server protocol and
+crash blockers. Post-reboot holder-free installed-path proof refreshed the
+installed server, swapped `YuneWindowsTSF.dll`, activated the profile, installed
+the settings executable, and manually verified the M05 typing controls in a
+dev-owned Notepad window. Broader Chromium, native Windows input-mode
+indicator, and multi-host language-bar/settings coverage remain compatibility
+follow-up breadth; see `docs/evidence/m05/summary.md`.
+
+Historical plan:
+`docs/plans/history/m05-plan-ime-toggles-language-bar-settings.md`.
+
 ## Candidate Next Milestones (for discussion)
 
-M02 and M03 are complete. M04 implementation is complete, but
-DLL-side live proof still needs a holder-free desktop session. The remaining
-rows are candidate next milestones.
+M02 through M05 are complete. The remaining rows are candidate next milestones.
 
 | Candidate | Delivers | Rough size | Key dependency / risk |
 | --- | --- | --- | --- |
-| **M04/M05 holder-free live verification** | Prove the implemented caret placement, no-orphan behavior, PageUp/PageDown paging, full-sentence punctuation, lone-Shift mode toggle, preserved-key toggles, focus-scoped language bar, settings-driven state changes, and native input-mode indicator behavior in Notepad and Chromium after the TSF DLL can be reloaded without non-dev holders. | S | Requires closing holder apps, sign-out, or reboot to produce a holder-free desktop session; do not force-close non-dev apps from tooling. Evidence roots: `docs/evidence/m04/` and `docs/evidence/m05/`. |
+| **Broader M04/M05 compatibility pass** | Recheck the implemented caret placement, no-orphan behavior, PageUp/PageDown paging, full-sentence punctuation, lone-Shift mode toggle, preserved-key toggles, focus-scoped language bar, settings-driven state changes, and native input-mode indicator behavior across Chromium and other desktop hosts. | S | Requires a holder-free TSF DLL session for file swaps and must not force-close non-dev apps from tooling. Evidence roots: `docs/evidence/m04/` and `docs/evidence/m05/`. |
 | **Non-blocking cold-start / per-user broker** | Removes the up-to-15s foreground freeze on the first cold keystroke and makes launch work in sandboxed/AppContainer hosts (UWP, WeChat, some Store/Electron). Reduces AV/EDR risk of spawning an unsigned exe from a browser. | M | Adds per-user autostart/broker state that install/uninstall must create and remove; documented M02 fast-follow. |
 | **Dogfood package hardening (WIN-11)** | Self-contained install bundle decoupled from the local Yune source build, so a second machine can install without a Rust/Yune toolchain. | M | Production signing stays deferred; needs pre-staged `rime.dll` + schema + binaries + `install-info.json`. |
 | **User-data preservation (D-09)** | Preserve or migrate the learned dictionary / personalization across reinstall loops instead of deleting `user-data` on uninstall. | S | Decide backup vs. a `-PurgeUserData` switch; small but touches the uninstall path. |
@@ -180,17 +208,19 @@ rows are candidate next milestones.
    changing the shared web schema.
 2. **Candidate window correctness (DLL)**: implemented. `ShowCandidates` uses a
    read-only edit session with `ITfContextView::GetTextExt` for caret anchoring;
-   the native popup has an owner window and foreground guard. Live proof remains
-   blocked by TSF DLL holders.
+   the native popup has an owner window and foreground guard. Broader
+   multi-host proof remains follow-up compatibility breadth.
 3. **Paging (DLL)**: implemented. The server returns a larger candidate list and
-   the client pages it with PageUp/PageDown and a page indicator. Live app proof
-   remains blocked by TSF DLL holders.
+   the client pages it with PageUp/PageDown and a page indicator. Dev Notepad
+   live proof was captured during M05 closeout; Chromium breadth remains
+   follow-up coverage.
 4. **Punctuation / full-width (DLL + schema)**: implemented. The server returns
    auto-committed punctuation through the existing Rime `get_commit` path, and
    TSF forwards punctuation keys when the buffer is empty or composing. In the
    composing case it commits the current candidate first, then inserts
-   schema-produced punctuation. Server proof is captured by the dev REPL; live
-   app proof remains blocked by TSF DLL holders.
+   schema-produced punctuation. Server proof is captured by the dev REPL; dev
+   Notepad live proof was captured during M05 closeout, with broader host
+   coverage deferred to a compatibility pass.
 
 Learning / userdb is intentionally split to a **later** milestone: it is a
 protocol change (persistent per-client session, select-index/commit feedback,

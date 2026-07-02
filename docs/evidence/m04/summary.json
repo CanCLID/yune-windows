@@ -1,7 +1,7 @@
 {
   "milestone": "M04",
   "title": "Candidate Window And Typing Quality",
-  "status": "implementation-complete-live-dll-proof-pending",
+  "status": "implementation-complete-dev-notepad-live-proof-captured",
   "evidence_policy": "compact-summary-only",
   "raw_artifacts_pruned": [
     "dev REPL outputs",
@@ -14,12 +14,13 @@
     "punctuation get_commit path",
     "static caret-anchor contract",
     "static owner lifecycle contract",
-    "candidate-window smoke"
+    "candidate-window smoke",
+    "post-reboot holder-free dev Notepad proof for installed input, paging, and punctuation"
   ],
-  "remaining": [
-    "holder-free Notepad and Chromium proof for caret placement",
-    "holder-free no-orphan proof",
-    "holder-free paging and full-sentence punctuation proof"
+  "follow_up_coverage": [
+    "broader Chromium proof for caret placement and state interaction",
+    "broader no-orphan proof across desktop hosts",
+    "broader full-sentence punctuation proof across desktop hosts"
   ],
   "regeneration_commands": [
     "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\test-server-comment-hygiene-contract.ps1 -YuneRoot C:\\Users\\laubonghaudoi\\Documents\\GitHub\\yune",

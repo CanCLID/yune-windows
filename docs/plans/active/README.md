@@ -6,17 +6,22 @@
   Shift+punctuation, F2 En→Cn toggle freeze, F5 Telegram lone-Shift via
   `WH_KEYBOARD_LL`, F6 Enter-commits-raw), and capture host-matrix evidence.
   Status note: F1, F2a/F2b, F5, F6, the M06 evidence harness, and the M07
-  server-side prerequisite are implemented and pushed. The first holder-free
-  host attempt passed Notepad smoke but failed with no output in Chrome, Zed,
-  Telegram, and File Explorer; a raw-fallback TSF fix is implemented in source
-  and awaits holder-free DLL reload/retest, so M06 stays active.
+  server-side prerequisite are implemented and pushed. **Root cause of the
+  no-output hosts (Chrome/Zed/Telegram/Explorer) is now found and fixed:** the
+  server created its pipe with the default security descriptor, denying sandboxed
+  / lower-integrity host tokens (`ERROR_ACCESS_DENIED` → `query_failed`). Fix
+  `d4578b7` gives the pipe an explicit descriptor granting interactive-user + all
+  application-package (AppContainer) access; it **deploys reboot-free via
+  `dev-reload-server`** (no DLL reload), guarded by
+  `test-server-pipe-security-contract.ps1`. Awaiting a user-session deploy + live
+  host retype to confirm across all hosts.
 - `m07-plan-persistent-composition-selection.md` — **active, live proof pending.** Persistent per-client
   Rime session + inline `ITfComposition` + Rime-driven candidate selection so
   multi-syllable words can be composed by picking characters one at a time
   (`dungdatkyut` → 東突厥), and the input is shown inline at the caret while
-  composing. F3/F4 implementation and contracts are pushed; holder-free
-  installed-DLL proof is blocked by the no-output host failure until the
-  raw-fallback DLL is reloaded and retested. No Yune ABI change.
+  composing. F3/F4 implementation and contracts are pushed; live proof was blocked
+  by the same no-output pipe-access issue (see M06), now fixed reboot-free in the
+  server; awaits the user-session server deploy + live retype. No Yune ABI change.
 
 ## Bug ledger (folded into the plans above)
 

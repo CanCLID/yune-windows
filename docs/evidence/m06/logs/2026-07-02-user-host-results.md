@@ -59,3 +59,37 @@ Current non-elevated holder inspection found `Codex`, `conhost`, `explorer`, and
 `Telegram` holding `YuneWindowsTSF.dll`. The dev reload tool must not force-close
 non-dev holders; the fallback build needs another holder-free swap before live
 retest.
+
+## Root-cause update (2026-07-02, later): server pipe access, not a DLL bug
+
+The `warmup_started -> launch_ready -> query_failed` pattern is the signature of a
+named-pipe **access denial**: `WaitNamedPipeW` succeeds (the pipe exists, hence
+`launch_ready`) but the client's `CreateFileW`/`CallNamedPipeW` is refused, hence
+`query_failed`. Confirmed live: a restricted client (the assistant's own sandboxed
+tool token) is **denied** connecting to the installed pipe
+`\\.\pipe\yune-windows-ime`, while the same tool connects fine to scratch servers
+it spawns in its own token context.
+
+Cause: `ServeOnce` created the pipe with the **default security descriptor**
+(`CreateNamedPipeW(..., nullptr)`), which only admits the server creator's own
+token. A TSF DLL loaded inside a sandboxed host (Chrome renderer = AppContainer)
+or any differently-scoped/lower-integrity token is refused, so typing produces no
+output. This is server-side and independent of the M07 composition work.
+
+Fix (committed `d4578b7`): give the pipe an explicit descriptor —
+`D:(A;;GRGW;;;IU)(A;;GRGW;;;AC)S:(ML;;NW;;;LW)` — granting connect access to
+interactive users at any integrity level (`IU`) and AppContainer/UWP packages
+(`AC`), with a Low mandatory label, still excluding other machine users. Verified:
+builds; the created pipe DACL shows `(A;;0x12019f;;;IU)(A;;0x12019f;;;AC)`; normal
+requests still return 30 candidates. Guarded by
+`tools\test-server-pipe-security-contract.ps1`.
+
+**This deploys reboot-free via `dev-reload-server` — no DLL reload / holder-free
+swap needed** — because the fix is in the server and the already-loaded DLLs
+connect on their next query. The one wrinkle: a host DLL's warm-up relaunches the
+server during the swap and re-locks the exe (a relaunch race), so the swap must be
+run from the user's normal session with the DLL-holding hosts closed (or with the
+server launch mutex held). GPT's raw-text fallback in `577a98d` remains a useful
+safety net (typing degrades to raw letters instead of nothing if a query ever
+fails) and its `error_code` logging will identify any host that still fails after
+this server fix.

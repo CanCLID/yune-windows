@@ -156,8 +156,12 @@ model with a real composition).
   goes away in favor of the server-held session + the composition preedit.
 - **Composes with existing features:** ascii-mode pass-through (no composition when
   ascii), the lone-Shift/preserved-key toggles (M05), punctuation (M04), and the
-  M06 fixes must all still work — toggling mid-composition commits or cancels the
-  composition first (reuse `CommitOrClearCompositionBeforeStateChange`).
+  **M06 fixes must all be preserved in the new model** — F1 (Shift-aware
+  punctuation forwarding), F5 (`WH_KEYBOARD_LL` lone-Shift), and especially **F6
+  (Enter commits the raw input verbatim, Space commits the candidate)**, which now
+  maps to "commit the session's raw input on Enter." Toggling mid-composition
+  commits or cancels the composition first (reuse
+  `CommitOrClearCompositionBeforeStateChange`).
 - **Verify live:** holder-free swap; the `dungdatkyut` → 東 → 突 → 厥 flow inline in
   a real app, plus regression of single-word commit, punctuation, paging, toggles.
 

@@ -263,6 +263,53 @@ append new user-reported blockers here as they come in.
   contract asserting a client disconnect during response does not exit the server
   and a subsequent request on the same process succeeds.
 
+### F5 — Lone-Shift 中/英 toggle never works in Telegram (+ intermittent freeze)
+
+- **Symptom:** in Telegram Desktop, hitting Shift **never** toggles 中/英. Typing
+  sometimes works and sometimes the IME is frozen.
+- **Two parts:**
+  - **The freeze is F2.** The "sometimes frozen" is the F2 cold-start / server-death
+    freeze — Telegram sitting idle during an English chat is a prime trigger — and
+    F2's fix covers it.
+  - **Lone-Shift never toggling is the anticipated key-up delivery failure, now
+    confirmed in a real Tier-1 host.** Telegram Desktop is a Qt app; the TSF key
+    sink is not receiving the `VK_SHIFT` key-**up** that the lone-Shift state machine
+    (`OnKeyUp`, `src/tsf/yune_windows_tsf.cpp:1292`) needs, so the toggle never
+    fires. This is exactly the risk M06 flagged for non-Win32 hosts.
+- **Fix — implement the `WH_KEYBOARD_LL` low-level keyboard-hook fallback**
+  (promoted from reactive to **required**: Telegram confirms a Tier-1 host fails
+  without it). The hook detects a lone-Shift key-up globally and drives the same
+  `op=set-option` toggle path, guarded so Shift+other-key never toggles and so it
+  composes cleanly with the existing TSF key-sink path (no double-toggle when both
+  deliver the key-up). This is the approach Weasel and other IMEs use.
+- **Verify:** in Telegram (and every Tier-1 host) a lone Shift toggles 中/英;
+  Shift+letter still capitalizes with no toggle; no double-toggle in Win32 hosts
+  where both the sink and the hook see the key-up. **Confirm the hook actually
+  resolves Telegram** (rule out Telegram intercepting Shift itself); if a host
+  swallows Shift entirely, record it as a host-limit. Note any interaction with an
+  OS / other-IME "Shift to switch language" setting. Extend the hotkey contract for
+  the hook path.
+
+### F6 — Enter should commit the raw typed letters, not a Chinese candidate
+
+- **Symptom:** while composing Chinese, pressing Enter to commit the typed letters
+  as-is (e.g. `caksi`) instead commits the first Chinese candidate — there is no way
+  to output the literal romanization.
+- **Root cause:** `OnKeyDown` handles `VK_SPACE` and `VK_RETURN` in **one branch**
+  (`src/tsf/yune_windows_tsf.cpp:1251-1274`) that commits `response.commit_text` or
+  the first candidate. Enter has no distinct "commit the raw input" behavior.
+- **Fix — split Enter from Space.** **Space** keeps committing the selected / first
+  candidate (Chinese). **Enter** with a non-empty composition commits the **raw
+  typed characters verbatim** (the literal romanization), then clears — in the
+  current model `CommitText(context, <widened raw buffer_>)`, no conversion and no
+  candidate. Enter with an empty buffer still passes through as a newline.
+- **Verify:** in Chinese mode, type `caksi` + Enter → the host receives literal
+  `caksi` (not 測試); Space still commits 測試; Enter with no composition still
+  inserts a newline. Add a contract for the split Enter/Space commit behavior.
+- **M07 note:** M07 rewrites the key/commit path (inline composition); it must
+  **preserve** this Enter = commit-raw-input behavior against the persistent
+  session's raw input.
+
 ## Slice Map (sequence)
 
 1. **Slice A — Verification harness** (tooling; non-elevated, no holder problem).
@@ -322,15 +369,11 @@ a reboot per bug.
   they are already root-caused and do not need the observation pass to justify
   them. Land them first (server fixes on the instant loop; DLL fixes batched into
   the holder-free swap), then move to the Slice B findings.
-- **Prioritize the discovered findings by likelihood (from Current Facts):**
-  - **Lone-Shift key-up delivery (item 6).** If any Tier-1 host fails to toggle on
-    lone Shift, implement the deferred **`WH_KEYBOARD_LL` fallback** for lone-Shift
-    detection (Weasel's approach): a per-thread/low-level hook that detects a
-    lone-Shift key-up and drives the same `op=set-option` path, guarded so
-    Shift+other-key never toggles and so it composes cleanly with the existing TSF
-    key-sink path (no double-toggle). Add a source/behavior contract mirroring
-    `tools\test-tsf-ime-state-hotkey-contract.ps1`. Note any interaction with an
-    OS/other-IME "Shift to switch language" setting.
+- Lone-Shift delivery (item 6) is already folded in as **F5** — the
+  `WH_KEYBOARD_LL` fallback is required (Telegram); implement it here with its
+  contract rather than treating it as a discovered finding.
+- **Prioritize the remaining discovered findings by likelihood (from Current
+  Facts):**
   - **Candidate anchoring in web/Electron fields (items 1–2).** If `GetTextExt`
     yields no/clipped anchor and the window mis-places or fails to show, decide a
     scoped, principled fallback (e.g. anchor to the composition range's
@@ -393,9 +436,12 @@ a reboot per bug.
   add the server-survives-disconnect contract.
 - [ ] **F2b (responsiveness):** async server warm-up on activation/focus; cap the
   synchronous key-path wait so cold launch never hard-freezes the foreground app.
-- [ ] Land any further folded-in typing-blocker fixes (F3, …) as they are added.
-- [ ] Lone-Shift: if any Tier-1 host fails item 6, implement the `WH_KEYBOARD_LL`
-  fallback + contract; else record lone-Shift as confirmed reliable.
+- [ ] **F5 (Telegram lone-Shift):** implement the `WH_KEYBOARD_LL` lone-Shift
+  fallback (confirmed required by Telegram), guarded against double-toggle where
+  both the sink and hook fire; extend the hotkey contract; confirm it resolves
+  Telegram. (The Telegram freeze is covered by F2.)
+- [ ] **F6 (Enter commits raw):** split Enter from Space — Enter commits the raw
+  typed letters verbatim, Space commits the candidate; add the commit-split contract.
 - [ ] Candidate anchoring: fix web/Electron anchoring failures with a principled
   fallback (no top-left corner regression).
 - [ ] Language-bar / reconciliation / indicator fixes as findings dictate.
@@ -415,9 +461,11 @@ a reboot per bug.
 - **Tier-1 hosts:** confirm the daily set — Notepad + Chromium (Chrome or Edge?) +
   Telegram + which editor (VS Code)? Add/remove any app you actually type
   Cantonese in daily. Is WeChat installed (Tier-2), or skip it?
-- **Lone-Shift fallback trigger:** implement the `WH_KEYBOARD_LL` fallback only if
-  Slice B shows a Tier-1 host failing lone-Shift, or build it proactively because
-  Electron/Chromium key-up delivery is known-risky?
+- **Lone-Shift fallback (resolved → required, tracked as F5):** Telegram (Qt)
+  confirms a Tier-1 host where lone-Shift never toggles, so the `WH_KEYBOARD_LL`
+  fallback is in scope. Open sub-question: a single process-wide hook, or a
+  per-thread hook installed/removed with focus? And how to guard against a
+  double-toggle in Win32 hosts where both the sink and the hook see the key-up.
 - **Scope of anchoring fixes:** if web/Electron caret anchoring is unreliable, is a
   best-effort screen-ext/`GUITHREADINFO` fallback in scope for M06, or do we record
   it as a follow-up and keep M06 to toggles/lifecycle verification?
@@ -439,6 +487,12 @@ a reboot per bug.
   - **F2:** a client timeout/disconnect no longer kills the server (it answers the
     next request), and toggling En→Cn after an English stretch does not hard-freeze
     the foreground app. Full broker/autostart stays deferred.
+  - **F5:** a lone Shift toggles 中/英 in **Telegram** and the other Tier-1 hosts
+    (via the `WH_KEYBOARD_LL` fallback), with no double-toggle in Win32 hosts and
+    Shift+letter still capitalizing.
+  - **F6:** in Chinese mode, Enter commits the raw typed letters (`caksi`) verbatim
+    while Space still commits the candidate (測試); Enter with no composition is a
+    newline.
 - The **lone-Shift reliability decision is recorded**: either confirmed reliable
   across Tier-1 hosts, or the `WH_KEYBOARD_LL` fallback is implemented and proven.
 - Candidate anchoring works (or has a principled, non-corner fallback) in the

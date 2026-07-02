@@ -92,8 +92,12 @@ verification in each host.
 
 ## Non-Goals
 
-- **No cold-start / broker work** (`kServerLaunchReadyWaitMs`); that is its own
-  milestone. Observe and record the freeze; do not fix it here.
+- **No full cold-start / broker build** (a per-user broker/autostart that keeps
+  the server warm across the whole session and works in AppContainer hosts); that
+  remains its own milestone. M06 *does* take the bounded subset in F2 — server
+  resilience so a slow op cannot kill the server, plus an async warm-up + capped
+  key-path wait so cold launch never hard-freezes the foreground app — but not the
+  autostart/broker/AppContainer work.
 - **No sandboxed / AppContainer host support** (UWP, Store apps, some Electron
   sandboxes, Start-menu search). Those need the per-user broker; in M06 we
   *document* their behavior as expected-limitation, not as M06 bugs to fix.
@@ -206,6 +210,58 @@ append new user-reported blockers here as they come in.
   A layout-correct derivation via `ToUnicodeEx` is a possible follow-up but carries
   dead-key / `OnTestKeyDown` side-effect risk; out of scope unless a non-US layout
   need appears.
+
+### F2 — Toggling back to Chinese freezes the IME for seconds to ~30s
+
+- **Symptom:** after typing in English and hitting Shift to return to Chinese, the
+  IME is unresponsive for a few seconds up to ~30s — no keys register — then it
+  recovers. Recurs during a session, not just on first use.
+- **Root cause (two compounding faults):**
+  1. **A single request-level failure kills the server, forcing a full cold
+     restart.** `ServeOnce` (`src/server/yune_windows_server.cpp:867-888`) rethrows
+     on any failure — including `Require(WriteFile…)` / `Require(FlushFileBuffers…)`
+     — and `wmain` (`:915-921`) exits the process on it. The DLL's own query timeout
+     (`kServerQueryTimeoutMs = 5000`, `src/tsf/yune_windows_tsf.cpp:57`) cancels I/O
+     and closes the pipe when a response is slow, so the server then fails its write
+     to the now-closed pipe and terminates. The server does **not** idle-exit (the
+     `do { ServeOnce } while(!args.once)` loop, `:909-911`, is persistent), so the
+     recurrence is death-by-exception, not idle shutdown.
+  2. **Cold start blocks the UI/key thread through a full Rime deploy.** The
+     `YuneRuntime` constructor runs a synchronous full deploy
+     (`start_maintenance`/`join_maintenance_thread`/`deploy_config_file`/
+     `deploy_schema`/`deploy`, `:498-524`) and only *then* is the pipe created
+     (`ServeOnce`, after `runtime(args)` in `wmain:908`). The DLL launches the
+     server and blocks the key thread in `WaitForSharedServerPipe(
+     kServerLaunchReadyWaitMs = 15000)` (`:390`) plus `5000ms × up to 3` query
+     timeouts, so the foreground app freezes until deploy finishes — which for a
+     cold jyut6ping3 build can exceed the 15s budget.
+  - Combined: a slow op kills the server (fault 1); the relaunch pays the full
+    synchronous deploy on the key thread (fault 2) → the recurring freeze.
+- **Fix:**
+  - **F2a (server resilience — clear M06 bug):** a per-request failure must never
+    terminate the server. Wrap the per-connection work so the serve loop catches
+    and logs per-request exceptions / pipe-I/O errors and **continues serving**;
+    only a fatal `YuneRuntime` construction/deploy failure should exit. A client
+    that timed out and disconnected mid-response must be a no-op, not a
+    server-killer.
+  - **F2b (responsiveness mitigation — bounded, M06):** stop hard-freezing the key
+    thread on cold launch. **Warm the server asynchronously** on `ActivateEx` /
+    first focus (a background thread calls `RequestSharedServerLaunch`, which is
+    already mutex+cooldown guarded, so the deploy runs before the user types), and
+    **cap the synchronous key-path wait** so a not-yet-ready server never blocks the
+    foreground app for many seconds — if the server is not ready, pass the keystroke
+    through / drop it and let the next keystroke retry against the now-warming
+    server, rather than blocking in the 15s launch wait on the UI thread.
+- **Boundary:** the *complete* elimination of cold start — a per-user
+  broker/autostart keeping the server warm across the whole session and working in
+  AppContainer hosts — stays the separate **Non-blocking cold-start / broker**
+  milestone. F2 is only the subset that stops the freeze blocking daily typing.
+- **Verify:** (1) force a slow/failed response (e.g. client disconnects mid-reply)
+  and confirm the server process **survives** and answers the next request; (2)
+  after an English stretch, toggling En→Cn does **not** hard-freeze the foreground
+  app (worst case a brief no-candidate moment, not a dead keyboard). Add a server
+  contract asserting a client disconnect during response does not exit the server
+  and a subsequent request on the same process succeeds.
 
 ## Slice Map (sequence)
 
@@ -332,7 +388,12 @@ a reboot per bug.
 - [ ] **F1 (Shift+punctuation):** make `PunctuationInput`/`IsPunctuationKey`
   shift-aware, thread shift through the key handlers, add the digit-row shifted
   symbols, add the shift-differentiation contract; re-verify Shift+/ → ？ etc.
-- [ ] Land any further folded-in typing-blocker fixes (F2, F3, …) as they are added.
+- [ ] **F2a (server resilience):** the serve loop catches per-request / pipe-I/O
+  failures and continues; a client timeout/disconnect no longer kills the server;
+  add the server-survives-disconnect contract.
+- [ ] **F2b (responsiveness):** async server warm-up on activation/focus; cap the
+  synchronous key-path wait so cold launch never hard-freezes the foreground app.
+- [ ] Land any further folded-in typing-blocker fixes (F3, …) as they are added.
 - [ ] Lone-Shift: if any Tier-1 host fails item 6, implement the `WH_KEYBOARD_LL`
   fallback + contract; else record lone-Shift as confirmed reliable.
 - [ ] Candidate anchoring: fix web/Electron anchoring failures with a principled
@@ -370,10 +431,14 @@ a reboot per bug.
   failures documented as expected-limitation (broker milestone), not M06 bugs.
 - Every finding classified `bug` is fixed and re-verified, or explicitly deferred
   with a recorded reason.
-- Every **folded-in typing-blocker fix** (F1 and any later Fn) is implemented,
-  has a contract, and is live-verified — including F1: in Chinese mode Shift+/ →
-  ？, Shift+1 → ！, and the other shifted symbols map correctly, with Shift+letter
-  still capitalizing and English mode still half-width.
+- Every **folded-in typing-blocker fix** (F1, F2, and any later Fn) is
+  implemented, has a contract, and is live-verified:
+  - **F1:** in Chinese mode Shift+/ → ？, Shift+1 → ！, and the other shifted
+    symbols map correctly, with Shift+letter still capitalizing and English mode
+    still half-width.
+  - **F2:** a client timeout/disconnect no longer kills the server (it answers the
+    next request), and toggling En→Cn after an English stretch does not hard-freeze
+    the foreground app. Full broker/autostart stays deferred.
 - The **lone-Shift reliability decision is recorded**: either confirmed reliable
   across Tier-1 hosts, or the `WH_KEYBOARD_LL` fallback is implemented and proven.
 - Candidate anchoring works (or has a principled, non-corner fallback) in the

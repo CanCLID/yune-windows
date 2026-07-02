@@ -1,5 +1,7 @@
 #include <windows.h>
 
+#include <sddl.h>
+
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -11,6 +13,8 @@
 #include <vector>
 
 #include "rime_yune_windows_profile_api.h"
+
+#pragma comment(lib, "advapi32.lib")
 
 namespace {
 
@@ -1238,11 +1242,51 @@ private:
 // so a persistently failing path cannot spin the CPU at 100%.
 constexpr DWORD kServeRequestErrorBackoffMs = 50;
 
+// Grant the IME pipe to every process in the interactive logon session, at any
+// integrity level, so sandboxed hosts can reach the server: IU (interactive
+// users) covers normal apps at any IL; AC (all application packages) covers
+// AppContainer/UWP hosts (e.g. Chrome renderers); the Low mandatory label lets
+// lower-integrity clients past the default No-Write-Up policy. Without this the
+// default descriptor only admits the server creator's own token, so hosts like
+// Chrome, Telegram, Zed, and Explorer get ERROR_ACCESS_DENIED and typing
+// produces no output. The descriptor still excludes other users on the machine.
+// Returns nullptr sd + false on failure; the caller then falls back to default.
+constexpr const wchar_t* kPipeSecuritySddl =
+    L"D:(A;;GRGW;;;IU)(A;;GRGW;;;AC)S:(ML;;NW;;;LW)";
+
+bool BuildPipeSecurityAttributes(SECURITY_ATTRIBUTES& sa,
+                                 PSECURITY_DESCRIPTOR& sd) {
+    sd = nullptr;
+    if (!ConvertStringSecurityDescriptorToSecurityDescriptorW(
+            kPipeSecuritySddl, SDDL_REVISION_1, &sd, nullptr)) {
+        return false;
+    }
+    sa.nLength = sizeof(sa);
+    sa.lpSecurityDescriptor = sd;
+    sa.bInheritHandle = FALSE;
+    return true;
+}
+
 void ServeOnce(const Args& args, YuneRuntime& runtime) {
+    SECURITY_ATTRIBUTES sa = {};
+    PSECURITY_DESCRIPTOR sd = nullptr;
+    LPSECURITY_ATTRIBUTES psa =
+        BuildPipeSecurityAttributes(sa, sd) ? &sa : nullptr;
     HANDLE pipe = CreateNamedPipeW(
         args.pipe_name.c_str(), PIPE_ACCESS_DUPLEX,
         PIPE_TYPE_MESSAGE | PIPE_READMODE_MESSAGE | PIPE_WAIT, 1, 64 * 1024,
-        64 * 1024, 0, nullptr);
+        64 * 1024, 0, psa);
+    if (pipe == INVALID_HANDLE_VALUE && psa != nullptr) {
+        // The hardened descriptor was rejected; fall back to the default so the
+        // server still runs (it just won't admit sandboxed hosts).
+        pipe = CreateNamedPipeW(
+            args.pipe_name.c_str(), PIPE_ACCESS_DUPLEX,
+            PIPE_TYPE_MESSAGE | PIPE_READMODE_MESSAGE | PIPE_WAIT, 1, 64 * 1024,
+            64 * 1024, 0, nullptr);
+    }
+    if (sd != nullptr) {
+        LocalFree(sd);
+    }
     Require(pipe != INVALID_HANDLE_VALUE, "failed to create named pipe");
 
     const BOOL connected =

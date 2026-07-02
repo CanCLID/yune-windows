@@ -1587,9 +1587,8 @@ public:
         *eaten = FALSE;
         if (IsShiftKey(key)) {
             if (shift_down_ && !shift_consumed_ &&
-                !IsShortcutModifierDown() && !IsMouseButtonDown() &&
-                TryAcquireLoneShiftToggle()) {
-                ToggleBoolState("ascii_mode", context);
+                !IsShortcutModifierDown() && !IsMouseButtonDown()) {
+                PerformLoneShiftToggle(context);
             }
             ClearShiftState();
         }
@@ -1622,11 +1621,23 @@ public:
     }
 
     void HandleDeferredLoneShiftToggle() {
+        PerformLoneShiftToggle(nullptr);
+    }
+
+    // Single entry point for a detected lone-Shift; both the TSF key sink and the
+    // low-level keyboard hook route here. Consumes the double-toggle guard ONLY
+    // when a toggle actually fires, so a no-op path (not focused, or the other
+    // detector already toggled) can never spend the guard and suppress the real
+    // toggle -- the cause of "press Shift, nothing happens, press again".
+    void PerformLoneShiftToggle(ITfContext* context) {
         if (!focused_) {
             return;
         }
+        if (!TryAcquireLoneShiftToggle()) {
+            return;
+        }
         ClearShiftState();
-        ToggleBoolState("ascii_mode", nullptr);
+        ToggleBoolState("ascii_mode", context);
     }
 
 private:
@@ -2435,9 +2446,9 @@ LRESULT CALLBACK ShiftHookWindowProc(HWND hwnd, UINT message, WPARAM wparam,
     if (message == kShiftHookToggleMessage) {
         TextService* service = AddRefFocusedTextService();
         if (service) {
-            if (TryAcquireLoneShiftToggle()) {
-                service->HandleDeferredLoneShiftToggle();
-            }
+            // PerformLoneShiftToggle (via HandleDeferredLoneShiftToggle) acquires
+            // the double-toggle guard itself, only when it actually toggles.
+            service->HandleDeferredLoneShiftToggle();
             service->Release();
         }
         return 0;

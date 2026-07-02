@@ -25,6 +25,12 @@ recording what happens; the code work is (a) a repeatable evidence harness and
 sequenced to **swap once, observe everything, then batch fixes** so we pay the
 holder/reboot cost as few times as possible.
 
+M06 also **absorbs known typing-blocker bugs the user is already hitting** — not
+just defects discovered during the observation pass. These are enumerated in
+*Folded-in Typing-Blocker Fixes* below and are fixed in the same batch and
+verified in the same holder-free session as the Slice B/C work, so a single swap
+covers both verification and the known fixes.
+
 **Architecture:** no new runtime architecture. We exercise the existing installed
 path (shared server + TSF DLL + native candidate/language-bar windows +
 `YuneWindowsSettings.exe`) and add verification tooling under `tools\` plus
@@ -149,6 +155,58 @@ typing quality; 6–12 are M05 controls.
     the new mode (state block + `op=get-state` on focus).
 12. **Native indicator** — the Windows 中/英 input-mode indicator reflects state.
 
+## Folded-in Typing-Blocker Fixes (user-reported)
+
+Known bugs the user hits in daily typing, fixed as part of this milestone (batched
+with Slice C and verified in the same holder-free session). This list is open —
+append new user-reported blockers here as they come in.
+
+### F1 — Shift+punctuation forwards the *unshifted* character (full-width ？！：… broken)
+
+- **Symptom:** in Chinese mode, Shift+/ commits full-width ／ instead of ？. The
+  shifted forms of the other symbol keys are likewise wrong (Shift+; → ； instead
+  of ：, Shift+' → ＇ instead of ＂, Shift+- , Shift+= , Shift+, , Shift+. …), and
+  the shifted number-row keys (！＠＃…) are not forwarded to Rime at all — they
+  leak through as half-width.
+- **Root cause:** `PunctuationInput(WPARAM key)`
+  (`src/tsf/yune_windows_tsf.cpp:117`) maps each virtual key to its **unshifted**
+  US character and ignores the Shift modifier, so `CommitCompositionForPunctuation`
+  (`:1625`) sends e.g. `/` to Rime and Rime returns the full-width of `/`. The
+  number-row shifted symbols are absent from the table entirely, and
+  `ShouldHandleKeyDown` (`:1580`) routes digits `1`–`9` to candidate-selection /
+  passthrough regardless of Shift, so shifted digits never reach the punctuation
+  path.
+- **Fix — make punctuation forwarding Shift-aware and send the *actual* produced
+  character to Rime:**
+  - `PunctuationInput(WPARAM key, bool shift)` returns the shifted US symbol when
+    `shift`: OEM_1 `;`/`:`, OEM_2 `/`/`?`, OEM_3 `` ` ``/`~`, OEM_4 `[`/`{`,
+    OEM_5 `\`/`|`, OEM_6 `]`/`}`, OEM_7 `'`/`"`, COMMA `,`/`<`, PERIOD `.`/`>`,
+    MINUS `-`/`_`, PLUS `=`/`+`; and for digit keys `0`–`9` return the shifted
+    symbol **only** when `shift` (`1`→`!` … `9`→`(`, `0`→`)`), empty otherwise so
+    unshifted digits keep their existing selection/passthrough path.
+  - `IsPunctuationKey(key, shift)` = `!PunctuationInput(key, shift).empty()`.
+  - Determine shift at each call site with `(GetKeyState(VK_SHIFT) & 0x8000) != 0`
+    — pure, reflects the current message's state, and identical in
+    `OnTestKeyDown`/`OnKeyDown`. Do **not** couple to the lone-Shift `shift_down_`
+    state machine.
+  - Thread `shift` through `ShouldHandleKeyDown`, the `OnKeyDown` punctuation
+    branch (`:1244`), `OnTestKeyDown` (so its eaten decision matches `OnKeyDown`),
+    and `CommitCompositionForPunctuation` (`:1627`). Reorder `ShouldHandleKeyDown`
+    so the digit branch (`:1580`) matches **unshifted** digits only and shifted
+    digits fall through to the `IsPunctuationKey` check.
+  - Keep ascii-mode passthrough intact: in ascii mode with an empty buffer,
+    shifted punctuation and digits still pass through as half-width.
+- **Verify:** in Chinese mode, Shift+/ → ？, Shift+1 → ！, Shift+; → ：,
+  Shift+' → ＂, and `,`/`.`/`\` produce their Rime-mapped full-width forms;
+  Shift+letter still types a capital and does **not** toggle 中/英; English mode
+  still yields half-width. Add a source/behavior contract asserting
+  `PunctuationInput` is shift-differentiated (OEM_2 shifted ≠ unshifted; a digit
+  is empty unshifted and non-empty shifted).
+- **Layout note:** this preserves the existing hard-coded **US-layout** assumption.
+  A layout-correct derivation via `ToUnicodeEx` is a possible follow-up but carries
+  dead-key / `OnTestKeyDown` side-effect risk; out of scope unless a non-US layout
+  need appears.
+
 ## Slice Map (sequence)
 
 1. **Slice A — Verification harness** (tooling; non-elevated, no holder problem).
@@ -204,7 +262,11 @@ a reboot per bug.
 
 ### Slice C — Triage + fixes
 
-- **Prioritize by likelihood (from Current Facts):**
+- **Start from the folded-in known bugs** (*Folded-in Typing-Blocker Fixes*):
+  they are already root-caused and do not need the observation pass to justify
+  them. Land them first (server fixes on the instant loop; DLL fixes batched into
+  the holder-free swap), then move to the Slice B findings.
+- **Prioritize the discovered findings by likelihood (from Current Facts):**
   - **Lone-Shift key-up delivery (item 6).** If any Tier-1 host fails to toggle on
     lone Shift, implement the deferred **`WH_KEYBOARD_LL` fallback** for lone-Shift
     detection (Weasel's approach): a per-thread/low-level hook that detects a
@@ -267,6 +329,10 @@ a reboot per bug.
 - [ ] Commit the filled `matrix.md` + evidence to `main`.
 
 ### Task 3: Slice C — triage + fixes
+- [ ] **F1 (Shift+punctuation):** make `PunctuationInput`/`IsPunctuationKey`
+  shift-aware, thread shift through the key handlers, add the digit-row shifted
+  symbols, add the shift-differentiation contract; re-verify Shift+/ → ？ etc.
+- [ ] Land any further folded-in typing-blocker fixes (F2, F3, …) as they are added.
 - [ ] Lone-Shift: if any Tier-1 host fails item 6, implement the `WH_KEYBOARD_LL`
   fallback + contract; else record lone-Shift as confirmed reliable.
 - [ ] Candidate anchoring: fix web/Electron anchoring failures with a principled
@@ -304,6 +370,10 @@ a reboot per bug.
   failures documented as expected-limitation (broker milestone), not M06 bugs.
 - Every finding classified `bug` is fixed and re-verified, or explicitly deferred
   with a recorded reason.
+- Every **folded-in typing-blocker fix** (F1 and any later Fn) is implemented,
+  has a contract, and is live-verified — including F1: in Chinese mode Shift+/ →
+  ？, Shift+1 → ！, and the other shifted symbols map correctly, with Shift+letter
+  still capitalizing and English mode still half-width.
 - The **lone-Shift reliability decision is recorded**: either confirmed reliable
   across Tier-1 hosts, or the `WH_KEYBOARD_LL` fallback is implemented and proven.
 - Candidate anchoring works (or has a principled, non-corner fallback) in the

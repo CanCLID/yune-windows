@@ -850,6 +850,10 @@ private:
     bool initialized_ = false;
 };
 
+// After a per-request failure the serve loop pauses briefly before re-accepting,
+// so a persistently failing path cannot spin the CPU at 100%.
+constexpr DWORD kServeRequestErrorBackoffMs = 50;
+
 void ServeOnce(const Args& args, YuneRuntime& runtime) {
     HANDLE pipe = CreateNamedPipeW(
         args.pipe_name.c_str(), PIPE_ACCESS_DUPLEX,
@@ -906,9 +910,31 @@ int wmain(int argc, wchar_t** argv) {
             return 0;
         }
         YuneRuntime runtime(args);
-        do {
+        if (args.once) {
+            // One-shot mode (dev REPL / contracts): a failure should still surface
+            // as a non-zero exit, so let it propagate to the outer handler.
             ServeOnce(args, runtime);
-        } while (!args.once);
+        } else {
+            // Shared, long-lived server: a single bad request must never take it
+            // down, because every app's IME depends on this one process. The most
+            // common trigger is a client that hit its own query timeout and closed
+            // the pipe mid-response (F2), which fails the server's WriteFile/flush.
+            // Catch per-request failures, log, and keep serving; only a fatal
+            // runtime init/deploy failure (the YuneRuntime ctor above) exits.
+            for (;;) {
+                try {
+                    ServeOnce(args, runtime);
+                } catch (const std::exception& error) {
+                    std::cerr << "YuneWindowsServer request error (continuing): "
+                              << error.what() << "\n";
+                    Sleep(kServeRequestErrorBackoffMs);
+                } catch (...) {
+                    std::cerr << "YuneWindowsServer request error (continuing): "
+                                 "unknown exception\n";
+                    Sleep(kServeRequestErrorBackoffMs);
+                }
+            }
+        }
         CloseHandle(single_instance);
         single_instance = nullptr;
         return 0;

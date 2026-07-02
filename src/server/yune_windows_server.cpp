@@ -604,6 +604,37 @@ public:
         }
         (void)deploy_diagnostics;
         LoadState();
+        WarmDictionary();
+    }
+
+    // Rime lazy-loads the schema dictionary on the first lookup (~200ms+), which
+    // made the first real keystroke after a server (re)start slow enough to trip
+    // the client's short key-path timeout -- the "takes a few seconds to start
+    // typing Chinese after toggling" symptom. Do a throwaway lookup now so the
+    // dictionary is resident before the user types. Best-effort; never fails
+    // startup.
+    void WarmDictionary() {
+        try {
+            const RimeSessionId session = api_->create_session();
+            if (session == 0) {
+                return;
+            }
+            ApplyState(session);
+            for (const char ch : std::string("ngo")) {
+                if (api_->process_key(
+                        session, static_cast<int>(static_cast<unsigned char>(ch)),
+                        0) != True) {
+                    break;
+                }
+            }
+            RimeContext context = {};
+            RIME_STRUCT_INIT(RimeContext, context);
+            if (api_->get_context(session, &context) == True) {
+                api_->free_context(&context);
+            }
+            (void)api_->destroy_session(session);
+        } catch (...) {
+        }
     }
 
     ~YuneRuntime() {

@@ -34,14 +34,21 @@ owner-window/no-orphan lifecycle hardening, PageUp/PageDown paging, and
 punctuation/full-width forwarding through the existing Rime `get_commit` path.
 M05 adds server-owned persistent IME state, `op=` IPC verbs, toggle hotkeys,
 a focus-scoped native mini language bar, and `YuneWindowsSettings.exe`.
+M06 implementation relief is now landed for the known compatibility blockers:
+server request failures no longer kill the shared server, TSF activation/focus
+warms the server asynchronously, foreground key-path queries are capped, shifted
+punctuation and number-row symbols are forwarded to Rime, Enter commits the raw
+typed buffer, and a focus-gated low-level Shift hook covers hosts that do not
+deliver lone-Shift key-up through the TSF sink.
 
 After a post-reboot holder-free reload, the installed server, TSF DLL, active
 profile, and settings executable were refreshed from the M05 build. Manual dev
 Notepad verification confirmed `ngohaig` input, Shift Chinese/English toggle,
 English pass-through, toggling back to Cantonese, PageUp/PageDown paging,
-punctuation behavior, and the settings entrypoint. The next gate is dogfood
-package hardening or a broader compatibility pass for Chromium, native Windows
-input-mode indicator observation, and multi-host language-bar/settings breadth.
+punctuation behavior, and the settings entrypoint. The M06 non-elevated proof
+and operator scripts live under `docs/evidence/m06/`; the next M06 gate is a
+holder-free installed TSF DLL host matrix for Notepad, Chromium, a daily editor,
+and Telegram. Do not mark M06 complete from local contracts alone.
 
 For dogfood package or production installer work, refresh live evidence under
 the Yune Windows names whenever package inputs or installer behavior change:

@@ -1,0 +1,55 @@
+{
+  "milestone": "M06",
+  "title": "Host Compatibility Pass",
+  "status": "implementation_complete_live_pending",
+  "evidence_policy": "compact-summary-plus-matrix-template",
+  "raw_artifacts_pruned": [],
+  "executed_proof": [
+    "F2a shared server survives client disconnects before write and mid-response",
+    "F1/F2b/F5/F6 key-path source contract passed",
+    "M07 persistent composition server prerequisite contract passed",
+    "punctuation commit contract passed with shift-aware signatures",
+    "TSF key-eating contract passed with raw Enter split from Space",
+    "TSF IME state, key-up pass-through, and focus-loss contracts passed",
+    "TSF shell build, DLL export contract, and milestone naming contract passed"
+  ],
+  "host_matrix": {
+    "path": "docs/evidence/m06/matrix.md",
+    "status": "pending_holder_free_live_verification",
+    "tier_1_required": [
+      "Notepad",
+      "Chromium browser",
+      "VS Code or daily editor",
+      "Telegram Desktop"
+    ]
+  },
+  "live_proof": [],
+  "manual_live_required": true,
+  "follow_up_coverage": [
+    "candidate anchoring in Chromium/Electron-rich fields",
+    "native Windows input-mode indicator observation",
+    "UWP/AppContainer/sandboxed host expected limitations until broker/autostart"
+  ],
+  "deferred": [
+    "non-US keyboard layout punctuation derivation via ToUnicodeEx",
+    "full per-user broker/autostart cold-start elimination"
+  ],
+  "regeneration_commands": [
+    "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\test-server-request-resilience-contract.ps1",
+    "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\test-m06-key-path-fixes-contract.ps1",
+    "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\test-punctuation-commit-contract.ps1",
+    "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\test-tsf-key-eating-contract.ps1",
+    "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\test-tsf-ime-state-hotkey-contract.ps1",
+    "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\test-tsf-key-up-pass-through-contract.ps1",
+    "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\test-tsf-focus-loss-clears-composition-contract.ps1",
+    "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\test-tsf-shell-build.ps1",
+    "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\test-tsf-dll-export-contract.ps1",
+    "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\collect-m06-compatibility-environment.ps1",
+    "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\test-m06-evidence-summary-contract.ps1",
+    "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\test-milestone-naming-contract.ps1"
+  ],
+  "live_machine_state_required": true,
+  "live_machine_state_approval_in_current_session": false,
+  "elevated_machine_state_steps_run": false,
+  "plan_archived": false
+}

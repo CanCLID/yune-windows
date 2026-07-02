@@ -7,7 +7,7 @@ intentionally separate from Yune engine-performance work.
 
 | Lane | Current state | Next gate |
 | --- | --- | --- |
-| Product shell | Renamed public baseline with TSF DLL, shared server, native candidate window, diagnostics tooling, installer scripts, non-elevated contract tests, M02 product-owned server startup, M03 development inner-loop tooling, M04 candidate typing-quality implementation, and M05 IME controls implementation. Latest approved live closeout reached install/register, profile activation, Notepad, Chromium, diagnostics export, uninstall, and post-reboot no-residue cleanup. M04 runtime evidence covers clean candidate comments, 30-candidate server supply, full-width punctuation via `get_commit`, and installed-server reload/readiness. M05 adds server-owned persistent schema/options state in `state\ime-state.json`, `op=` IPC verbs, state reconciliation on every server response, lone-Shift and preserved-key toggles, a focus-scoped native mini language bar, and `YuneWindowsSettings.exe`. M05 review crash blockers are fixed in non-elevated scratch-server coverage: `ascii_mode=true` non-empty input, persisted ascii restart, invalid op/schema/option requests, and settings/schema-cycle fallback no longer kill the shared server. Post-reboot holder-free installed-path proof refreshed the installed server, swapped the TSF DLL, activated the profile, installed the settings executable, and manually verified the M05 typing controls in a dev-owned Notepad window. Activation/focus refresh is now a short existing-server-only query, but cold start is still synchronous in the TSF key path for up to `kServerLaunchReadyWaitMs = 15000`. Compact milestone summaries live under `docs/evidence/m01/` through `docs/evidence/m05/`; bulky raw artifacts are regenerated only when a fresh gate needs them. | Dogfood package hardening, or a broader compatibility pass for Chromium, native input-mode indicator observation, and multi-host language-bar/settings breadth. |
+| Product shell | Renamed public baseline with TSF DLL, shared server, native candidate window, diagnostics tooling, installer scripts, non-elevated contract tests, M02 product-owned server startup, M03 development inner-loop tooling, M04 candidate typing-quality implementation, and M05 IME controls implementation. Latest approved live closeout reached install/register, profile activation, Notepad, Chromium, diagnostics export, uninstall, and post-reboot no-residue cleanup. M04 runtime evidence covers clean candidate comments, 30-candidate server supply, full-width punctuation via `get_commit`, and installed-server reload/readiness. M05 adds server-owned persistent schema/options state in `state\ime-state.json`, `op=` IPC verbs, state reconciliation on every server response, lone-Shift and preserved-key toggles, a focus-scoped native mini language bar, and `YuneWindowsSettings.exe`. M05 review crash blockers are fixed in non-elevated scratch-server coverage: `ascii_mode=true` non-empty input, persisted ascii restart, invalid op/schema/option requests, and settings/schema-cycle fallback no longer kill the shared server. Post-reboot holder-free installed-path proof refreshed the installed server, swapped the TSF DLL, activated the profile, installed the settings executable, and manually verified the M05 typing controls in a dev-owned Notepad window. M06 implementation relief is landed for server request resilience, async warm-up, capped foreground key-path IPC, shifted punctuation, raw Enter, and the focus-gated low-level Shift fallback; the holder-free live host matrix remains pending. Compact milestone summaries live under `docs/evidence/m01/` through `docs/evidence/m06/`; bulky raw artifacts are regenerated only when a fresh gate needs them. | Fill the M06 holder-free host matrix for Notepad, Chromium, a daily editor, and Telegram; then continue to persistent composition or dogfood package hardening. |
 | Yune boundary | Windows consumes packaged Yune through `rime_get_api()` plus the opt-in `rime_get_yune_windows_profile_api()` surface. | Keep default `rime_get_api()` unchanged; send new engine needs to Yune as named proposals with tests. |
 | Reference code | Legacy Weasel-derived implementation is reference material only. | Extract no more code without a focused audit and smoke proof. |
 | Dogfood release | Public repo starts from clean initial history and omits old private evidence. Fresh post-rename live evidence exists, including Notepad, Chromium, diagnostics, recovered cleanup, compatibility target, signing decision, and complete closeout audit under the product-owned server contract. Compatibility target and signing decision are retained in compact M01 summary evidence; dogfood packaging, release signing, non-blocking cold-start, and user-data preservation remain open. | Start dogfood package hardening when selected. |
@@ -32,9 +32,10 @@ intentionally separate from Yune engine-performance work.
    runs. Status: latest live closeout reached install/register, profile
    activation, Notepad, Chromium, diagnostics export, and structured uninstall.
    Both text-field smokes passed from the installed path without a manual server
-   start and recorded product-owned server start/readiness evidence. The current
-   cold-start readiness path is bounded but synchronous in the TSF key path, so
-   non-blocking launch remains a fast-follow. Cleanup initially recorded
+   start and recorded product-owned server start/readiness evidence. The M06
+   compatibility relief later added async warm-up plus capped foreground
+   key-path IPC; full broker/autostart launch remains a fast-follow. Cleanup
+   initially recorded
    `requires_reboot=true` with delayed-delete paths under the install root
    because GUI processes kept `YuneWindowsTSF.dll` loaded, then passed
    post-reboot validation with no residue; see `docs/evidence/m02/summary.md`.
@@ -112,10 +113,9 @@ committed the expected Cantonese text, and recorded product-owned server
 start/readiness evidence without per-smoke activation immediately before
 typing. Cleanup scheduled delayed delete for locked install-root files, then
 passed post-reboot cleanup validation and closeout audit with no residue. Known
-limitation: the first cold keystroke can block the foreground app while the
-server starts because TSF waits synchronously for up to
-`kServerLaunchReadyWaitMs = 15000`; async launch, broker launch, or another
-non-blocking cold-start path remains a dogfood fast-follow.
+limitation: M06 now warms the server asynchronously and caps foreground
+key-path IPC when the server is not ready. A broker/autostart path remains the
+dogfood fast-follow for zero cold-start launch latency and restricted hosts.
 
 Historical plan:
 `docs/plans/history/m02-plan-server-lifecycle-cleanup-hardening.md`.
@@ -195,7 +195,7 @@ M02 through M05 are complete. The remaining rows are candidate next milestones.
 
 | Candidate | Delivers | Rough size | Key dependency / risk |
 | --- | --- | --- | --- |
-| **M06 — Host compatibility pass (active)** | Recheck the implemented caret placement, no-orphan behavior, PageUp/PageDown paging, full-sentence punctuation, lone-Shift mode toggle, preserved-key toggles, focus-scoped language bar, settings-driven state changes, and native input-mode indicator behavior across Chromium and other desktop hosts; plus folded-in typing-blockers F1 (Shift+punctuation full-width) and F2 (En→Cn toggle freeze: server resilience + bounded async warm-up). | S–M | Requires a holder-free TSF DLL session for file swaps and must not force-close non-dev apps from tooling. Plan: `docs/plans/active/m06-plan-host-compatibility-pass.md`. Evidence roots: `docs/evidence/m04/`, `docs/evidence/m05/`. |
+| **M06 — Host compatibility pass (active)** | Recheck the implemented caret placement, no-orphan behavior, PageUp/PageDown paging, full-sentence punctuation, lone-Shift mode toggle, preserved-key toggles, focus-scoped language bar, settings-driven state changes, and native input-mode indicator behavior across Chromium and other desktop hosts. Folded-in blocker fixes F1, F2a/F2b, F5, and F6 are implemented and contract-proven; the live host matrix is still pending. | S–M | Requires a holder-free TSF DLL session for file swaps and must not force-close non-dev apps from tooling. Plan: `docs/plans/active/m06-plan-host-compatibility-pass.md`. Evidence root: `docs/evidence/m06/`. |
 | **M07 — Persistent composition + candidate selection (next)** | Persistent per-client Rime session + inline `ITfComposition` + Rime-driven selection so multi-syllable, out-of-lexicon words can be composed by picking characters one at a time (`dungdatkyut` → 東突厥), with the input shown inline at the caret while composing. Fixes F3 (selection advances the composition) + F4 (preedit visible inline); the prerequisite architecture for a future learning/userdb milestone. | M–L | **No Yune ABI change** — `select_candidate_on_current_page`/`candidate_list_from_index` are already exposed in the linked RimeApi. Replaces the stateless-per-keystroke model; depends on M06 F2a server resilience. `disable_learning` stays forced. Plan: `docs/plans/active/m07-plan-persistent-composition-selection.md`. |
 | **Non-blocking cold-start / per-user broker** | Removes the up-to-15s foreground freeze on the first cold keystroke and makes launch work in sandboxed/AppContainer hosts (UWP, WeChat, some Store/Electron). Reduces AV/EDR risk of spawning an unsigned exe from a browser. | M | Adds per-user autostart/broker state that install/uninstall must create and remove; documented M02 fast-follow. |
 | **Dogfood package hardening (WIN-11)** | Self-contained install bundle decoupled from the local Yune source build, so a second machine can install without a Rust/Yune toolchain. | M | Production signing stays deferred; needs pre-staged `rime.dll` + schema + binaries + `install-info.json`. |
@@ -230,8 +230,10 @@ proof), not a flag flip, and should not ride the candidate-window work.
 
 ### Cross-cutting
 
-- The synchronous cold-start wait (`kServerLaunchReadyWaitMs = 15000`) will
-  color the daily-typing experience even though it is a separate milestone;
-  weigh the broker candidate against M04 accordingly.
+- M06 removes the hard foreground freeze path for ordinary key handling by
+  keeping launch off focus/activation, warming asynchronously, and capping
+  existing-server key IPC. Full broker/autostart launch remains separate and
+  should still be weighed for sandboxed hosts, zero cold-start latency, and
+  AV/EDR policy.
 - Keep live IME install/register/uninstall loops approval-gated and
   reboot-aware regardless of which candidate is chosen.

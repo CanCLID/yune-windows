@@ -5,13 +5,14 @@
 **Status:** public rename baseline, M02 product-owned server lifecycle,
 structured cleanup hardening, M03 development inner-loop tooling, M04
 candidate typing-quality implementation, and M05 IME controls implementation
-are complete for non-elevated build/contract/runtime coverage. Fresh
+are complete for non-elevated build/contract/runtime coverage. M06
+implementation relief is landed for the folded-in host compatibility blockers,
+with the holder-free live host matrix still pending. Fresh
 post-rename live evidence proves install/register, product-owned Notepad and
 Chromium typing, diagnostics, uninstall, and post-reboot no-residue cleanup on
 the installed IME. M04 server-side behavior is runtime-verified; M05 has
 post-reboot holder-free dev Notepad proof for installed server/TSF/settings
-controls, with broader Chromium/native-indicator compatibility coverage
-deferred.
+controls.
 
 - [x] **WIN-01 - Product identity:** Product name, repo slug, install root,
   TSF DLL, server, profile tool, candidate smoke, named pipe, and TSF
@@ -60,11 +61,12 @@ deferred.
   bounded and structurally logged. Implementation contracts are green, and
   approved live Notepad and Chromium evidence proves product-owned startup on
   the installed path. Post-reboot cleanup validation proves the scheduled
-  install-root delayed deletes are gone. Known limitation: cold start currently
-  uses a bounded synchronous TSF key-path wait
-  (`kServerLaunchReadyWaitMs = 15000`), so the first cold keystroke can block
-  the foreground app while the server starts. Non-blocking/asynchronous
-  cold-start or broker launch remains a dogfood fast-follow, not a solved gate.
+  install-root delayed deletes are gone. M06 keeps focus and activation from
+  launching the server synchronously, warms the shared server asynchronously,
+  and caps foreground key-path IPC waits so a not-ready server does not hard
+  freeze the foreground app. A full per-user broker/autostart path for
+  sandboxed hosts and zero cold-start launch latency remains a dogfood
+  fast-follow, not a solved gate.
 - [x] **WIN-13 - Development inner loop:** Development tooling must support a
   no-install engine REPL, installed-server reload, installed TSF DLL reload
   through a dev-owned test window, and dry-run watch routing without elevation,
@@ -111,6 +113,15 @@ deferred.
   window. Chromium cross-app reconciliation, native Windows input-mode
   indicator observation, and broader multi-host language-bar/settings coverage
   remain follow-up compatibility evidence.
+- [ ] **WIN-16 - Host compatibility matrix:** M06 implements the known
+  compatibility relief batch without changing Yune engine internals or the
+  default `rime_get_api()` ABI: F1 shifted punctuation and shifted number-row
+  forwarding, unshifted-only `-`/`=` paging, F2a server resilience against
+  client disconnects, F2b async warm-up plus capped foreground key-path waits,
+  F5 focus-gated low-level Shift fallback, and F6 raw Enter commit. The local
+  contracts and evidence summary are green under `docs\evidence\m06\`; this
+  gate remains open until a holder-free installed TSF DLL run fills the Tier-1
+  host matrix for Notepad, Chromium, a daily editor, and Telegram.
 
 ## Non-Elevated Verification Gates
 

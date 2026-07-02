@@ -49,13 +49,14 @@ evidence, then implementation continues or the gate stays open.
 
 The shared server model remains the default. The first product-owned lifecycle
 path is on-demand `YuneWindowsServer.exe` launch from the installed TSF DLL, with
-bounded IPC failure behavior and structural diagnostics. The current M02
-implementation uses a bounded synchronous cold-start readiness wait in the TSF
-key path (`kServerLaunchReadyWaitMs = 15000`), so the first cold keystroke can
-block the foreground app while the product-owned server starts. A session-scoped
-broker or otherwise non-blocking/asynchronous cold-start path remains the
-fast-follow if restricted hosts, AppContainer coverage, foreground-app latency,
-or AV/EDR policy make in-host launch insufficient.
+bounded IPC failure behavior and structural diagnostics. M06 adds the bounded
+subset that belongs in the TSF DLL: activation/focus state refresh never
+launches the server synchronously, the DLL requests asynchronous server warm-up,
+and foreground key-path IPC uses a capped existing-server query so a not-ready
+server does not hard-freeze the foreground app. A session-scoped broker or
+autostart path remains the fast-follow if restricted hosts, AppContainer
+coverage, zero cold-start launch latency, or AV/EDR policy make in-host launch
+insufficient.
 
 ### D-09 - Dogfood uninstall must preserve user data deliberately
 
@@ -104,7 +105,26 @@ separate product-owned server lifecycle follow-up. WebView2 remains reserved for
 a richer future settings/dictionary panel, not the latency-critical inline
 candidate surface.
 
+### D-13 - M06 compatibility relief stays Windows-side
+
+M06 fixes the known host compatibility typing blockers inside Yune Windows
+without changing Yune engine internals or widening the default `rime_get_api()`
+ABI. The TSF key path forwards a conservative US-layout shifted punctuation map
+to Rime instead of calling `ToUnicodeEx` from `OnTestKeyDown`, keeps `-`/`=`
+paging unshifted-only, treats Enter as raw-buffer commit while Space remains
+candidate commit, and installs a process-wide, focus-gated `WH_KEYBOARD_LL`
+lone-Shift fallback whose callback only posts work back to the focused text
+service. Non-US keyboard-layout derivation, full broker/autostart cold-start
+removal, and sandboxed/AppContainer host support remain later milestones.
+
 ## Last Updated
+
+2026-07-02 - M06 compatibility relief landed server resilience, async warm-up
+plus capped foreground key-path waits, shifted punctuation forwarding,
+unshifted-only `-`/`=` paging, raw Enter commit, and the focus-gated low-level
+Shift fallback. Local build/source/runtime contracts and
+`docs/evidence/m06/summary.md` are green; M06 remains active until the
+holder-free live host matrix is filled.
 
 2026-07-01 - M05 IME Toggles, Language Bar, and Settings implementation added
 server-owned state, `op=` verbs, TSF hotkeys, focus-scoped native mini language

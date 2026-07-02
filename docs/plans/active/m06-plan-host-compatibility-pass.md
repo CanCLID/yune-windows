@@ -1,9 +1,9 @@
 # M06 Host Compatibility Pass Implementation Plan
 
-> **Status:** active. Selected 2026-07-01 as the milestone after M05. This is a
-> verification-first milestone: prove the M04/M05 typing controls hold across the
-> real desktop hosts the user types Cantonese in every day, fix what breaks, and
-> capture host-matrix evidence.
+> **Status:** active. Selected 2026-07-01 as the milestone after M05. The known
+> implementation relief for F1, F2a/F2b, F5, and F6 has landed with
+> non-elevated contracts and compact evidence. The milestone remains active
+> until the holder-free installed TSF DLL host matrix is filled.
 
 **Goal:** turn the single-Notepad live proof from M04/M05 into broad,
 recorded confidence. Verify caret-anchored candidates, no-orphan behavior,
@@ -54,11 +54,11 @@ verification in each host.
   Chromium cross-app, native input-mode indicator observation, and multi-host
   language-bar/settings breadth are explicitly listed as follow-up coverage in
   both `docs/evidence/m04/summary.md` and `docs/evidence/m05/summary.md`.
-- **The lone-Shift `WH_KEYBOARD_LL` fallback is NOT implemented** (M05 "Deferred").
-  Lone-Shift 中/英 relies on TSF key-sink delivery of `VK_SHIFT` key-up. This is
-  the single most likely thing to be flaky in non-Win32 hosts (Chromium/Electron
-  route keyboard input differently), and M06 is where we get the evidence to
-  decide whether the fallback becomes real work.
+- **The lone-Shift `WH_KEYBOARD_LL` fallback is implemented but not live-proven
+  in Telegram yet.** M06 installs a process-wide, focus-gated fallback that posts
+  deferred work back to the focused text service and shares the sink/hook
+  double-toggle guard. The Tier-1 matrix still needs the holder-free Telegram
+  proof.
 - **Candidate anchoring rejects bad `GetTextExt`, then falls back to
   `GetScreenExt`.** The anchor edit session takes a clipped/zero-size `GetTextExt`
   rect as "no text ext" and, when it has none, falls back to `GetScreenExt`
@@ -81,10 +81,11 @@ verification in each host.
   compartment (`GUID_TFCAT_TIPCAP_INPUTMODECOMPARTMENT`,
   `src/tsf/yune_windows_tsf.cpp:1461`). Whether Windows actually paints it varies
   by host and by the language-bar/notification-area settings.
-- **Cold start is still synchronous** (`kServerLaunchReadyWaitMs = 15000`). The
-  first keystroke after a cold server can freeze the foreground app. This is a
-  **separate milestone**; in M06 we note it when observed but do not fix it, and
-  we warm the server before timing-sensitive checks.
+- **Cold start is mitigated but not fully solved.** M06 warms the server
+  asynchronously on activation/focus and caps foreground key-path IPC when the
+  existing server is not ready. Full broker/autostart coverage remains a
+  separate milestone, and the live matrix should still record any perceived
+  cold-start latency.
 - **A compatibility-environment collector already exists**
   (`tools\collect-m01-compatibility-environment.ps1`) writing a JSON snapshot of
   OS/build/arch — the exact template for a per-run M06 environment capture.
@@ -444,8 +445,9 @@ a reboot per bug.
   extent proven; move remaining host classes to the broker/dogfood rows),
   `README.md`, `docs/requirements.md`, and `docs/decisions.md` as needed. Record
   the lone-Shift decision in `docs/decisions.md`.
-- Move this plan to `docs/plans/history/m06-plan-host-compatibility-pass.md` and
-  update `docs/plans/active/README.md`.
+- Move this plan to `docs/plans/history/m06-plan-host-compatibility-pass.md`
+  only after the holder-free live host matrix is filled; until then, keep it
+  active and update `docs/plans/active/README.md`.
 - **Verify the whole closeout:** `git diff --check`, changed-PowerShell parser
   pass, `tools\test-m06-evidence-summary-contract.ps1`,
   `tools\test-milestone-naming-contract.ps1` (M06 additions must not trip it), and
@@ -454,12 +456,12 @@ a reboot per bug.
 ## Tasks
 
 ### Task 1: Slice A — verification harness
-- [ ] Add `docs\evidence\m06\matrix.md` (tiers × 12-item checklist template +
+- [x] Add `docs\evidence\m06\matrix.md` (tiers × 12-item checklist template +
   per-host operator scripts).
-- [ ] Add `tools\collect-m06-compatibility-environment.ps1` (env + build SHA +
+- [x] Add `tools\collect-m06-compatibility-environment.ps1` (env + build SHA +
   profile state + `tsf-events.log` tail → `docs\evidence\m06\environment.json`).
-- [ ] Add a labeled `tsf-events.log` window-capture helper.
-- [ ] Run the collector; confirm well-formed output. Commit to `main`.
+- [x] Add a labeled `tsf-events.log` window-capture helper.
+- [x] Run the collector; confirm well-formed output. Commit to `main`.
 
 ### Task 2: Slice B — observation pass
 - [ ] One holder-free `dev-reload-server` + `dev-reload-tsf`; confirm live build
@@ -469,21 +471,21 @@ a reboot per bug.
 - [ ] Commit the filled `matrix.md` + evidence to `main`.
 
 ### Task 3: Slice C — triage + fixes
-- [ ] **F1 (Shift+punctuation):** make `PunctuationInput`/`IsPunctuationKey`
+- [x] **F1 (Shift+punctuation):** make `PunctuationInput`/`IsPunctuationKey`
   shift-aware, thread shift through the key handlers, add the digit-row shifted
   symbols, make the `-`/`=` paging block unshifted-only (so Shift+=/Shift+- reach
   punctuation), add the shift-differentiation contract; re-verify Shift+/ → ？,
   Shift+= → ＋, Shift+- → ——.
-- [ ] **F2a (server resilience):** the serve loop catches per-request / pipe-I/O
+- [x] **F2a (server resilience):** the serve loop catches per-request / pipe-I/O
   failures and continues; a client timeout/disconnect no longer kills the server;
   add the server-survives-disconnect contract.
-- [ ] **F2b (responsiveness):** async server warm-up on activation/focus; cap the
+- [x] **F2b (responsiveness):** async server warm-up on activation/focus; cap the
   synchronous key-path wait so cold launch never hard-freezes the foreground app.
-- [ ] **F5 (Telegram lone-Shift):** implement the `WH_KEYBOARD_LL` lone-Shift
+- [x] **F5 (Telegram lone-Shift):** implement the `WH_KEYBOARD_LL` lone-Shift
   fallback (confirmed required by Telegram), guarded against double-toggle where
   both the sink and hook fire; extend the hotkey contract; confirm it resolves
   Telegram. (The Telegram freeze is covered by F2.)
-- [ ] **F6 (Enter commits raw):** split Enter from Space — Enter commits the raw
+- [x] **F6 (Enter commits raw):** split Enter from Space — Enter commits the raw
   typed letters verbatim, Space commits the candidate; add the commit-split contract.
 - [ ] Candidate anchoring: fix web/Electron anchoring failures with a principled
   fallback (no top-left corner regression).
@@ -492,11 +494,12 @@ a reboot per bug.
   update `matrix.md`. Commit each fix to `main`.
 
 ### Task 4: Slice D — closeout
-- [ ] `docs\evidence\m06\summary.md` + `summary.json`;
+- [x] `docs\evidence\m06\summary.md` + `summary.json`;
   `tools\test-m06-evidence-summary-contract.ps1`.
-- [ ] Update roadmap, README, requirements, decisions (record lone-Shift
-  decision). Move plan to history; update active README.
-- [ ] Run the closeout verification set incl. the naming contract. Commit to
+- [x] Update roadmap, README, requirements, decisions (record lone-Shift
+  decision). Keep plan active until the holder-free live matrix is filled; update
+  active README.
+- [x] Run the closeout verification set incl. the naming contract. Commit to
   `main`.
 
 ## Reviewer Questions (for the user / Codex)

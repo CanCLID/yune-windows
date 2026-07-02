@@ -5,6 +5,9 @@
   Telegram, rich-edit, console), fix the folded-in typing-blockers (F1
   Shift+punctuation, F2 En→Cn toggle freeze, F5 Telegram lone-Shift via
   `WH_KEYBOARD_LL`, F6 Enter-commits-raw), and capture host-matrix evidence.
+  Status note: F1, F2a/F2b, F5, F6, the M06 evidence harness, and the M07
+  server-side prerequisite are implemented and pushed. The holder-free live
+  host matrix is still pending, so M06 stays active.
 - `m07-plan-persistent-composition-selection.md` — **next.** Persistent per-client
   Rime session + inline `ITfComposition` + Rime-driven candidate selection so
   multi-syllable words can be composed by picking characters one at a time
@@ -42,7 +45,8 @@ commits directly to `main`.
    matrix (Tier 1→3), classify findings, fix in-scope discovered bugs (candidate
    anchoring, language bar, reconciliation, indicator) in a batched swap #2.
 4. **Phase 4 — M06 closeout:** evidence, `test-m06-evidence-summary-contract.ps1`,
-   roadmap/README updates, move plan to history.
+   roadmap/README updates. Move the plan to history only after the holder-free
+   live host matrix is filled.
 5. **Phase 5 — M07 server-side (fast loop, no swap):** Slice A persistent-session
    protocol + `compose-*` verbs. Depends on F2a. Can be built in parallel with
    M06 Phases 2–4 since it does not touch the DLL.

@@ -1,9 +1,11 @@
 # M06 Host Compatibility Pass Implementation Plan
 
-> **Status:** active. Selected 2026-07-01 as the milestone after M05. The known
-> implementation relief for F1, F2a/F2b, F5, and F6 has landed with
-> non-elevated contracts and compact evidence. The milestone remains active
-> until the holder-free installed TSF DLL host matrix is filled.
+> **Status:** completed and archived on 2026-07-02. F1, F2, F5, and F6 and the
+> Tier-1 host matrix were confirmed live after the reboot-free server
+> pipe-security fix resolved the no-output hosts and the startup dictionary
+> warm-up + single-entry lone-Shift toggle fixed the 中/英 toggle. Evidence:
+> `docs/evidence/m06/`. This plan remains as the implementation record; future
+> work should use a new active plan.
 
 **Goal:** turn the single-Notepad live proof from M04/M05 into broad,
 recorded confidence. Verify caret-anchored candidates, no-orphan behavior,

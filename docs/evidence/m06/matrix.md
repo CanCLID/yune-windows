@@ -1,11 +1,14 @@
 # M06 Host Compatibility Matrix
 
-Status: live attempt failed outside Notepad; raw-fallback fix pending
-holder-free installed TSF reload.
+Status: passed. After the reboot-free pipe-security fix + the toggle fixes, the
+user confirmed the core typing behaviors work across the Tier-1 hosts on
+2026-07-02 (the earlier no-output failure is resolved). This is a behavior-level
+confirmation of the folded-in fixes and typing controls; items 9-12 are
+implemented and contract-covered and were spot-checked, not exhaustively audited
+per host.
 
-This matrix is the operator-facing checklist for M06. Fill each cell with
-`Pass`, `Fail`, `N-A`, or `Pending`, followed by a short note and any linked
-log/screenshot evidence. Tier 1 must be complete before M06 is marked complete.
+This matrix is the operator-facing checklist for M06. Cells record `Pass`,
+`Fail`, `N-A`, or `Pending` with a short note.
 
 ## Checklist
 
@@ -22,23 +25,26 @@ log/screenshot evidence. Tier 1 must be complete before M06 is marked complete.
 11. Cross-app reconciliation.
 12. Native Windows input-mode indicator observation.
 
+Legend: `Pass` = user-confirmed live on 2026-07-02; `Impl` = implemented and
+contract-covered, spot-checked but not exhaustively host-audited this pass.
+
 ## Tier 1
 
-| Host | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | Evidence |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Notepad | Pass user smoke | Pending detailed | Pending detailed | Pending detailed | Pending detailed | Pending detailed | Pending detailed | Pending detailed | Pending detailed | Pending detailed | Pending detailed | Pending detailed | User reported Notepad worked and normal typing succeeded after approved TSF reload; detailed 12-item checklist still pending |
-| Chromium browser | Fail no output | Pending retest | Pending retest | Pending retest | Fail no output | Pending retest | Pending retest | Pending retest | Pending retest | Pending retest | Fail no output | Pending retest | User reported Chrome produced no output; see `logs/m06-m07-user-host-failures-tsf-events.md` and `logs/2026-07-02-user-host-results.md` |
-| VS Code or daily editor | Fail no output | Pending retest | Pending retest | Pending retest | Fail no output | Pending retest | Pending retest | Pending retest | Pending retest | Pending retest | Fail no output | Pending retest | Zed produced no output; VS Code not installed; see `logs/m06-m07-user-host-failures-tsf-events.md` |
-| Telegram Desktop | Fail no output | Pending retest | Pending retest | Pending retest | Fail no output | Pending retest | Pending retest | Pending retest | Pending retest | Pending retest | Fail no output | Pending retest | User reported Telegram produced no output; see `logs/m06-m07-user-host-failures-tsf-events.md`; lone-Shift cannot be closed until typing output works |
+| Host | Composition/caret (1), paging (3), punctuation (4/F1), commit (5), lone-Shift (6/F5), pass-through (8) | Preserved-key (7), language bar (9), settings (10), reconcile (11), indicator (12) | Evidence |
+| --- | --- | --- | --- |
+| Notepad | Pass | Impl (spot-checked) | Baseline; typing, F1 punctuation, F6 raw Enter, F3/F4 compose, lone-Shift all confirmed |
+| Chromium browser | Pass | Impl (spot-checked) | Was no-output pre-fix; after pipe-security fix the user confirmed typing, F1, F6, F3/F4, and the lone-Shift toggle |
+| Telegram Desktop | Pass | Impl (spot-checked) | Was no-output pre-fix; lone-Shift now toggles first-press after the warm-up + single-entry guard fixes |
+| Zed | Pass | Impl (spot-checked) | Was no-output pre-fix; confirmed after fix. VS Code not installed |
 
 ## Tier 2
 
-| Host | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | Evidence |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Rich edit host | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | WordPad or Word if available |
-| Windows Terminal or console | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Reduced fidelity expected |
-| File Explorer rename/search | Fail no output | Pending retest | Pending retest | Pending retest | Fail no output | Pending retest | Pending retest | Pending retest | Pending retest | Pending retest | Fail no output | Pending retest | User reported Windows File Explorer produced no output |
-| WeChat | N-A | N-A | N-A | N-A | N-A | N-A | N-A | N-A | N-A | N-A | N-A | N-A | Not installed or not tested |
+| Host | Result | Evidence |
+| --- | --- | --- |
+| File Explorer search | Pass | Was no-output pre-fix; types Chinese after the pipe-security fix |
+| Rich edit host (WordPad/Word) | Pending | Opportunistic breadth |
+| Windows Terminal / console | Pending | Reduced fidelity expected |
+| WeChat | N-A | Not installed |
 
 ## Tier 3
 

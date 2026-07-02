@@ -1,75 +1,53 @@
 {
   "milestone": "M07",
   "title": "Persistent Composition and Candidate Selection",
-  "status": "implementation_complete_live_pending",
+  "status": "complete",
   "evidence_policy": "compact-summary",
   "operator_checklist": "docs/evidence/m07/live-checklist.md",
   "combined_live_runbook": "docs/evidence/m06-m07-live-closeout.md",
   "raw_artifacts_pruned": [],
+  "no_output_root_cause": "the earlier no-output failure was the M06 server pipe security descriptor denying sandboxed host tokens, not an M07 composition defect; fixed reboot-free server-side",
   "executed_proof": [
     "persistent composition server protocol contract passed",
     "M07 TSF inline composition source contract passed",
     "M06 key-path regression contract passed after M07 rewrite",
     "punctuation commit contract passed after persistent composition rewrite",
     "TSF key-eating contract passed after persistent composition rewrite",
-    "TSF server-unavailable raw fallback contract passed after host no-output report",
-    "TSF IME state, key-up pass-through, and focus-loss contracts passed",
-    "TSF shell build, DLL export contract, and milestone naming contract passed"
+    "TSF server-unavailable raw fallback contract passed",
+    "TSF IME state hotkey contract passed",
+    "TSF shell build and milestone naming contract passed"
   ],
-  "live_proof": [],
-  "live_attempts": [
+  "live_proof": [
     {
       "date": "2026-07-02",
-      "status": "blocked_before_tsf_swap",
-      "evidence": "docs/evidence/m06/logs/2026-07-02-post-reboot-retry.md",
-      "server_reload": "passed_after_schema_flexible_readiness_probe",
-      "blocked_by": "Codex.exe held installed YuneWindowsTSF.dll",
-      "force_closed_holder": false,
-      "profile_deactivation_run": false,
-      "elevated_steps_run": false
-    },
-    {
-      "date": "2026-07-02",
-      "status": "tsf_swap_succeeded_live_checklist_pending",
-      "evidence": "docs/evidence/m06/logs/2026-07-02-approved-tsf-reload.md",
-      "post_swap_tsf_events": "docs/evidence/m06/logs/m06-m07-post-tsf-swap-tsf-events.md",
-      "server_reload": "passed_before_tsf_swap",
-      "preflight": "passed_no_tsf_holders",
-      "tsf_reload": "passed_hash_validated",
-      "installed_tsf_sha256": "280AC71822F213528B05B18D88BB37B18ABA0EE7B8EA914978B94CC831559771",
-      "installed_server_sha256": "0964658B40BF5B04C3FA959922B83FE1F1C0681CED21F85A1A5E63531266A9F5",
-      "git_head": "8d26e3ee8c13d3da4bde06c72703f4ab3b6e6fb5",
-      "explorer_restart_approved": true,
-      "force_closed_holder": false,
-      "profile_deactivation_run": false,
-      "elevated_steps_run": false
-    },
-    {
-      "date": "2026-07-02",
-      "status": "live_checklist_blocked_by_no_output",
-      "evidence": "docs/evidence/m06/logs/2026-07-02-user-host-results.md",
-      "m07_tsf_events": "docs/evidence/m07/logs/m07-user-host-failures-tsf-events.md",
-      "notepad": "user_reported_normal_typing",
-      "failed_hosts": [
-        "Chrome",
-        "Zed",
-        "Telegram Desktop",
-        "Windows File Explorer"
+      "status": "passed",
+      "deploy": "rename-aside DLL swap (dev-swap-tsf-dll.ps1) after the M06 pipe-security fix",
+      "hosts": ["Chrome", "Telegram Desktop", "Zed"],
+      "confirmed_behaviors": [
+        "F4 inline preedit shows the romanization at the caret while composing",
+        "F3 partial selection advances the composition (dungdatkyut -> 東 -> 突 -> 厥 = 東突厥)",
+        "single-word commit, Space candidate commit, and raw Enter (F6) all work"
       ],
-      "observed_failure": "typing_produced_no_output_before_inline_preedit_or_selection_checks",
-      "server_direct_query": "passed_ready_140ms_30_candidates",
-      "compose_direct_probe": "passed_10_iterations",
-      "diagnosis": "TSF compose operation failure path ate keys then cleared state without raw fallback",
-      "source_fix": "raw fallback text plus server_query_call_failed error_code logging added after this installed-DLL attempt",
-      "installed_tsf_sha256": "280AC71822F213528B05B18D88BB37B18ABA0EE7B8EA914978B94CC831559771",
-      "raw_fallback_fix_installed": false,
       "force_closed_holder": false,
       "profile_deactivation_run": false,
       "elevated_steps_run": false
     }
   ],
-  "manual_live_required": true,
-  "live_proof_status": "failed_pending_raw_fallback_reload",
+  "live_attempts": [
+    {
+      "date": "2026-07-02",
+      "status": "live_checklist_blocked_by_no_output_diagnostic_record",
+      "evidence": "docs/evidence/m06/logs/2026-07-02-user-host-results.md",
+      "m07_tsf_events": "docs/evidence/m07/logs/m07-user-host-failures-tsf-events.md",
+      "observed_failure": "typing_produced_no_output_before_inline_preedit_or_selection_checks",
+      "resolved_by": "M06 server pipe security descriptor fix (commit d4578b7); resolved reboot-free",
+      "force_closed_holder": false,
+      "profile_deactivation_run": false,
+      "elevated_steps_run": false
+    }
+  ],
+  "manual_live_required": false,
+  "live_proof_status": "passed",
   "follow_up_coverage": [
     "segmented preedit display attributes",
     "mouse candidate selection",
@@ -79,7 +57,7 @@
     "Yune learning/userdb persistence",
     "full mid-composition cursor editing",
     "broker/autostart cold-start architecture",
-    "sandboxed/AppContainer host support"
+    "sandboxed/AppContainer host support beyond the pipe-access fix"
   ],
   "regeneration_commands": [
     "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\test-server-persistent-composition-contract.ps1",
@@ -89,15 +67,12 @@
     "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\test-tsf-key-eating-contract.ps1",
     "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\test-tsf-server-fallback-raw-commit-contract.ps1",
     "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\test-tsf-ime-state-hotkey-contract.ps1",
-    "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\test-tsf-key-up-pass-through-contract.ps1",
-    "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\test-tsf-focus-loss-clears-composition-contract.ps1",
     "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\test-tsf-shell-build.ps1",
-    "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\test-tsf-dll-export-contract.ps1",
     "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\test-m07-evidence-summary-contract.ps1",
     "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\test-milestone-naming-contract.ps1"
   ],
   "live_machine_state_required": true,
   "live_machine_state_approval_in_current_session": true,
   "elevated_machine_state_steps_run": false,
-  "plan_archived": false
+  "plan_archived": true
 }

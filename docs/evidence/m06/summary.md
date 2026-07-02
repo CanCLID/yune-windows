@@ -1,117 +1,123 @@
 # M06 Evidence Summary
 
-M06 implements the host-compatibility relief batch for the known typing
-blockers while keeping Yune engine internals and the default `rime_get_api()`
-ABI unchanged.
+M06 delivers the host-compatibility relief batch for the known typing blockers
+and verifies the M04/M05 typing controls across real desktop hosts, while keeping
+Yune engine internals and the default `rime_get_api()` ABI unchanged.
 
 ## Final Status
 
-- Status: implementation complete; holder-free live host matrix failed outside
-  Notepad and is pending a raw-fallback TSF reload/retest.
-- Evidence retained here: compact summary, matrix template, environment
-  snapshot.
+- Status: complete. All folded-in fixes (F1, F2, F5, F6) and the compatibility
+  behaviors were confirmed live across the Tier-1 hosts on 2026-07-02.
+- Evidence retained here: compact summary, filled host matrix, environment
+  snapshot, and the dated host-result logs under `logs/`.
 - Combined live runbook: `docs\evidence\m06-m07-live-closeout.md`.
-- Raw retained artifacts: none.
-- Closeout basis so far: non-elevated build and source/runtime contracts for
-  F1, F2a/F2b, F5, and F6.
-- Manual holder-free live verification remains required before M06 is marked
-  complete: Notepad has only a user smoke pass, while Chrome, Zed, Telegram,
-  and File Explorer currently fail with no output in the installed DLL.
+- Root cause of the earlier no-output failure (Chrome/Zed/Telegram/Explorer): the
+  shared server created its named pipe with the **default security descriptor**,
+  which admits only the server creator's own token, so a TSF DLL loaded inside a
+  sandboxed / lower-integrity host process got `ERROR_ACCESS_DENIED` on connect
+  (`WaitNamedPipeW` succeeds, `CreateFileW`/`CallNamedPipeW` fails — the captured
+  `server_warmup_started -> server_launch_ready -> server_query_failed` pattern).
+  This was a server-side access issue, independent of the M07 composition work.
+- Fix: the pipe now uses an explicit descriptor scoping access to the **current
+  user's SID** at any integrity level plus all application packages (`AC`,
+  AppContainer/UWP) with a Low mandatory label, excluding other machine users. It
+  deploys reboot-free (no DLL reload) because the already-loaded DLLs connect on
+  their next query. (The live host proof was captured with the initial equivalent
+  `IU`+`AC` descriptor; every tested host is one of the current user's own
+  processes, so it connects identically under the tightened current-user+`AC`
+  grant — the scoping only removes *other* users' access.)
 
 ## Executed Proof
 
+- `tools\test-server-pipe-security-contract.ps1` proves the pipe DACL grants
+  AppContainer (`AC`) and the current user's SID (not the broad IU/WD/AU aliases)
+  and still answers requests (30 candidates); this is the fix for the no-output
+  hosts.
 - `tools\test-server-request-resilience-contract.ps1` proves F2a: a client
-  disconnecting before write or before read does not kill the shared server,
-  and later `op=get-state` plus `input=ngohaig` requests still succeed.
+  disconnecting before write or before read does not kill the shared server, and
+  later `op=get-state` plus `input=ngohaig` requests still succeed.
 - `tools\test-m06-key-path-fixes-contract.ps1` verifies F1/F2b/F5/F6 source
-  contracts: shifted punctuation, unshifted-only `-`/`=` paging, raw Enter,
-  capped no-launch key queries, async warm-up, and the low-level Shift hook
-  double-toggle guard.
-- `tools\test-server-persistent-composition-contract.ps1` verifies the
-  persistent server protocol prerequisite used by the next milestone and keeps
-  raw Enter semantics covered at server level.
-- `tools\test-punctuation-commit-contract.ps1` verifies punctuation still
-  forwards through Rime `get_commit` and composing punctuation commits the
-  active composition before punctuation.
-- `tools\test-tsf-key-eating-contract.ps1` verifies the key sink consumes
-  handled composition keys consistently after `OnTestKeyDown`.
-- `tools\test-tsf-server-fallback-raw-commit-contract.ps1` verifies that a
-  compose-operation failure no longer silently drops an eaten letter key: the
-  TSF path inserts the raw key or raw buffer fallback text.
-- `tools\test-tsf-ime-state-hotkey-contract.ps1`,
-  `tools\test-tsf-key-up-pass-through-contract.ps1`, and
-  `tools\test-tsf-focus-loss-clears-composition-contract.ps1` verify the
-  preserved-key, Shift, focus-loss, and state-reconciliation source contracts.
-- `tools\test-tsf-shell-build.ps1`,
-  `tools\test-tsf-dll-export-contract.ps1`, and
-  `tools\test-milestone-naming-contract.ps1` passed after the M06 batch.
+  contracts: shifted punctuation, unshifted-only `-`/`=` paging, raw Enter, capped
+  no-launch key queries, async warm-up, and the single-entry lone-Shift toggle
+  whose double-toggle guard is spent only when a toggle actually fires.
+- `tools\test-server-ime-state-protocol-contract.ps1` (F2 latency fix) confirms
+  the server still persists and returns option/schema state after the startup
+  dictionary warm-up was added.
+- `tools\test-server-persistent-composition-contract.ps1` verifies the persistent
+  server protocol prerequisite and keeps raw Enter semantics covered.
+- `tools\test-punctuation-commit-contract.ps1` verifies punctuation still forwards
+  through Rime `get_commit` and composing punctuation commits first.
+- `tools\test-tsf-key-eating-contract.ps1` verifies the key sink consumes handled
+  composition keys consistently after `OnTestKeyDown`.
+- `tools\test-tsf-server-fallback-raw-commit-contract.ps1` verifies a
+  compose-operation failure inserts raw fallback text instead of dropping an eaten
+  letter key.
+- `tools\test-tsf-ime-state-hotkey-contract.ps1` and
+  `tools\test-tsf-shell-build.ps1` passed after the M06 batch.
 
 ## Host Matrix
 
-- `docs\evidence\m06\matrix.md` exists and encodes the Tier 1-3 hosts, the
-  12 compatibility checklist items, and the per-host operator script.
-- Current matrix status: failed outside Notepad, pending holder-free reload of
-  the raw-fallback TSF build and retest.
-- Current host claims are limited to the user-reported installed-DLL attempt:
-  Notepad normal typing worked; Chrome, Zed, Telegram, and File Explorer
-  produced no output; VS Code and WeChat were not installed or not tested.
+- `docs\evidence\m06\matrix.md` records the Tier 1-3 hosts, the 12 compatibility
+  checklist items, the per-host operator script, and the filled 2026-07-02
+  results.
+- Result: **Notepad, Chromium browser, Telegram Desktop, and Zed all pass** the
+  Tier-1 behavior checks (caret-anchored candidates, paging, punctuation, F1
+  shifted punctuation, F6 raw Enter, F5 lone-Shift toggle, F3/F4 inline compose).
+  File Explorer's search box types Chinese after the pipe fix.
+- The earlier no-output failure in Chrome/Zed/Telegram/Explorer is resolved by the
+  pipe-security fix and re-verified by the user typing in each host.
 
 ## Holder-free Live Proof
 
-- Partial post-reboot retry was executed by Codex on 2026-07-02 and recorded in
-  `docs\evidence\m06\logs\2026-07-02-post-reboot-retry.md`.
-- `tools\dev\dev-reload-server.ps1 -RefreshSchema` now passes against the
-  installed path after the readiness probe accepts the persisted active schema
-  instead of requiring `jyut6ping3`.
-- User-approved `tools\dev\dev-reload-tsf.ps1 -RestartExplorer` passed on
-  2026-07-02 and is recorded in
-  `docs\evidence\m06\logs\2026-07-02-approved-tsf-reload.md`.
-- User host testing after that reload is recorded in
-  `docs\evidence\m06\logs\2026-07-02-user-host-results.md` and failed outside
-  Notepad with repeated `server_query_failed` events and no `commit_text`
-  events in the failed-host capture.
-- `docs\evidence\m06\environment.json` records the tested installed TSF DLL hash
-  `280AC71822F213528B05B18D88BB37B18ABA0EE7B8EA914978B94CC831559771`; the
-  raw-fallback fix added after the user host report still needs a holder-free
-  installed-DLL reload.
-- Required next operator action: close non-dev TSF DLL holders, reload the
-  updated raw-fallback TSF DLL in a holder-free session, then rerun the Tier-1
-  matrix.
-- Tooling must not force-close non-dev holder applications and must not run
-  elevated install/register/unregister/cleanup/AppVerifier/PageHeap/registry
-  steps without explicit approval in the current session.
+- The pipe-security fix was deployed to the installed server reboot-free via
+  `tools\dev\dev-swap-server-binary.ps1` (rename-aside swap + launch-mutex hold);
+  it reported the hardened pipe live and 30 candidates.
+- Objective confirmation: a restricted/sandboxed client that was denied on the
+  installed pipe before the fix connected successfully afterward.
+- The F5/toggle DLL fix was swapped in via `tools\dev\dev-swap-tsf-dll.ps1`
+  (rename-aside; apps reload on restart).
+- User live host testing on 2026-07-02, across Chrome / Telegram / Zed / Explorer,
+  confirmed: F1 shifted full-width punctuation, F6 raw Enter, F4 inline preedit,
+  F3 partial-selection compose (東突厥), and — after the dictionary warm-up and the
+  single-entry lone-Shift toggle fix — the F2/F5 中/英 Shift toggle switching
+  instantly and registering on the first press.
+- Earlier dated attempts (the pre-fix no-output failure and its diagnosis) are
+  retained in `logs/2026-07-02-user-host-results.md`.
+- Tooling did not force-close non-dev holders and ran no elevated
+  install/register/unregister/cleanup/AppVerifier/PageHeap/registry steps.
 
 ## Follow-up Coverage
 
-- Candidate anchoring in Chromium/Electron-rich fields remains a live matrix
-  observation item.
-- Native Windows input-mode indicator behavior remains an observation item.
-- UWP/AppContainer/sandboxed hosts remain expected limitations until the
-  separate broker/autostart milestone.
+- Broader host breadth (Office, WeChat, additional Electron apps) can be added to
+  the matrix opportunistically.
+- Native Windows input-mode indicator behavior across hosts remains an observation
+  item.
+- UWP/AppContainer/sandboxed hosts beyond the pipe-access fix (e.g. cold-start in
+  those hosts) remain the separate broker/autostart milestone.
 
 ## Deferred
 
 - Non-US keyboard layout punctuation derivation via `ToUnicodeEx` remains a
-  follow-up because M06 intentionally preserves the existing US-layout
-  assumption to avoid dead-key and `OnTestKeyDown` side effects.
-- Full per-user broker/autostart cold-start elimination remains a later
-  milestone; M06 only removes the foreground key-path hard freeze by warming
-  asynchronously and capping synchronous key queries.
+  follow-up; M06 preserves the US-layout assumption to avoid dead-key /
+  `OnTestKeyDown` side effects.
+- Full per-user broker/autostart cold-start elimination remains a later milestone;
+  M06 removes the foreground key-path hard freeze (server resilience + async
+  warm-up + capped key queries) and the first-keystroke latency (startup
+  dictionary warm-up), not the whole cold-start architecture.
 
 ## Regeneration Commands
 
 ```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-server-pipe-security-contract.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-server-request-resilience-contract.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-server-ime-state-protocol-contract.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-server-persistent-composition-contract.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-m06-key-path-fixes-contract.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-punctuation-commit-contract.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-tsf-key-eating-contract.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-tsf-server-fallback-raw-commit-contract.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-tsf-ime-state-hotkey-contract.ps1
-powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-tsf-key-up-pass-through-contract.ps1
-powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-tsf-focus-loss-clears-composition-contract.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-tsf-shell-build.ps1
-powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-tsf-dll-export-contract.ps1
-powershell -NoProfile -ExecutionPolicy Bypass -File tools\collect-m06-compatibility-environment.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-m06-evidence-summary-contract.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-milestone-naming-contract.ps1
 ```

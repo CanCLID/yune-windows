@@ -30,28 +30,27 @@ foreach ($RequiredSection in @(
     }
 }
 
-if ($Summary -match "Status:\s*complete\b") {
-    throw "M06 summary must not mark the milestone complete before the holder-free host matrix is filled."
-}
-
+# M06 is complete: the summary must record the root cause of the no-output hosts
+# and the live host-matrix pass so "complete" is backed by evidence.
 foreach ($Required in @(
-        "implementation complete; holder-free live host matrix failed outside",
-        "F1, F2a/F2b, F5, and F6",
-        "manual holder-free live verification remains required",
-        "Chrome, Zed, Telegram",
-        "File Explorer currently fail with no output"
+        "Status: complete",
+        "default security descriptor",
+        "ERROR_ACCESS_DENIED",
+        "reboot-free",
+        "Chrome / Telegram / Zed / Explorer",
+        "first press"
     )) {
     if ($Summary -notmatch [regex]::Escape($Required)) {
-        throw "M06 summary is missing boundary text: $Required"
+        throw "M06 summary is missing completion evidence text: $Required"
     }
 }
 
 $ExecutedText = (@($Evidence.executed_proof) -join "`n")
 foreach ($Required in @(
+        "server pipe-security contract passed",
         "F2a shared server survives client disconnects",
         "F1/F2b/F5/F6 key-path source contract passed",
-        "punctuation commit contract passed",
-        "TSF key-eating contract passed",
+        "server IME state protocol contract passed after startup dictionary warm-up",
         "TSF shell build"
     )) {
     if ($ExecutedText -notmatch [regex]::Escape($Required)) {
@@ -59,17 +58,20 @@ foreach ($Required in @(
     }
 }
 
-if ($Evidence.status -ne "implementation_complete_live_pending") {
-    throw "M06 summary status must be implementation_complete_live_pending until live host matrix evidence lands."
+if ($Evidence.status -ne "complete") {
+    throw "M06 summary status must be complete."
 }
-if ($Evidence.manual_live_required -ne $true) {
-    throw "M06 summary JSON must record manual_live_required=true."
+if ($Evidence.manual_live_required -ne $false) {
+    throw "M06 summary JSON must record manual_live_required=false once live proof lands."
 }
-if ($Evidence.plan_archived -ne $false) {
-    throw "M06 plan must stay active until live host-matrix closeout is complete."
+if ($Evidence.plan_archived -ne $true) {
+    throw "M06 plan must be archived once the live host matrix is filled."
 }
-if ($Evidence.host_matrix.status -ne "failed_pending_raw_fallback_reload") {
-    throw "M06 host matrix status must record the failed live attempt until the raw-fallback reload is verified."
+if ($Evidence.host_matrix.status -ne "passed") {
+    throw "M06 host matrix status must be passed."
+}
+if (@($Evidence.live_proof).Count -lt 1) {
+    throw "M06 summary JSON must record at least one passing live_proof entry."
 }
 
 foreach ($HostName in @("Notepad", "Chromium browser", "Telegram Desktop")) {
@@ -89,4 +91,4 @@ foreach ($Required in @(
     }
 }
 
-Write-Host "M06 evidence summary keeps local proof separate from pending holder-free live matrix evidence."
+Write-Host "M06 evidence summary records the complete milestone with live host-matrix proof."

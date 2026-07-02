@@ -114,22 +114,23 @@ controls.
   window. Chromium cross-app reconciliation, native Windows input-mode
   indicator observation, and broader multi-host language-bar/settings coverage
   remain follow-up compatibility evidence.
-- [ ] **WIN-16 - Host compatibility matrix:** M06 implements the known
+- [x] **WIN-16 - Host compatibility matrix:** M06 delivered the known
   compatibility relief batch without changing Yune engine internals or the
   default `rime_get_api()` ABI: F1 shifted punctuation and shifted number-row
   forwarding, unshifted-only `-`/`=` paging, F2a server resilience against
   client disconnects, F2b async warm-up plus capped foreground key-path waits,
-  F5 focus-gated low-level Shift fallback, and F6 raw Enter commit. The local
-  contracts and evidence summary are green under `docs\evidence\m06\`; this
-  gate remains open until a holder-free installed TSF DLL run fills the Tier-1
-  host matrix for Notepad, Chromium, a daily editor, and Telegram.
-- [ ] **WIN-17 - Persistent composition and selection:** M07 replaces the
+  F5 focus-gated low-level Shift fallback, F6 raw Enter commit, plus the
+  no-output-hosts fix (an explicit named-pipe security descriptor scoped to the
+  current user + AppContainer) and a startup dictionary warm-up. Confirmed live
+  across the Tier-1 hosts (Notepad, Chromium, Telegram, Zed; Explorer search box)
+  on 2026-07-02; see `docs\evidence\m06\`.
+- [x] **WIN-17 - Persistent composition and selection:** M07 replaced the
   stateless TSF replay/fake-selection path with persistent per-client Rime
   sessions, `compose-*` server verbs, inline `ITfComposition` preedit, Rime-routed
   number-key candidate selection, raw Enter commit, and Space candidate commit.
-  Local server/TSF contracts, build, and regression tests are green under
-  `docs\evidence\m07\`; this gate remains open until a holder-free installed TSF
-  DLL run proves inline preedit and partial selection advancement in a real host.
+  Inline preedit (F4) and partial-selection advancement (F3, `dungdatkyut` →
+  東突厥) were confirmed live in Chrome/Telegram/Zed on 2026-07-02; see
+  `docs\evidence\m07\`.
 
 ## Non-Elevated Verification Gates
 

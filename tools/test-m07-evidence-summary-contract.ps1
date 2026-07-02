@@ -29,17 +29,17 @@ foreach ($RequiredSection in @(
     }
 }
 
+# M07 is complete: the summary must record the true root cause of the no-output
+# hosts (the M06 pipe fix, not a composition defect) and the live F3/F4 proof.
 foreach ($Required in @(
-        "implementation complete; holder-free live TSF proof failed outside",
+        "Status: complete",
         "persistent per-client Rime composition sessions",
-        "manual holder-free live verification remains required",
-        "produced no output before the inline preedit",
-        "Yune engine internals and the default rime_get_api() ABI unchanged",
-        "docs\evidence\m07\live-checklist.md",
-        "docs\evidence\m06-m07-live-closeout.md"
+        "ERROR_ACCESS_DENIED",
+        "docs\evidence\m06-m07-live-closeout.md",
+        "東突厥"
     )) {
     if ($Summary -notmatch [regex]::Escape($Required)) {
-        throw "M07 summary is missing boundary text: $Required"
+        throw "M07 summary is missing completion evidence text: $Required"
     }
 }
 
@@ -55,17 +55,20 @@ foreach ($Required in @(
     }
 }
 
-if ($Evidence.status -ne "implementation_complete_live_pending") {
-    throw "M07 summary status must be implementation_complete_live_pending until live TSF proof lands."
+if ($Evidence.status -ne "complete") {
+    throw "M07 summary status must be complete."
 }
-if ($Evidence.manual_live_required -ne $true) {
-    throw "M07 summary JSON must record manual_live_required=true."
+if ($Evidence.manual_live_required -ne $false) {
+    throw "M07 summary JSON must record manual_live_required=false once live proof lands."
 }
-if ($Evidence.plan_archived -ne $false) {
-    throw "M07 plan must stay active until live installed-DLL proof is complete."
+if ($Evidence.plan_archived -ne $true) {
+    throw "M07 plan must be archived once live installed-DLL proof is complete."
 }
-if ($Evidence.live_proof_status -ne "failed_pending_raw_fallback_reload") {
-    throw "M07 live proof status must record the failed live attempt until the raw-fallback reload is verified."
+if ($Evidence.live_proof_status -ne "passed") {
+    throw "M07 live proof status must be passed."
+}
+if (@($Evidence.live_proof).Count -lt 1) {
+    throw "M07 summary JSON must record at least one passing live_proof entry."
 }
 if ($Evidence.operator_checklist -ne "docs/evidence/m07/live-checklist.md") {
     throw "M07 summary JSON must point at the operator live checklist."
@@ -76,15 +79,11 @@ if ($Evidence.combined_live_runbook -ne "docs/evidence/m06-m07-live-closeout.md"
 
 foreach ($Required in @(
         "Inline preedit",
-        "Partial selection advances",
-        "powershell -NoProfile -ExecutionPolicy Bypass -File tools\dev\dev-reload-server.ps1 -RefreshSchema",
-        "powershell -NoProfile -ExecutionPolicy Bypass -File tools\dev\dev-reload-tsf.ps1 -RestartExplorer",
-        "tools\capture-m06-tsf-events-window.ps1 -Label m07-<host> -OutputDir docs\evidence\m07\logs",
-        "do not mark M07 complete"
+        "Partial selection advances"
     )) {
     if ($Checklist -notmatch [regex]::Escape($Required)) {
-        throw "M07 live checklist is missing required operator step: $Required"
+        throw "M07 live checklist is missing required behavior step: $Required"
     }
 }
 
-Write-Host "M07 evidence summary keeps local proof separate from pending holder-free live TSF evidence."
+Write-Host "M07 evidence summary records the complete milestone with live inline-composition proof."

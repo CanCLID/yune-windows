@@ -1,7 +1,13 @@
 # M06/M07 Holder-free Live Closeout
 
-Status: installed TSF DLL reload passed; first operator-run host verification
-failed outside Notepad; raw-fallback fix pending holder-free reload.
+Status: complete (2026-07-02). The first operator host verification failed
+outside Notepad; that was root-caused to the shared server's default named-pipe
+security descriptor denying sandboxed/lower-integrity host tokens, and fixed
+reboot-free by scoping the pipe to the current user + AppContainer. The folded-in
+fixes (F1/F2/F5/F6) and the M07 inline composition (F3/F4) were then confirmed
+live across the Tier-1 hosts. This document is retained as the process record; the
+pre-live readiness contract `test-m06-m07-live-closeout-readiness-contract.ps1`
+was retired at completion (it enforced the live-pending state).
 
 Latest reload note: on 2026-07-02, the installed server reload passed, then the
 user-approved non-elevated TSF DLL reload with Explorer restart passed. See
@@ -106,25 +112,22 @@ M07 is complete only when:
   paging, shifted punctuation, lone-Shift, preserved-key toggles, and focus
   cleanup are live-verified.
 
-## Pre-live Readiness Commands
+## Closeout Verification Commands (post-completion)
 
-Run these while M06 and M07 are still live-pending, including after any
-non-elevated prep edit or failed holder-free retry:
+M06 and M07 are complete; the post-live evidence contracts enforce the completed
+state:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-m06-evidence-summary-contract.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-m07-evidence-summary-contract.ps1
-powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-m06-m07-live-closeout-readiness-contract.ps1
-powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-dev-live-closeout-preflight-contract.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-milestone-naming-contract.ps1
 git diff --check
 ```
 
-`tools\test-m06-m07-live-closeout-readiness-contract.ps1` is intentionally a
-pre-live guard: it asserts that M06 and M07 remain active, live-pending, and not
-archived. Do not use that readiness contract as the final post-live closeout
-gate after the matrix/checklist has passed and the summaries are updated to a
-completed state.
+The pre-live guard `tools\test-m06-m07-live-closeout-readiness-contract.ps1`,
+which asserted M06/M07 remained active and live-pending, was **retired** at
+completion — the evidence-summary contracts now enforce the completed state
+instead.
 
 ## Post-live Closeout Commands
 

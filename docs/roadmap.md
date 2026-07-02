@@ -7,7 +7,7 @@ intentionally separate from Yune engine-performance work.
 
 | Lane | Current state | Next gate |
 | --- | --- | --- |
-| Product shell | Renamed public baseline with TSF DLL, shared server, native candidate window, diagnostics tooling, installer scripts, non-elevated contract tests, M02 product-owned server startup, M03 development inner-loop tooling, M04 candidate typing-quality implementation, and M05 IME controls implementation. Latest approved live closeout reached install/register, profile activation, Notepad, Chromium, diagnostics export, uninstall, and post-reboot no-residue cleanup. M04 runtime evidence covers clean candidate comments, 30-candidate server supply, full-width punctuation via `get_commit`, and installed-server reload/readiness. M05 adds server-owned persistent schema/options state in `state\ime-state.json`, `op=` IPC verbs, state reconciliation on every server response, lone-Shift and preserved-key toggles, a focus-scoped native mini language bar, and `YuneWindowsSettings.exe`. M05 review crash blockers are fixed in non-elevated scratch-server coverage: `ascii_mode=true` non-empty input, persisted ascii restart, invalid op/schema/option requests, and settings/schema-cycle fallback no longer kill the shared server. Post-reboot holder-free installed-path proof refreshed the installed server, swapped the TSF DLL, activated the profile, installed the settings executable, and manually verified the M05 typing controls in a dev-owned Notepad window. M06 implementation relief is landed for server request resilience, async warm-up, capped foreground key-path IPC, shifted punctuation, raw Enter, and the focus-gated low-level Shift fallback; the holder-free live host matrix remains pending. M07 persistent composition is implemented locally with server-held `compose-*` sessions, inline `ITfComposition`, Rime-routed selection, raw Enter, and Space candidate commit; holder-free live TSF proof remains pending. Compact milestone summaries live under `docs/evidence/m01/` through `docs/evidence/m07/`; bulky raw artifacts are regenerated only when a fresh gate needs them. | Fill the M06 holder-free host matrix and M07 installed-DLL inline composition proof; then continue to dogfood package hardening. |
+| Product shell | Renamed public baseline with TSF DLL, shared server, native candidate window, diagnostics tooling, installer scripts, non-elevated contract tests, M02 product-owned server startup, M03 development inner-loop tooling, M04 candidate typing-quality implementation, and M05 IME controls implementation. Latest approved live closeout reached install/register, profile activation, Notepad, Chromium, diagnostics export, uninstall, and post-reboot no-residue cleanup. M04 runtime evidence covers clean candidate comments, 30-candidate server supply, full-width punctuation via `get_commit`, and installed-server reload/readiness. M05 adds server-owned persistent schema/options state in `state\ime-state.json`, `op=` IPC verbs, state reconciliation on every server response, lone-Shift and preserved-key toggles, a focus-scoped native mini language bar, and `YuneWindowsSettings.exe`. M05 review crash blockers are fixed in non-elevated scratch-server coverage: `ascii_mode=true` non-empty input, persisted ascii restart, invalid op/schema/option requests, and settings/schema-cycle fallback no longer kill the shared server. Post-reboot holder-free installed-path proof refreshed the installed server, swapped the TSF DLL, activated the profile, installed the settings executable, and manually verified the M05 typing controls in a dev-owned Notepad window. M06 is complete: server request resilience, async warm-up, capped foreground key-path IPC, shifted punctuation, raw Enter, the focus-gated low-level Shift fallback, a startup dictionary warm-up, and — the key fix — an explicit named-pipe security descriptor (current user + AppContainer) that resolved the no-output failure in sandboxed/lower-integrity hosts reboot-free. The folded-in fixes and core typing behaviors were confirmed live across the Tier-1 hosts (Notepad, Chromium, Telegram, Zed) plus Explorer's search box on 2026-07-02; the finer matrix items (language bar, settings live-apply, cross-app reconciliation, native indicator) are implemented, contract-covered, and spot-checked rather than exhaustively per-host audited. M07 persistent composition (server-held `compose-*` sessions, inline `ITfComposition`, Rime-routed selection, raw Enter, Space candidate commit) is confirmed live: F3 partial-selection compose (東突厥) and F4 inline preedit at the caret. Compact milestone summaries live under `docs/evidence/m01/` through `docs/evidence/m07/`; bulky raw artifacts are regenerated only when a fresh gate needs them. | M06 and M07 complete; next: dogfood package hardening, or non-blocking cold-start / per-user broker. |
 | Yune boundary | Windows consumes packaged Yune through `rime_get_api()` plus the opt-in `rime_get_yune_windows_profile_api()` surface. | Keep default `rime_get_api()` unchanged; send new engine needs to Yune as named proposals with tests. |
 | Reference code | Legacy Weasel-derived implementation is reference material only. | Extract no more code without a focused audit and smoke proof. |
 | Dogfood release | Public repo starts from clean initial history and omits old private evidence. Fresh post-rename live evidence exists, including Notepad, Chromium, diagnostics, recovered cleanup, compatibility target, signing decision, and complete closeout audit under the product-owned server contract. Compatibility target and signing decision are retained in compact M01 summary evidence; dogfood packaging, release signing, non-blocking cold-start, and user-data preservation remain open. | Start dogfood package hardening when selected. |
@@ -72,6 +72,24 @@ intentionally separate from Yune engine-performance work.
    manually verified the M05 typing controls in a dev-owned Notepad window.
    Historical plan:
    `docs/plans/history/m05-plan-ime-toggles-language-bar-settings.md`.
+9. **Host compatibility pass** - folded-in typing-blocker fixes F1 (shift-aware
+   punctuation), F2 (En→Cn freeze: server resilience + async warm-up + capped
+   key-path IPC + startup dictionary warm-up), F5 (lone-Shift `WH_KEYBOARD_LL`
+   fallback + single-entry toggle guard), F6 (Enter commits raw letters), and the
+   fix for the no-output hosts — an explicit named-pipe security descriptor
+   scoping the pipe to the current user + AppContainer, deployed reboot-free. The
+   folded-in fixes and core typing behaviors were confirmed live across the
+   Tier-1 hosts (Notepad, Chromium, Telegram, Zed) plus Explorer's search box on
+   2026-07-02; the finer matrix items are implemented and spot-checked.
+   Historical plan:
+   `docs/plans/history/m06-plan-host-compatibility-pass.md`.
+10. **Persistent composition and candidate selection** - persistent per-client
+    Rime `compose-*` sessions + inline `ITfComposition`, so multi-syllable
+    out-of-lexicon input composes by picking characters one at a time
+    (`dungdatkyut` → 東突厥, F3) with the romanization shown inline at the caret
+    (F4). No Yune ABI change; `disable_learning` forced. Confirmed live 2026-07-02.
+    Historical plan:
+    `docs/plans/history/m07-plan-persistent-composition-selection.md`.
 
 ## Scope Ledger
 
@@ -189,14 +207,46 @@ follow-up breadth; see `docs/evidence/m05/summary.md`.
 Historical plan:
 `docs/plans/history/m05-plan-ime-toggles-language-bar-settings.md`.
 
+### M06 - Host Compatibility Pass
+
+Status: complete (2026-07-02). Delivers the folded-in typing-blocker fixes and
+verifies the typing controls across real desktop hosts. F1 (shift-aware
+punctuation, so Shift+/=- give ？＋——), F2 (En→Cn no longer freezes: server
+request resilience + async warm-up + capped key-path IPC + startup dictionary
+warm-up), F5 (`WH_KEYBOARD_LL` lone-Shift fallback, single-entry toggle guard),
+and F6 (Enter commits the raw letters). The no-output failure in
+Chrome/Zed/Telegram/Explorer was root-caused to the shared server creating its
+named pipe with the **default security descriptor**, which denied
+sandboxed/lower-integrity host tokens; the fix scopes the pipe to the **current
+user's SID** and all application packages (`AC`) with a Low mandatory label and
+**deploys reboot-free** (excluding other machine users). The folded-in fixes and
+core typing behaviors were confirmed live across the Tier-1 hosts (Notepad,
+Chromium, Telegram, Zed) plus Explorer's search box on 2026-07-02; the finer
+matrix items are implemented and spot-checked. See `docs/evidence/m06/summary.md`.
+
+Historical plan: `docs/plans/history/m06-plan-host-compatibility-pass.md`.
+
+### M07 - Persistent Composition And Candidate Selection
+
+Status: complete (2026-07-02). Replaces the stateless-per-keystroke model with
+persistent per-client Rime `compose-*` sessions and an inline `ITfComposition`
+key path, so a multi-syllable out-of-lexicon input can be composed by picking
+characters one at a time. Confirmed live: F4 (the romanization shows inline at
+the caret while composing) and F3 (typing `dungdatkyut` and picking 東 advances
+through `datkyut` to compose 東突厥 instead of committing only 東). No Yune ABI
+change — `select_candidate_on_current_page` / `candidate_list_from_index` are
+already exposed in the linked RimeApi; `disable_learning` stays forced. See
+`docs/evidence/m07/summary.md`.
+
+Historical plan:
+`docs/plans/history/m07-plan-persistent-composition-selection.md`.
+
 ## Candidate Next Milestones (for discussion)
 
-M02 through M05 are complete. The remaining rows are candidate next milestones.
+M02 through M07 are complete. The remaining rows are candidate next milestones.
 
 | Candidate | Delivers | Rough size | Key dependency / risk |
 | --- | --- | --- | --- |
-| **M06 — Host compatibility pass (active)** | Recheck the implemented caret placement, no-orphan behavior, PageUp/PageDown paging, full-sentence punctuation, lone-Shift mode toggle, preserved-key toggles, focus-scoped language bar, settings-driven state changes, and native input-mode indicator behavior across Chromium and other desktop hosts. Folded-in blocker fixes F1, F2a/F2b, F5, and F6 are implemented and contract-proven; the live host matrix is still pending. | S–M | Requires a holder-free TSF DLL session for file swaps and must not force-close non-dev apps from tooling. Plan: `docs/plans/active/m06-plan-host-compatibility-pass.md`. Evidence root: `docs/evidence/m06/`. |
-| **M07 — Persistent composition + candidate selection (active, live proof pending)** | Persistent per-client Rime session + inline `ITfComposition` + Rime-driven selection so multi-syllable, out-of-lexicon words can be composed by picking characters one at a time (`dungdatkyut` → 東突厥), with the input shown inline at the caret while composing. The server protocol and TSF key path are implemented and contract-proven; holder-free installed-DLL proof is still pending. | M–L | **No Yune ABI change** — `select_candidate_on_current_page`/`candidate_list_from_index` are already exposed in the linked RimeApi. Replaces the stateless-per-keystroke model and keeps `disable_learning` forced. Plan: `docs/plans/active/m07-plan-persistent-composition-selection.md`. Evidence root: `docs/evidence/m07/`. |
 | **Non-blocking cold-start / per-user broker** | Removes the up-to-15s foreground freeze on the first cold keystroke and makes launch work in sandboxed/AppContainer hosts (UWP, WeChat, some Store/Electron). Reduces AV/EDR risk of spawning an unsigned exe from a browser. | M | Adds per-user autostart/broker state that install/uninstall must create and remove; documented M02 fast-follow. |
 | **Dogfood package hardening (WIN-11)** | Self-contained install bundle decoupled from the local Yune source build, so a second machine can install without a Rust/Yune toolchain. | M | Production signing stays deferred; needs pre-staged `rime.dll` + schema + binaries + `install-info.json`. |
 | **User-data preservation (D-09)** | Preserve or migrate the learned dictionary / personalization across reinstall loops instead of deleting `user-data` on uninstall. | S | Decide backup vs. a `-PurgeUserData` switch; small but touches the uninstall path. |

@@ -1,10 +1,11 @@
 # M07 Persistent Composition and Candidate Selection Implementation Plan
 
-> **Status:** active, live proof pending. Selected after F3 was found to be an
-> architecture gap rather than a small fix. The server protocol, TSF inline
-> composition key path, contracts, and compact evidence are implemented and
-> pushed. The milestone remains active until holder-free installed-DLL live proof
-> is captured.
+> **Status:** completed and archived on 2026-07-02. Persistent per-client
+> composition sessions and the TSF inline composition key path shipped; F3
+> (partial-selection compose to 東突厥) and F4 (inline preedit at the caret) were
+> confirmed live in Chrome/Telegram/Zed once the M06 pipe-security fix restored
+> server reachability from sandboxed hosts. No Yune ABI change. Evidence:
+> `docs/evidence/m07/`. This plan remains as the implementation record.
 
 **Goal:** make the IME support real incremental composition — typing a
 multi-syllable input that is not a single lexicon entry (e.g. `dungdatkyut` →

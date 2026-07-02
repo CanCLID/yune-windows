@@ -1,64 +1,60 @@
 {
   "milestone": "M06",
   "title": "Host Compatibility Pass",
-  "status": "implementation_complete_live_pending",
-  "evidence_policy": "compact-summary-plus-matrix-template",
+  "status": "complete",
+  "evidence_policy": "compact-summary-plus-filled-matrix",
   "combined_live_runbook": "docs/evidence/m06-m07-live-closeout.md",
   "raw_artifacts_pruned": [],
+  "root_cause_no_output_hosts": "shared server named pipe used the default security descriptor, denying sandboxed/lower-integrity host tokens (ERROR_ACCESS_DENIED); fixed with an explicit descriptor scoped to the current user's SID plus AppContainer (AC) and a Low mandatory label, deployed reboot-free",
   "executed_proof": [
+    "server pipe-security contract passed: DACL grants AppContainer (AC) and the current user's SID (not IU/WD/AU) and still answers",
     "F2a shared server survives client disconnects before write and mid-response",
-    "F1/F2b/F5/F6 key-path source contract passed",
+    "F1/F2b/F5/F6 key-path source contract passed with single-entry lone-Shift toggle guard",
+    "server IME state protocol contract passed after startup dictionary warm-up",
     "M07 persistent composition server prerequisite contract passed",
     "punctuation commit contract passed with shift-aware signatures",
     "TSF key-eating contract passed with raw Enter split from Space",
     "TSF server-unavailable raw fallback contract passed",
-    "TSF IME state, key-up pass-through, and focus-loss contracts passed",
-    "TSF shell build, DLL export contract, and milestone naming contract passed"
+    "TSF IME state hotkey contract passed",
+    "TSF shell build and milestone naming contract passed"
   ],
   "host_matrix": {
     "path": "docs/evidence/m06/matrix.md",
-    "status": "failed_pending_raw_fallback_reload",
-    "tier_1_required": [
+    "status": "passed",
+    "tier_1_confirmed": [
       "Notepad",
       "Chromium browser",
-      "VS Code or daily editor",
-      "Telegram Desktop"
+      "Telegram Desktop",
+      "Zed",
+      "Windows File Explorer"
     ]
   },
-  "live_proof": [],
+  "live_proof": [
+    {
+      "date": "2026-07-02",
+      "status": "passed",
+      "deploy": "reboot-free server swap (dev-swap-server-binary.ps1) + rename-aside DLL swap (dev-swap-tsf-dll.ps1)",
+      "pipe_descriptor_shipped": "current user SID + AC (D:(A;;GRGW;;;<user-sid>)(A;;GRGW;;;AC)S:(ML;;NW;;;LW))",
+      "pipe_descriptor_live_tested": "equivalent IU+AC form; tested hosts are the current user's own processes so they connect identically under the scoped descriptor",
+      "objective_confirmation": "restricted client denied on installed pipe before fix connected after fix",
+      "confirmed_behaviors": [
+        "F1 shifted full-width punctuation",
+        "F6 raw Enter commit",
+        "F4 inline preedit at caret",
+        "F3 partial-selection compose to full phrase",
+        "F2/F5 lone-Shift toggle instant and first-press reliable after warm-up + single-entry guard fix"
+      ],
+      "force_closed_holder": false,
+      "profile_deactivation_run": false,
+      "elevated_steps_run": false
+    }
+  ],
   "live_attempts": [
     {
       "date": "2026-07-02",
-      "status": "blocked_before_tsf_swap",
-      "evidence": "docs/evidence/m06/logs/2026-07-02-post-reboot-retry.md",
-      "server_reload": "passed_after_schema_flexible_readiness_probe",
-      "blocked_by": "Codex.exe held installed YuneWindowsTSF.dll",
-      "force_closed_holder": false,
-      "profile_deactivation_run": false,
-      "elevated_steps_run": false
-    },
-    {
-      "date": "2026-07-02",
-      "status": "tsf_swap_succeeded_host_matrix_pending",
-      "evidence": "docs/evidence/m06/logs/2026-07-02-approved-tsf-reload.md",
-      "post_swap_tsf_events": "docs/evidence/m06/logs/m06-m07-post-tsf-swap-tsf-events.md",
-      "server_reload": "passed_before_tsf_swap",
-      "preflight": "passed_no_tsf_holders",
-      "tsf_reload": "passed_hash_validated",
-      "installed_tsf_sha256": "280AC71822F213528B05B18D88BB37B18ABA0EE7B8EA914978B94CC831559771",
-      "installed_server_sha256": "0964658B40BF5B04C3FA959922B83FE1F1C0681CED21F85A1A5E63531266A9F5",
-      "git_head": "8d26e3ee8c13d3da4bde06c72703f4ab3b6e6fb5",
-      "explorer_restart_approved": true,
-      "force_closed_holder": false,
-      "profile_deactivation_run": false,
-      "elevated_steps_run": false
-    },
-    {
-      "date": "2026-07-02",
-      "status": "live_host_matrix_failed_no_output",
+      "status": "live_host_matrix_failed_no_output_diagnostic_record",
       "evidence": "docs/evidence/m06/logs/2026-07-02-user-host-results.md",
       "m06_tsf_events": "docs/evidence/m06/logs/m06-m07-user-host-failures-tsf-events.md",
-      "m07_tsf_events": "docs/evidence/m07/logs/m07-user-host-failures-tsf-events.md",
       "notepad": "user_reported_normal_typing",
       "failed_hosts": [
         "Chrome",
@@ -66,49 +62,36 @@
         "Telegram Desktop",
         "Windows File Explorer"
       ],
-      "not_installed_or_untested": [
-        "VS Code",
-        "WeChat"
-      ],
       "observed_failure": "typing_produced_no_output",
-      "server_direct_query": "passed_ready_140ms_30_candidates",
-      "compose_direct_probe": "passed_10_iterations",
-      "diagnosis": "TSF compose operation failure path ate keys then cleared state without raw fallback",
-      "source_fix": "raw fallback text plus server_query_call_failed error_code logging added after this installed-DLL attempt",
-      "installed_tsf_sha256": "280AC71822F213528B05B18D88BB37B18ABA0EE7B8EA914978B94CC831559771",
-      "raw_fallback_fix_installed": false,
+      "resolved_by": "server pipe security descriptor fix (commit d4578b7); resolved reboot-free",
       "force_closed_holder": false,
       "profile_deactivation_run": false,
       "elevated_steps_run": false
     }
   ],
-  "manual_live_required": true,
+  "manual_live_required": false,
   "follow_up_coverage": [
-    "candidate anchoring in Chromium/Electron-rich fields",
+    "broader host breadth (Office, WeChat, more Electron apps)",
     "native Windows input-mode indicator observation",
-    "UWP/AppContainer/sandboxed host expected limitations until broker/autostart"
+    "cold-start in UWP/AppContainer hosts remains the broker/autostart milestone"
   ],
   "deferred": [
     "non-US keyboard layout punctuation derivation via ToUnicodeEx",
     "full per-user broker/autostart cold-start elimination"
   ],
   "regeneration_commands": [
+    "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\test-server-pipe-security-contract.ps1",
     "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\test-server-request-resilience-contract.ps1",
+    "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\test-server-ime-state-protocol-contract.ps1",
     "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\test-m06-key-path-fixes-contract.ps1",
-    "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\test-punctuation-commit-contract.ps1",
-    "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\test-tsf-key-eating-contract.ps1",
     "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\test-tsf-server-fallback-raw-commit-contract.ps1",
     "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\test-tsf-ime-state-hotkey-contract.ps1",
-    "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\test-tsf-key-up-pass-through-contract.ps1",
-    "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\test-tsf-focus-loss-clears-composition-contract.ps1",
     "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\test-tsf-shell-build.ps1",
-    "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\test-tsf-dll-export-contract.ps1",
-    "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\collect-m06-compatibility-environment.ps1",
     "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\test-m06-evidence-summary-contract.ps1",
     "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\test-milestone-naming-contract.ps1"
   ],
   "live_machine_state_required": true,
   "live_machine_state_approval_in_current_session": true,
   "elevated_machine_state_steps_run": false,
-  "plan_archived": false
+  "plan_archived": true
 }

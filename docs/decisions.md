@@ -129,11 +129,18 @@ to enable learning.
 
 ## Last Updated
 
+2026-07-02 - M06 and M07 completed. The no-output failure in sandboxed hosts was
+root-caused to the shared server's default named-pipe security descriptor and
+fixed reboot-free by scoping the pipe to the current user's SID plus AppContainer
+(`AC`); a startup dictionary warm-up removed the first-keystroke latency and a
+single-entry lone-Shift guard fixed missed toggles. F1/F2/F5/F6 and the M07 inline
+composition (F3 partial-selection compose to 東突厥, F4 inline preedit) were
+confirmed live across the Tier-1 hosts. Both plans are archived under
+`docs/plans/history/`; evidence under `docs/evidence/m06/` and `docs/evidence/m07/`.
+
 2026-07-02 - M07 persistent composition landed the server-owned `compose-*`
 protocol and TSF inline `ITfComposition` key path, preserving M06 Shift,
-punctuation, raw Enter, and hotkey behavior. Local contracts and
-`docs/evidence/m07/summary.md` are green; M07 remains active until holder-free
-installed-DLL live proof is captured.
+punctuation, raw Enter, and hotkey behavior.
 
 2026-07-02 - M06 compatibility relief landed server resilience, async warm-up
 plus capped foreground key-path waits, shifted punctuation forwarding,

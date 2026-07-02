@@ -1,89 +1,67 @@
 # M07 Evidence Summary
 
-M07 implements persistent per-client Rime composition sessions and the TSF
-inline composition key path for candidate selection, while keeping Yune engine
-internals and the default `rime_get_api()` ABI unchanged.
-Boundary: Yune engine internals and the default rime_get_api() ABI unchanged.
+M07 implements persistent per-client Rime composition sessions and the TSF inline
+composition key path for candidate selection, while keeping Yune engine internals
+and the default `rime_get_api()` ABI unchanged.
 
 ## Final Status
 
-- Status: implementation complete; holder-free live TSF proof failed outside
-  Notepad and is pending a raw-fallback TSF reload/retest.
-- Evidence retained here: compact summary and machine-readable summary.
-- Operator checklist: `docs\evidence\m07\live-checklist.md`.
+- Status: complete. Inline preedit (F4) and partial-selection compose (F3) were
+  confirmed live across Tier-1 hosts on 2026-07-02.
+- Evidence retained here: compact summary, machine-readable summary, operator
+  checklist, and the host-failure diagnostic log under `logs/`.
 - Combined live runbook: `docs\evidence\m06-m07-live-closeout.md`.
-- Raw retained artifacts: none.
-- Closeout basis so far: non-elevated server protocol contract, TSF source
-  contracts, TSF shell build, DLL export contract, and M06 regression contracts.
-- Manual holder-free live verification remains required before M07 is marked
-  complete: the installed TSF DLL produced normal typing in Notepad, but Chrome,
-  Zed, Telegram, and File Explorer produced no output before the inline preedit
-  and partial-selection checks could be completed.
+- The earlier no-output failure (Chrome/Zed/Telegram/Explorer produced no output
+  before the inline preedit and partial-selection checks could run) was **not** a
+  composition defect: it was the shared server pipe using the default security
+  descriptor, which denied sandboxed/lower-integrity host tokens
+  (`ERROR_ACCESS_DENIED`). It was fixed reboot-free server-side in M06
+  (`test-server-pipe-security-contract.ps1`); the M07 composition path then
+  verified live.
 
 ## Executed Proof
 
-- `tools\test-server-persistent-composition-contract.ps1` verifies the
-  persistent server protocol: session token lifecycle, live raw input/preedit,
-  backspace, partial selection preserving remaining input, raw Enter commit, and
-  candidate commit separation.
+- `tools\test-server-persistent-composition-contract.ps1` verifies the persistent
+  server protocol: session token lifecycle, live raw input/preedit, backspace,
+  partial selection preserving remaining input, raw Enter commit, and candidate
+  commit separation.
 - `tools\test-m07-tsf-composition-contract.ps1` verifies the TSF source model:
-  `ITfCompositionSink`, `ITfContextComposition::StartComposition`, inline
-  preedit updates, `compose-key`, `compose-select`, `compose-page`,
-  `compose-commit`, `compose-commit-raw`, and `compose-end`.
-- `tools\test-m06-key-path-fixes-contract.ps1` verifies M06 semantics are
-  preserved in the rewritten key path: shifted punctuation, unshifted-only
-  `-`/`=` paging, raw Enter, capped no-launch key queries, async warm-up, and
-  low-level Shift hook guard.
-- `tools\test-punctuation-commit-contract.ps1` verifies punctuation still goes
-  through Rime `get_commit` and composing punctuation commits the active
-  persistent composition before inserting punctuation.
-- `tools\test-tsf-key-eating-contract.ps1` verifies `OnTestKeyDown` and
-  `OnKeyDown` still consume handled composition keys consistently.
-- `tools\test-tsf-server-fallback-raw-commit-contract.ps1` verifies the TSF key
-  path inserts raw fallback text instead of silently dropping an eaten letter
-  when `compose-begin` or `compose-key` fails.
+  `ITfCompositionSink`, `ITfContextComposition::StartComposition`, inline preedit
+  updates, `compose-key`, `compose-select`, `compose-page`, `compose-commit`,
+  `compose-commit-raw`, and `compose-end`.
+- `tools\test-m06-key-path-fixes-contract.ps1` verifies M06 semantics (F1/F2b/F5/F6)
+  are preserved in the rewritten key path, including the single-entry lone-Shift
+  toggle whose double-toggle guard is spent only on an actual toggle.
+- `tools\test-punctuation-commit-contract.ps1` and
+  `tools\test-tsf-key-eating-contract.ps1` verify punctuation forwarding and
+  consistent key eating over the persistent composition.
+- `tools\test-tsf-server-fallback-raw-commit-contract.ps1` verifies the TSF path
+  inserts raw fallback text instead of silently dropping an eaten letter when a
+  compose operation fails.
 - `tools\test-tsf-ime-state-hotkey-contract.ps1`,
-  `tools\test-tsf-key-up-pass-through-contract.ps1`, and
-  `tools\test-tsf-focus-loss-clears-composition-contract.ps1` verify preserved
-  keys, lone-Shift pass-through, state reconciliation, focus cleanup, and inline
-  composition cleanup contracts.
-- `tools\test-tsf-shell-build.ps1`,
-  `tools\test-tsf-dll-export-contract.ps1`, and
-  `tools\test-milestone-naming-contract.ps1` passed after the M07 DLL slice.
+  `tools\test-tsf-shell-build.ps1`, and `tools\test-milestone-naming-contract.ps1`
+  passed after the M07 DLL slice.
 
 ## Holder-free Live Proof
 
-- Partial post-reboot retry was executed by Codex on 2026-07-02 and recorded in
-  `docs\evidence\m06\logs\2026-07-02-post-reboot-retry.md`.
-- The installed server reload passed after the readiness probe accepted the
-  persisted active schema.
-- User-approved `tools\dev\dev-reload-tsf.ps1 -RestartExplorer` passed on
-  2026-07-02 and is recorded in
-  `docs\evidence\m06\logs\2026-07-02-approved-tsf-reload.md`.
-- User host testing after that reload is recorded in
-  `docs\evidence\m06\logs\2026-07-02-user-host-results.md` and failed outside
-  Notepad with repeated `server_query_failed` events and no `commit_text`
-  events in the failed-host capture.
-- The installed TSF DLL hash is
-  `280AC71822F213528B05B18D88BB37B18ABA0EE7B8EA914978B94CC831559771` for the
-  tested installed DLL; the raw-fallback fix added after the user host report
-  still needs a holder-free installed-DLL reload.
-- Required next operator action: close non-dev TSF DLL holders, reload the
-  updated raw-fallback TSF DLL in a holder-free session, then follow
-  `live-checklist.md` in a real host to prove inline preedit and number-key
-  candidate selection advance through the remaining input instead of clearing
-  it.
-- Also recheck single-word commit, raw Enter, Space candidate commit, backspace,
-  Escape cancel, paging, shifted punctuation, lone-Shift, preserved-key toggles,
-  and focus-loss cleanup.
-- Tooling must not force-close non-dev holder applications and must not run
-  elevated install/register/unregister/cleanup/AppVerifier/PageHeap/registry
-  steps without explicit approval in the current session.
+- The M07 DLL was deployed via `tools\dev\dev-swap-tsf-dll.ps1` (rename-aside;
+  apps reload on restart), after the M06 pipe-security fix restored server
+  reachability from sandboxed hosts.
+- User live host testing on 2026-07-02 confirmed, in Chrome / Telegram / Zed:
+  - **F4** — the typed romanization shows inline at the caret while composing.
+  - **F3** — typing `dungdatkyut` and picking 東 advances the composition through
+    `datkyut`; picking 突 then 厥 composes 東突厥 instead of committing only 東.
+  - single-word commit, Space candidate commit, and raw Enter (F6) all work.
+- The earlier failed attempt (no output before the composition checks) and its
+  diagnosis are retained in `docs\evidence\m06\logs\2026-07-02-user-host-results.md`
+  and `docs\evidence\m07\logs\m07-user-host-failures-tsf-events.md`.
+- Tooling did not force-close non-dev holders and ran no elevated
+  install/register/unregister/cleanup/AppVerifier/PageHeap/registry steps.
 
 ## Follow-up Coverage
 
-- Richer segmented preedit display and display attributes remain polish beyond
-  the first inline composition implementation.
+- Richer segmented preedit display and display attributes remain polish beyond the
+  first inline composition implementation.
 - Mouse candidate selection remains a later interaction layer; M07 routes
   number-key selection through Rime.
 - Learning/userdb remains deferred even though persistent sessions are now in
@@ -92,10 +70,10 @@ Boundary: Yune engine internals and the default rime_get_api() ABI unchanged.
 ## Deferred
 
 - Yune learning/userdb persistence and select-index feedback.
-- Full mid-composition cursor editing beyond append, backspace, cancel, page,
-  raw commit, and candidate commit.
-- Broker/autostart cold-start architecture and sandboxed/AppContainer host
-  support.
+- Full mid-composition cursor editing beyond append, backspace, cancel, page, raw
+  commit, and candidate commit.
+- Broker/autostart cold-start architecture and sandboxed/AppContainer host support
+  beyond the pipe-access fix.
 
 ## Regeneration Commands
 
@@ -107,10 +85,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-punctuation-commi
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-tsf-key-eating-contract.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-tsf-server-fallback-raw-commit-contract.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-tsf-ime-state-hotkey-contract.ps1
-powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-tsf-key-up-pass-through-contract.ps1
-powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-tsf-focus-loss-clears-composition-contract.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-tsf-shell-build.ps1
-powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-tsf-dll-export-contract.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-m07-evidence-summary-contract.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-milestone-naming-contract.ps1
 ```

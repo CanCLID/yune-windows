@@ -45,15 +45,18 @@ server owns per-client Rime sessions, the TSF DLL renders Rime preedit through
 inline `ITfComposition`, number-key selection routes to Rime, Enter uses raw
 commit, and Space uses candidate commit.
 
-After a post-reboot holder-free reload, the installed server, TSF DLL, active
-profile, and settings executable were refreshed from the M05 build. Manual dev
-Notepad verification confirmed `ngohaig` input, Shift Chinese/English toggle,
-English pass-through, toggling back to Cantonese, PageUp/PageDown paging,
-punctuation behavior, and the settings entrypoint. The M06 and M07 non-elevated
-proof lives under `docs/evidence/m06/` and `docs/evidence/m07/`; the next live
-gate is a holder-free installed TSF DLL run that fills the M06 host matrix and
-proves M07 inline preedit plus partial candidate selection in a real host. Do
-not mark either milestone complete from local contracts alone.
+M06 and M07 are complete (2026-07-02). The no-output failure in sandboxed hosts
+(Chrome/Zed/Telegram/Explorer) was root-caused to the shared server creating its
+named pipe with the default security descriptor, which denied
+sandboxed/lower-integrity host tokens; it was fixed reboot-free by scoping the
+pipe to the current user's SID plus all application packages (AppContainer). F1
+(shifted full-width punctuation), F2/F5 (the 中/英 Shift toggle: server request
+resilience, async warm-up, a startup dictionary warm-up for first-keystroke
+latency, and a single-entry lone-Shift guard), F6 (Enter commits the raw letters),
+and the M07 inline composition (F3/F4: typing `dungdatkyut` and picking characters
+composes 東突厥, with the romanization shown inline at the caret) were confirmed
+live across the Tier-1 hosts. Evidence: `docs/evidence/m06/` and
+`docs/evidence/m07/`.
 
 For dogfood package or production installer work, refresh live evidence under
 the Yune Windows names whenever package inputs or installer behavior change:

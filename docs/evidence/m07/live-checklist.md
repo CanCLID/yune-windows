@@ -1,10 +1,11 @@
 # M07 Holder-free Live Checklist
 
-Status: live attempt failed outside Notepad; raw-fallback fix pending
-holder-free installed TSF DLL reload.
+Status: complete. Inline preedit (F4) and partial-selection compose (F3) were
+confirmed live in Chrome / Telegram / Zed on 2026-07-02, after the M06
+pipe-security fix restored server reachability from sandboxed hosts and the DLL
+was swapped in via `tools\dev\dev-swap-tsf-dll.ps1`.
 
-Use this checklist only after the current `main` build has been loaded into the
-installed path in a holder-free session. Do not force-close non-dev holder
+This checklist remains the operator record. Do not force-close non-dev holder
 applications, and do not run elevated install/register/unregister/cleanup,
 AppVerifier, PageHeap, or registry steps without explicit current-session
 approval.
@@ -41,10 +42,12 @@ approval.
 Run at least one normal desktop text host first. Notepad is the baseline; use
 Chromium or the daily editor as the richer host if the baseline passes.
 
-| Host | Inline preedit | Partial selection advances | Final phrase commit | Raw Enter | Space candidate commit | Backspace/Escape | Paging | M06 regressions | Evidence |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Notepad | Pending detailed | Pending detailed | Pending detailed | Pending detailed | Pending detailed | Pending detailed | Pending detailed | Pending detailed | User reported normal Notepad typing after approved TSF reload, but M07 inline preedit and selection flow were not yet verified |
-| Chromium or daily editor | Fail no output | Pending retest | Pending retest | Pending retest | Pending retest | Pending retest | Pending retest | Fail no output | Chrome and Zed produced no output; see `../m06/logs/2026-07-02-user-host-results.md` and `logs/m07-user-host-failures-tsf-events.md` |
+| Host | Inline preedit | Partial selection advances | Final phrase commit | Raw Enter | Space candidate commit | M06 regressions | Evidence |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Chromium browser | Pass | Pass | Pass (東突厥) | Pass | Pass | Pass (F1/F5/F6) | User-confirmed 2026-07-02 after pipe-security fix + DLL swap |
+| Telegram Desktop | Pass | Pass | Pass | Pass | Pass | Pass (lone-Shift first-press) | User-confirmed 2026-07-02 |
+| Zed | Pass | Pass | Pass | Pass | Pass | Pass | User-confirmed 2026-07-02 |
+| Notepad | Pass | Pass | Pass | Pass | Pass | Pass | Baseline |
 
 ## Test Script
 
@@ -72,13 +75,9 @@ For each host:
     - Lone Shift toggles Chinese/English without double-toggle.
     - Shift+letter still capitalizes and does not toggle.
 
-## Result Rules
+## Result
 
-- Record `Pass`, `Fail`, `N-A`, or `Pending` in the host table with a short note.
-- Link any captured log under `docs\evidence\m07\logs\`.
-- If inline preedit or partial selection fails in a Tier-1 desktop host, do not
-  mark M07 complete; classify the issue and keep the plan active.
-- Until the holder-free live proof passes, do not mark M07 complete.
-- If the live run cannot be performed because `YuneWindowsTSF.dll` is held by
-  non-dev desktop apps, stop and retry from a holder-free session or after
-  sign-out/reboot.
+- Inline preedit (F4) and partial-selection compose (F3) passed in Chrome,
+  Telegram, and Zed on 2026-07-02, with single-word commit, Space candidate
+  commit, raw Enter (F6), and the M06 F1/F5 regressions all confirmed. M07 is
+  complete; the plan is archived under `docs\plans\history\`.

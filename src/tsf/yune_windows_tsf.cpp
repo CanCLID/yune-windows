@@ -683,7 +683,9 @@ private:
             selection.range->SetText(cookie, 0, text_.c_str(),
                                      static_cast<LONG>(text_.size()));
         if (SUCCEEDED(set_hr)) {
-            (void)selection.range->Collapse(cookie, TF_ANCHOR_END);
+            if (SUCCEEDED(selection.range->Collapse(cookie, TF_ANCHOR_END))) {
+                context_->SetSelection(cookie, 1, &selection);
+            }
         }
         selection.range->Release();
         return set_hr;
@@ -1019,9 +1021,12 @@ public:
             *eaten = TRUE;
             return S_OK;
         }
-        if ((key == VK_NEXT || key == VK_PRIOR) && !buffer_.empty()) {
+        if ((key == VK_NEXT || key == VK_PRIOR || key == VK_OEM_MINUS ||
+             key == VK_OEM_PLUS) && !buffer_.empty()) {
             *eaten = TRUE;
-            PageCandidateWindow(context, key == VK_NEXT ? 1 : -1);
+            const int page_delta =
+                (key == VK_NEXT || key == VK_OEM_PLUS) ? 1 : -1;
+            PageCandidateWindow(context, page_delta);
             return S_OK;
         }
         if (key >= L'1' && key <= L'9' && !buffer_.empty()) {

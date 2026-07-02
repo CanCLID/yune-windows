@@ -34,7 +34,8 @@ foreach ($Required in @(
         "persistent per-client Rime composition sessions",
         "manual holder-free live verification remains required",
         "Yune engine internals and the default rime_get_api() ABI unchanged",
-        "docs\evidence\m07\live-checklist.md"
+        "docs\evidence\m07\live-checklist.md",
+        "docs\evidence\m06-m07-live-closeout.md"
     )) {
     if ($Summary -notmatch [regex]::Escape($Required)) {
         throw "M07 summary is missing boundary text: $Required"
@@ -67,6 +68,9 @@ if ($Evidence.live_proof_status -ne "pending_holder_free_installed_tsf_verificat
 }
 if ($Evidence.operator_checklist -ne "docs/evidence/m07/live-checklist.md") {
     throw "M07 summary JSON must point at the operator live checklist."
+}
+if ($Evidence.combined_live_runbook -ne "docs/evidence/m06-m07-live-closeout.md") {
+    throw "M07 summary JSON must point at the combined M06/M07 live runbook."
 }
 
 foreach ($Required in @(

@@ -10,6 +10,7 @@ Boundary: Yune engine internals and the default rime_get_api() ABI unchanged.
 - Status: implementation complete; holder-free live TSF proof pending.
 - Evidence retained here: compact summary and machine-readable summary.
 - Operator checklist: `docs\evidence\m07\live-checklist.md`.
+- Combined live runbook: `docs\evidence\m06-m07-live-closeout.md`.
 - Raw retained artifacts: none.
 - Closeout basis so far: non-elevated server protocol contract, TSF source
   contracts, TSF shell build, DLL export contract, and M06 regression contracts.

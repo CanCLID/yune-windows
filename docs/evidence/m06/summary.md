@@ -9,6 +9,7 @@ ABI unchanged.
 - Status: implementation complete; holder-free live host matrix pending.
 - Evidence retained here: compact summary, matrix template, environment
   snapshot.
+- Combined live runbook: `docs\evidence\m06-m07-live-closeout.md`.
 - Raw retained artifacts: none.
 - Closeout basis so far: non-elevated build and source/runtime contracts for
   F1, F2a/F2b, F5, and F6.
@@ -93,4 +94,3 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\collect-m06-compatibil
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-m06-evidence-summary-contract.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-milestone-naming-contract.ps1
 ```
-

@@ -29,7 +29,7 @@ foreach ($Required in @(
         'bool IsPunctuationKey',
         'PunctuationInput',
         'CommitCompositionForPunctuation',
-        'QueryInput\(PunctuationInput',
+        'QueryInput\(PunctuationInput\(key,\s*shift\)',
         'CommitText\(context,\s*punctuation_response\.commit_text\)'
     )) {
     if ($Tsf -notmatch $Required) {
@@ -39,14 +39,14 @@ foreach ($Required in @(
 
 $ShouldHandleSource = [regex]::Match(
     $Tsf,
-    'bool ShouldHandleKeyDown\(WPARAM key\) const \{(?s:.*?)\n    \}').Value
-if ($ShouldHandleSource -notmatch 'if \(IsPunctuationKey\(key\)\) \{(?s:.*?)return true;') {
+    'bool ShouldHandleKeyDown\(WPARAM key,\s*bool shift_pressed\) const \{(?s:.*?)\n    \}').Value
+if ($ShouldHandleSource -notmatch 'if \(IsPunctuationKey\(key,\s*shift_pressed\)\) \{(?s:.*?)return true;') {
     throw "punctuation keys must be handled while composing so sentence punctuation is not passed through raw"
 }
 
 $CompositionPunctuationSource = [regex]::Match(
     $Tsf,
-    'bool CommitCompositionForPunctuation\(ITfContext\* context,\s*WPARAM key\) \{(?s:.*?)\n    \}').Value
+    'bool CommitCompositionForPunctuation\(ITfContext\* context,\s*WPARAM key,\s*bool shift\) \{(?s:.*?)\n    \}').Value
 if ([string]::IsNullOrWhiteSpace($CompositionPunctuationSource)) {
     throw "missing composing punctuation helper"
 }
@@ -54,7 +54,7 @@ foreach ($Required in @(
         'if \(!buffer_\.empty\(\)\)',
         'ServerResponse composition_response = QueryInput\(buffer_, true\)',
         'CommitText\(context,\s*composition_commit\)',
-        'ServerResponse punctuation_response\s*=\s*QueryInput\(PunctuationInput\(key\), true\)',
+        'ServerResponse punctuation_response\s*=\s*QueryInput\(PunctuationInput\(key,\s*shift\), true\)',
         'CommitText\(context,\s*punctuation_response\.commit_text\)',
         'buffer_\.clear\(\)',
         'last_candidates_\.clear\(\)',
@@ -67,11 +67,11 @@ foreach ($Required in @(
 
 $PunctuationBlock = [regex]::Match(
     $Tsf,
-    'if \(IsPunctuationKey\(key\)\) \{(?s:.*?)\n        \}').Value
+    'if \(IsPunctuationKey\(key,\s*shift_pressed\)\) \{(?s:.*?)\n        \}').Value
 if ([string]::IsNullOrWhiteSpace($PunctuationBlock)) {
     throw "TSF punctuation forwarding block not found"
 }
-if ($PunctuationBlock -notmatch 'CommitCompositionForPunctuation\(context,\s*key\)') {
+if ($PunctuationBlock -notmatch 'CommitCompositionForPunctuation\(context,\s*key,\s*shift_pressed\)') {
     throw "punctuation key path should route through the composing punctuation helper"
 }
 if ($PunctuationBlock -notmatch 'const bool was_composing = !buffer_\.empty\(\)') {
@@ -80,7 +80,7 @@ if ($PunctuationBlock -notmatch 'const bool was_composing = !buffer_\.empty\(\)'
 if ($PunctuationBlock -match '\*eaten\s*=\s*TRUE;\s*ServerResponse') {
     throw "punctuation keys must not be eaten before a server punctuation commit is available"
 }
-if ($PunctuationBlock -notmatch 'if \(CommitCompositionForPunctuation\(context,\s*key\) \|\| was_composing\) \{(?s:.*?)\*eaten\s*=\s*TRUE;') {
+if ($PunctuationBlock -notmatch 'if \(CommitCompositionForPunctuation\(context,\s*key,\s*shift_pressed\) \|\|(?s:.*?)was_composing\) \{(?s:.*?)\*eaten\s*=\s*TRUE;') {
     throw "composing punctuation must be eaten even if punctuation insertion cannot fall back safely"
 }
 

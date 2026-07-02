@@ -11,7 +11,8 @@ if (-not (Test-Path -LiteralPath $TsfSource)) {
 $Source = Get-Content -Raw -LiteralPath $TsfSource
 
 $LetterBranchPattern = @'
-if \(\(key >= L'A' && key <= L'Z'\) \|\| \(key >= L'a' && key <= L'z'\)\) \{(?s:.*?)ServerResponse response = QueryInput\(buffer_, false\);
+if \(!shift_pressed &&
+\s+\(\(key >= L'A' && key <= L'Z'\) \|\| \(key >= L'a' && key <= L'z'\)\)\) \{(?s:.*?)ServerResponse response = QueryInput\(buffer_, false\);
 \s+\*eaten = TRUE;
 (?s:.*?)if \(ShowCandidates\(context, last_candidates_\)\) \{
 \s+WriteStructuralEvent\("candidate_update", buffer_length,
@@ -27,7 +28,7 @@ if ($Source -match "\*eaten = !candidate_\.empty\(\);") {
     throw "TSF letter-key path must not depend on candidate presence before eating input."
 }
 
-if ($Source -notmatch "bool ShouldHandleKeyDown\(WPARAM key\) const") {
+if ($Source -notmatch "bool ShouldHandleKeyDown\(WPARAM key,\s*bool shift_pressed\) const") {
     throw "TSF key-test path must distinguish text-entry keys from active-composition control keys."
 }
 
@@ -36,7 +37,8 @@ STDMETHODIMP OnTestKeyDown\(ITfContext\*, WPARAM key, LPARAM, BOOL\* eaten\) ove
 \s+if \(!eaten\) \{
 \s+return E_INVALIDARG;
 \s+\}
-\s+\*eaten = ShouldHandleKeyDown\(key\);
+\s+const bool shift_pressed = IsShiftPressed\(\);
+\s+\*eaten = ShouldHandleKeyDown\(key, shift_pressed\);
 '@
 
 if ($Source -notmatch $TestKeyDownPattern) {
@@ -50,7 +52,7 @@ STDMETHODIMP OnKeyDown\(ITfContext\* context, WPARAM key, LPARAM(?: \w+)?, BOOL\
 \s+\}
 \s+\*eaten = FALSE;
 (?s:.*?)
-\s+if \(!ShouldHandleKeyDown\(key\)\) \{
+\s+if \(!ShouldHandleKeyDown\(key, shift_pressed\)\) \{
 \s+return S_OK;
 \s+\}
 '@
@@ -60,8 +62,7 @@ if ($Source -notmatch $KeyDownGuardPattern) {
 }
 
 $CompositionControlPattern = @'
-if \(key == VK_SPACE \|\| key == VK_RETURN \|\|
-\s+\(key >= L'1' && key <= L'9'\) \|\| key == VK_BACK \|\|
+if \(key == VK_SPACE \|\| key == VK_RETURN \|\| key == VK_BACK \|\|
 \s+key == VK_ESCAPE \|\| key == VK_NEXT \|\| key == VK_PRIOR\) \{
 \s+return !buffer_\.empty\(\);
 \s+\}
@@ -72,7 +73,7 @@ if ($Source -notmatch $CompositionControlPattern) {
 }
 
 $NumberSelectionPattern = @'
-if \(key >= L'1' && key <= L'9' && !buffer_\.empty\(\)\) \{
+if \(!shift_pressed && key >= L'1' && key <= L'9' && !buffer_\.empty\(\)\) \{
 \s+\*eaten = TRUE;
 (?s:.*?)if \(index < last_candidates_\.size\(\)\) \{
 '@
@@ -82,13 +83,23 @@ if ($Source -notmatch $NumberSelectionPattern) {
 }
 
 $CommitKeyPattern = @'
-if \(\(key == VK_SPACE \|\| key == VK_RETURN\) && !buffer_\.empty\(\)\) \{
+if \(key == VK_SPACE && !buffer_\.empty\(\)\) \{
 \s+\*eaten = TRUE;
 \s+ServerResponse response = QueryInput\(buffer_, true\);
 '@
 
 if ($Source -notmatch $CommitKeyPattern) {
-    throw "TSF space/enter commit keys must consume input whenever a composition buffer exists, before querying commit text."
+    throw "TSF space commit key must consume input whenever a composition buffer exists, before querying commit text."
+}
+
+$RawEnterPattern = @'
+if \(key == VK_RETURN && !buffer_\.empty\(\)\) \{
+\s+\*eaten = TRUE;
+\s+\(void\)CommitRawBuffer\(context\);
+'@
+
+if ($Source -notmatch $RawEnterPattern) {
+    throw "TSF enter key must consume input and commit the raw composition buffer."
 }
 
 Write-Host "TSF handled-key path consumes composition input without waiting for candidates."

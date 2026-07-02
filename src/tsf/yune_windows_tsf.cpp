@@ -55,12 +55,16 @@ constexpr const wchar_t* kTextServiceDesc = L"Yune Windows";
 constexpr const wchar_t* kThreadingModel = L"Apartment";
 constexpr const wchar_t* kPipeName = L"\\\\.\\pipe\\yune-windows-ime";
 constexpr DWORD kServerQueryTimeoutMs = 5000;
+constexpr DWORD kServerKeyPathQueryTimeoutMs = 200;
 constexpr DWORD kServerFocusRefreshTimeoutMs = 100;
 constexpr DWORD kServerPipeReconnectWaitMs = 250;
 constexpr DWORD kServerLaunchReadyWaitMs = 15000;
 constexpr DWORD kServerLaunchMutexWaitMs = 250;
 constexpr DWORD kServerPipeMissingRetrySleepMs = 15;
 constexpr ULONGLONG kServerLaunchCooldownMs = 1500;
+constexpr ULONGLONG kLoneShiftDoubleToggleGuardMs = 250;
+constexpr UINT kShiftHookToggleMessage = WM_APP + 0x5a;
+constexpr const wchar_t* kShiftHookWindowClass = L"YuneWindowsShiftHookWindow";
 constexpr int kCandidatePageSize = 5;
 constexpr LPARAM kKeyWasDownMask = 0x40000000;
 
@@ -69,11 +73,22 @@ enum class RefreshStateMode {
     ExistingServerOnly,
 };
 
+class TextService;
+
 HINSTANCE g_instance = nullptr;
 std::atomic<long> g_dll_refs = 0;
 std::atomic<unsigned long long> g_last_server_launch_attempt_ms = 0;
 std::atomic<unsigned long> g_structural_event_sequence = 0;
+std::atomic<bool> g_server_warmup_inflight = false;
+std::atomic<bool> g_hook_shift_down = false;
+std::atomic<bool> g_hook_shift_consumed = false;
+std::atomic<unsigned long long> g_last_lone_shift_toggle_ms = 0;
 std::mutex g_structural_log_mutex;
+std::mutex g_shift_hook_mutex;
+HHOOK g_shift_hook = nullptr;
+HWND g_shift_hook_window = nullptr;
+DWORD g_shift_hook_window_thread_id = 0;
+TextService* g_focused_text_service = nullptr;
 
 void DllAddRef() {
     ++g_dll_refs;
@@ -92,6 +107,10 @@ bool IsHandledKey(WPARAM key) {
 
 bool IsShiftKey(WPARAM key) {
     return key == VK_SHIFT || key == VK_LSHIFT || key == VK_RSHIFT;
+}
+
+bool IsShiftPressed() {
+    return (GetKeyState(VK_SHIFT) & 0x8000) != 0;
 }
 
 bool IsShortcutModifierDown() {
@@ -114,37 +133,57 @@ wchar_t LowerAscii(WPARAM key) {
     return static_cast<wchar_t>(key);
 }
 
-std::wstring PunctuationInput(WPARAM key) {
+std::wstring PunctuationInput(WPARAM key, bool shift) {
     switch (key) {
         case VK_OEM_COMMA:
-            return L",";
+            return shift ? L"<" : L",";
         case VK_OEM_PERIOD:
-            return L".";
+            return shift ? L">" : L".";
         case VK_OEM_1:
-            return L";";
+            return shift ? L":" : L";";
         case VK_OEM_2:
-            return L"/";
+            return shift ? L"?" : L"/";
         case VK_OEM_3:
-            return L"`";
+            return shift ? L"~" : L"`";
         case VK_OEM_4:
-            return L"[";
+            return shift ? L"{" : L"[";
         case VK_OEM_5:
-            return L"\\";
+            return shift ? L"|" : L"\\";
         case VK_OEM_6:
-            return L"]";
+            return shift ? L"}" : L"]";
         case VK_OEM_7:
-            return L"'";
+            return shift ? L"\"" : L"'";
         case VK_OEM_MINUS:
-            return L"-";
+            return shift ? L"_" : L"-";
         case VK_OEM_PLUS:
-            return L"=";
+            return shift ? L"+" : L"=";
+        case L'1':
+            return shift ? L"!" : std::wstring{};
+        case L'2':
+            return shift ? L"@" : std::wstring{};
+        case L'3':
+            return shift ? L"#" : std::wstring{};
+        case L'4':
+            return shift ? L"$" : std::wstring{};
+        case L'5':
+            return shift ? L"%" : std::wstring{};
+        case L'6':
+            return shift ? L"^" : std::wstring{};
+        case L'7':
+            return shift ? L"&" : std::wstring{};
+        case L'8':
+            return shift ? L"*" : std::wstring{};
+        case L'9':
+            return shift ? L"(" : std::wstring{};
+        case L'0':
+            return shift ? L")" : std::wstring{};
         default:
             return {};
     }
 }
 
-bool IsPunctuationKey(WPARAM key) {
-    return !PunctuationInput(key).empty();
+bool IsPunctuationKey(WPARAM key, bool shift) {
+    return !PunctuationInput(key, shift).empty();
 }
 
 std::string Narrow(std::wstring_view value) {
@@ -191,6 +230,12 @@ bool PathExists(const std::filesystem::path& value);
 bool WaitForSharedServerPipe(DWORD timeout_ms);
 bool CanLaunchSharedServerFromCurrentHost();
 bool RequestSharedServerLaunch();
+void RequestSharedServerWarmupAsync();
+bool TryAcquireLoneShiftToggle();
+void RegisterFocusedTextService(TextService* service);
+LRESULT CALLBACK ShiftHookWindowProc(HWND hwnd, UINT message, WPARAM wparam,
+                                     LPARAM lparam);
+LRESULT CALLBACK LowLevelKeyboardProc(int code, WPARAM wparam, LPARAM lparam);
 
 void WriteStructuralEvent(const char* event_name, int buffer_length = -1,
                           int candidate_count = -1) {
@@ -412,6 +457,32 @@ bool RequestSharedServerLaunch() {
     return false;
 }
 
+DWORD WINAPI ServerWarmupThreadProc(void*) {
+    (void)RequestSharedServerLaunch();
+    g_server_warmup_inflight.store(false);
+    DllRelease();
+    return 0;
+}
+
+void RequestSharedServerWarmupAsync() {
+    bool expected = false;
+    if (!g_server_warmup_inflight.compare_exchange_strong(expected, true)) {
+        WriteStructuralEvent("server_warmup_pending");
+        return;
+    }
+    DllAddRef();
+    HANDLE thread = CreateThread(nullptr, 0, ServerWarmupThreadProc, nullptr, 0,
+                                 nullptr);
+    if (!thread) {
+        g_server_warmup_inflight.store(false);
+        DllRelease();
+        WriteStructuralEvent("server_warmup_failed");
+        return;
+    }
+    CloseHandle(thread);
+    WriteStructuralEvent("server_warmup_started");
+}
+
 std::string JsonStringValue(std::string_view json, std::string_view key) {
     const std::string needle = "\"" + std::string(key) + "\":\"";
     const size_t start = json.find(needle);
@@ -575,11 +646,15 @@ std::vector<std::wstring> JsonSchemaIds(std::string_view json) {
     return schemas;
 }
 
-ServerResponse QueryServer(const std::wstring& input, bool commit) {
+ServerResponse QueryServer(
+    const std::wstring& input, bool commit,
+    RefreshStateMode mode = RefreshStateMode::AllowLaunch,
+    DWORD timeout_ms = kServerQueryTimeoutMs) {
     auto wait_for_pipe_io = [](HANDLE pipe, OVERLAPPED& overlapped,
-                               DWORD& transferred) -> bool {
+                               DWORD& transferred,
+                               DWORD timeout_ms) -> bool {
         const DWORD wait = WaitForSingleObject(overlapped.hEvent,
-                                               kServerQueryTimeoutMs);
+                                               timeout_ms);
         if (wait != WAIT_OBJECT_0) {
             CancelIo(pipe);
             WaitForSingleObject(overlapped.hEvent, 1000);
@@ -603,7 +678,7 @@ ServerResponse QueryServer(const std::wstring& input, bool commit) {
         if (started) {
             ok = GetOverlappedResult(pipe, &overlapped, &written, FALSE) == TRUE;
         } else if (GetLastError() == ERROR_IO_PENDING) {
-            ok = wait_for_pipe_io(pipe, overlapped, written);
+            ok = wait_for_pipe_io(pipe, overlapped, written, timeout_ms);
         }
         CloseHandle(event);
         return ok && written == request_size;
@@ -623,7 +698,7 @@ ServerResponse QueryServer(const std::wstring& input, bool commit) {
         if (started) {
             ok = GetOverlappedResult(pipe, &overlapped, &read, FALSE) == TRUE;
         } else if (GetLastError() == ERROR_IO_PENDING) {
-            ok = wait_for_pipe_io(pipe, overlapped, read);
+            ok = wait_for_pipe_io(pipe, overlapped, read, timeout_ms);
         }
         CloseHandle(event);
         return ok && read > 0;
@@ -635,18 +710,23 @@ ServerResponse QueryServer(const std::wstring& input, bool commit) {
     };
 
     HANDLE pipe = connect_pipe();
+    const DWORD reconnect_wait_ms =
+        timeout_ms < kServerPipeReconnectWaitMs ? timeout_ms
+                                                : kServerPipeReconnectWaitMs;
     if (pipe == INVALID_HANDLE_VALUE) {
         const DWORD connect_error = GetLastError();
         if (connect_error == ERROR_PIPE_BUSY) {
             WriteStructuralEvent("server_query_pipe_busy");
-            if (WaitForSharedServerPipe(kServerPipeReconnectWaitMs)) {
+            if (WaitForSharedServerPipe(reconnect_wait_ms)) {
                 pipe = connect_pipe();
             }
         } else if (connect_error == ERROR_FILE_NOT_FOUND) {
-            if (WaitForSharedServerPipe(kServerPipeReconnectWaitMs)) {
+            if (WaitForSharedServerPipe(reconnect_wait_ms)) {
                 pipe = connect_pipe();
             }
-            if (pipe == INVALID_HANDLE_VALUE && RequestSharedServerLaunch()) {
+            if (pipe == INVALID_HANDLE_VALUE &&
+                mode == RefreshStateMode::AllowLaunch &&
+                RequestSharedServerLaunch()) {
                 pipe = connect_pipe();
             }
         }
@@ -656,8 +736,8 @@ ServerResponse QueryServer(const std::wstring& input, bool commit) {
         return ServerQueryFailure(input);
     }
 
-    DWORD mode = PIPE_READMODE_MESSAGE;
-    if (!SetNamedPipeHandleState(pipe, &mode, nullptr, nullptr)) {
+    DWORD pipe_mode = PIPE_READMODE_MESSAGE;
+    if (!SetNamedPipeHandleState(pipe, &pipe_mode, nullptr, nullptr)) {
         CloseHandle(pipe);
         WriteStructuralEvent("server_query_connect_failed");
         return ServerQueryFailure(input);
@@ -1049,6 +1129,7 @@ public:
         thread_mgr_->AddRef();
         client_id_ = client_id;
         RefreshStateFromServer(nullptr, RefreshStateMode::ExistingServerOnly);
+        RequestSharedServerWarmupAsync();
         WriteStructuralEvent("profile_activate");
         return S_OK;
     }
@@ -1075,6 +1156,7 @@ public:
         }
         client_id_ = TF_CLIENTID_NULL;
         focused_ = false;
+        RegisterFocusedTextService(nullptr);
         ClearShiftState();
         if (was_active) {
             WriteStructuralEvent("profile_deactivate",
@@ -1093,6 +1175,7 @@ public:
     STDMETHODIMP OnSetFocus(BOOL focused) override {
         if (!focused) {
             focused_ = false;
+            RegisterFocusedTextService(nullptr);
             ClearShiftState();
             WriteStructuralEvent("focus_lost", static_cast<int>(buffer_.size()),
                                  static_cast<int>(last_candidates_.size()));
@@ -1104,7 +1187,9 @@ public:
             language_bar_.Hide();
         } else {
             focused_ = true;
+            RegisterFocusedTextService(this);
             RefreshStateFromServer(nullptr, RefreshStateMode::ExistingServerOnly);
+            RequestSharedServerWarmupAsync();
         }
         return S_OK;
     }
@@ -1113,7 +1198,8 @@ public:
         if (!eaten) {
             return E_INVALIDARG;
         }
-        *eaten = ShouldHandleKeyDown(key);
+        const bool shift_pressed = IsShiftPressed();
+        *eaten = ShouldHandleKeyDown(key, shift_pressed);
         return S_OK;
     }
 
@@ -1132,10 +1218,12 @@ public:
         if (shift_down_) {
             shift_consumed_ = true;
         }
-        if (!ShouldHandleKeyDown(key)) {
+        const bool shift_pressed = IsShiftPressed();
+        if (!ShouldHandleKeyDown(key, shift_pressed)) {
             return S_OK;
         }
-        if ((key >= L'A' && key <= L'Z') || (key >= L'a' && key <= L'z')) {
+        if (!shift_pressed &&
+            ((key >= L'A' && key <= L'Z') || (key >= L'a' && key <= L'z'))) {
             buffer_.push_back(LowerAscii(key));
             ServerResponse response = QueryInput(buffer_, false);
             *eaten = TRUE;
@@ -1213,7 +1301,8 @@ public:
             *eaten = TRUE;
             return S_OK;
         }
-        if ((key == VK_NEXT || key == VK_PRIOR || key == VK_OEM_MINUS ||
+        if (!shift_pressed &&
+            (key == VK_NEXT || key == VK_PRIOR || key == VK_OEM_MINUS ||
              key == VK_OEM_PLUS) && !buffer_.empty()) {
             *eaten = TRUE;
             const int page_delta =
@@ -1221,7 +1310,7 @@ public:
             PageCandidateWindow(context, page_delta);
             return S_OK;
         }
-        if (key >= L'1' && key <= L'9' && !buffer_.empty()) {
+        if (!shift_pressed && key >= L'1' && key <= L'9' && !buffer_.empty()) {
             *eaten = TRUE;
             const size_t index = static_cast<size_t>(
                 yune_windows::CandidatePageStartIndex(candidate_page_index_,
@@ -1241,14 +1330,20 @@ public:
             }
             return S_OK;
         }
-        if (IsPunctuationKey(key)) {
+        if (IsPunctuationKey(key, shift_pressed)) {
             const bool was_composing = !buffer_.empty();
-            if (CommitCompositionForPunctuation(context, key) || was_composing) {
+            if (CommitCompositionForPunctuation(context, key, shift_pressed) ||
+                was_composing) {
                 *eaten = TRUE;
             }
             return S_OK;
         }
-        if ((key == VK_SPACE || key == VK_RETURN) && !buffer_.empty()) {
+        if (key == VK_RETURN && !buffer_.empty()) {
+            *eaten = TRUE;
+            (void)CommitRawBuffer(context);
+            return S_OK;
+        }
+        if (key == VK_SPACE && !buffer_.empty()) {
             *eaten = TRUE;
             ServerResponse response = QueryInput(buffer_, true);
             if (!response.ok) {
@@ -1291,7 +1386,8 @@ public:
         *eaten = FALSE;
         if (IsShiftKey(key)) {
             if (shift_down_ && !shift_consumed_ &&
-                !IsShortcutModifierDown() && !IsMouseButtonDown()) {
+                !IsShortcutModifierDown() && !IsMouseButtonDown() &&
+                TryAcquireLoneShiftToggle()) {
                 ToggleBoolState("ascii_mode", context);
             }
             ClearShiftState();
@@ -1319,6 +1415,14 @@ public:
         return S_OK;
     }
 
+    void HandleDeferredLoneShiftToggle() {
+        if (!focused_) {
+            return;
+        }
+        ClearShiftState();
+        ToggleBoolState("ascii_mode", nullptr);
+    }
+
 private:
     static void LanguageBarClickThunk(yune_windows::LanguageBarSegment segment,
                                       void* context) {
@@ -1329,7 +1433,12 @@ private:
     }
 
     ServerResponse QueryInput(const std::wstring& input, bool commit) {
-        ServerResponse response = QueryServer(input, commit);
+        ServerResponse response = QueryServer(
+            input, commit, RefreshStateMode::ExistingServerOnly,
+            kServerKeyPathQueryTimeoutMs);
+        if (!response.ok) {
+            RequestSharedServerWarmupAsync();
+        }
         ReconcileState(response, nullptr);
         return response;
     }
@@ -1490,7 +1599,12 @@ private:
         payload += "\nvalue=";
         payload += current ? "0" : "1";
         payload += "\n.\n";
-        (void)QueryOperation(payload, context);
+        ServerResponse response =
+            QueryOperation(payload, context, RefreshStateMode::ExistingServerOnly,
+                           kServerKeyPathQueryTimeoutMs);
+        if (!response.ok) {
+            RequestSharedServerWarmupAsync();
+        }
     }
 
     std::wstring NextSchemaId() const {
@@ -1527,7 +1641,12 @@ private:
         std::string payload = "op=select-schema\nschema=";
         payload += Narrow(schema_id);
         payload += "\n.\n";
-        (void)QueryOperation(payload, context);
+        ServerResponse response =
+            QueryOperation(payload, context, RefreshStateMode::ExistingServerOnly,
+                           kServerKeyPathQueryTimeoutMs);
+        if (!response.ok) {
+            RequestSharedServerWarmupAsync();
+        }
     }
 
     void SetOutputStandard(const std::wstring& standard, ITfContext* context) {
@@ -1535,7 +1654,12 @@ private:
         std::string payload =
             "op=set-option\nname=output_standard\nvalue=" + Narrow(standard) +
             "\n.\n";
-        (void)QueryOperation(payload, context);
+        ServerResponse response =
+            QueryOperation(payload, context, RefreshStateMode::ExistingServerOnly,
+                           kServerKeyPathQueryTimeoutMs);
+        if (!response.ok) {
+            RequestSharedServerWarmupAsync();
+        }
     }
 
     void CycleSchema(ITfContext* context) {
@@ -1563,26 +1687,29 @@ private:
         }
     }
 
-    bool ShouldHandleKeyDown(WPARAM key) const {
+    bool ShouldHandleKeyDown(WPARAM key, bool shift_pressed) const {
         if (IsShortcutModifierDown()) {
             return false;
         }
         if (state_.present && state_.ascii_mode && buffer_.empty()) {
             if ((key >= L'A' && key <= L'Z') || (key >= L'a' && key <= L'z') ||
                 (key >= L'0' && key <= L'9') || key == VK_SPACE ||
-                key == VK_RETURN || IsPunctuationKey(key)) {
+                key == VK_RETURN || IsPunctuationKey(key, shift_pressed)) {
                 return false;
             }
         }
-        if ((key >= L'A' && key <= L'Z') || (key >= L'a' && key <= L'z')) {
+        if (!shift_pressed &&
+            ((key >= L'A' && key <= L'Z') || (key >= L'a' && key <= L'z'))) {
             return true;
         }
-        if (key == VK_SPACE || key == VK_RETURN ||
-            (key >= L'1' && key <= L'9') || key == VK_BACK ||
+        if (key == VK_SPACE || key == VK_RETURN || key == VK_BACK ||
             key == VK_ESCAPE || key == VK_NEXT || key == VK_PRIOR) {
             return !buffer_.empty();
         }
-        if (IsPunctuationKey(key)) {
+        if (!shift_pressed && key >= L'1' && key <= L'9') {
+            return !buffer_.empty();
+        }
+        if (IsPunctuationKey(key, shift_pressed)) {
             return true;
         }
         return false;
@@ -1622,9 +1749,29 @@ private:
         return true;
     }
 
-    bool CommitCompositionForPunctuation(ITfContext* context, WPARAM key) {
+    bool CommitRawBuffer(ITfContext* context) {
+        if (buffer_.empty()) {
+            return true;
+        }
+        const int buffer_length = static_cast<int>(buffer_.size());
+        const int candidate_count = static_cast<int>(last_candidates_.size());
+        WriteStructuralEvent("raw_commit_request", buffer_length,
+                             candidate_count);
+        if (!CommitText(context, buffer_)) {
+            return false;
+        }
+        buffer_.clear();
+        candidate_.clear();
+        last_candidates_.clear();
+        candidate_page_index_ = 0;
+        candidate_window_.Hide();
+        return true;
+    }
+
+    bool CommitCompositionForPunctuation(ITfContext* context, WPARAM key,
+                                         bool shift) {
         ServerResponse punctuation_response =
-            QueryInput(PunctuationInput(key), true);
+            QueryInput(PunctuationInput(key, shift), true);
         if (!punctuation_response.ok ||
             punctuation_response.commit_text.empty()) {
             return false;
@@ -1765,6 +1912,171 @@ private:
     yune_windows::NativeCandidateWindow candidate_window_;
     yune_windows::LanguageBarWindow language_bar_;
 };
+
+bool TryAcquireLoneShiftToggle() {
+    const ULONGLONG now = GetTickCount64();
+    unsigned long long last = g_last_lone_shift_toggle_ms.load();
+    while (true) {
+        if (last != 0 && now - last < kLoneShiftDoubleToggleGuardMs) {
+            return false;
+        }
+        if (g_last_lone_shift_toggle_ms.compare_exchange_weak(last, now)) {
+            return true;
+        }
+    }
+}
+
+TextService* AddRefFocusedTextService() {
+    std::lock_guard<std::mutex> lock(g_shift_hook_mutex);
+    if (!g_focused_text_service) {
+        return nullptr;
+    }
+    g_focused_text_service->AddRef();
+    return g_focused_text_service;
+}
+
+bool EnsureShiftHookWindowClassRegistered() {
+    WNDCLASSEXW wc = {};
+    wc.cbSize = sizeof(wc);
+    wc.lpfnWndProc = ShiftHookWindowProc;
+    wc.hInstance = g_instance;
+    wc.lpszClassName = kShiftHookWindowClass;
+    if (RegisterClassExW(&wc) || GetLastError() == ERROR_CLASS_ALREADY_EXISTS) {
+        return true;
+    }
+    WriteStructuralEvent("shift_hook_window_failed");
+    return false;
+}
+
+bool EnsureShiftHookWindowForCurrentThreadLocked() {
+    const DWORD current_thread = GetCurrentThreadId();
+    if (g_shift_hook_window &&
+        g_shift_hook_window_thread_id == current_thread &&
+        IsWindow(g_shift_hook_window)) {
+        return true;
+    }
+    if (!EnsureShiftHookWindowClassRegistered()) {
+        return false;
+    }
+    if (g_shift_hook_window &&
+        g_shift_hook_window_thread_id == current_thread) {
+        DestroyWindow(g_shift_hook_window);
+        g_shift_hook_window = nullptr;
+        g_shift_hook_window_thread_id = 0;
+    }
+    HWND window = CreateWindowExW(0, kShiftHookWindowClass,
+                                  L"Yune Windows Shift Hook",
+                                  0, 0, 0, 0, 0, HWND_MESSAGE, nullptr,
+                                  g_instance, nullptr);
+    if (!window) {
+        WriteStructuralEvent("shift_hook_window_failed");
+        return false;
+    }
+    g_shift_hook_window = window;
+    g_shift_hook_window_thread_id = current_thread;
+    return true;
+}
+
+bool EnsureShiftHookInstalledLocked() {
+    if (g_shift_hook) {
+        return true;
+    }
+    g_shift_hook = SetWindowsHookExW(WH_KEYBOARD_LL, LowLevelKeyboardProc,
+                                     g_instance, 0);
+    if (!g_shift_hook) {
+        WriteStructuralEvent("shift_hook_install_failed");
+        return false;
+    }
+    WriteStructuralEvent("shift_hook_installed");
+    return true;
+}
+
+void RegisterFocusedTextService(TextService* service) {
+    TextService* old_service = nullptr;
+    {
+        std::lock_guard<std::mutex> lock(g_shift_hook_mutex);
+        if (service == g_focused_text_service) {
+            return;
+        }
+        if (service) {
+            if (!EnsureShiftHookWindowForCurrentThreadLocked() ||
+                !EnsureShiftHookInstalledLocked()) {
+                return;
+            }
+            service->AddRef();
+        }
+        old_service = g_focused_text_service;
+        g_focused_text_service = service;
+        if (!service) {
+            g_hook_shift_down.store(false);
+            g_hook_shift_consumed.store(false);
+            if (g_shift_hook) {
+                UnhookWindowsHookEx(g_shift_hook);
+                g_shift_hook = nullptr;
+                WriteStructuralEvent("shift_hook_uninstalled");
+            }
+            if (g_shift_hook_window &&
+                g_shift_hook_window_thread_id == GetCurrentThreadId()) {
+                DestroyWindow(g_shift_hook_window);
+                g_shift_hook_window = nullptr;
+                g_shift_hook_window_thread_id = 0;
+            }
+        }
+    }
+    if (old_service) {
+        old_service->Release();
+    }
+}
+
+LRESULT CALLBACK ShiftHookWindowProc(HWND hwnd, UINT message, WPARAM wparam,
+                                     LPARAM lparam) {
+    if (message == kShiftHookToggleMessage) {
+        TextService* service = AddRefFocusedTextService();
+        if (service) {
+            if (TryAcquireLoneShiftToggle()) {
+                service->HandleDeferredLoneShiftToggle();
+            }
+            service->Release();
+        }
+        return 0;
+    }
+    return DefWindowProcW(hwnd, message, wparam, lparam);
+}
+
+LRESULT CALLBACK LowLevelKeyboardProc(int code, WPARAM wparam, LPARAM lparam) {
+    if (code == HC_ACTION && lparam != 0) {
+        const auto* info = reinterpret_cast<const KBDLLHOOKSTRUCT*>(lparam);
+        const bool key_down =
+            wparam == WM_KEYDOWN || wparam == WM_SYSKEYDOWN;
+        const bool key_up = wparam == WM_KEYUP || wparam == WM_SYSKEYUP;
+        if (IsShiftKey(info->vkCode)) {
+            if (key_down) {
+                const bool was_down = g_hook_shift_down.exchange(true);
+                if (!was_down) {
+                    g_hook_shift_consumed.store(IsShortcutModifierDown() ||
+                                                IsMouseButtonDown());
+                }
+            } else if (key_up) {
+                const bool was_down = g_hook_shift_down.exchange(false);
+                const bool consumed = g_hook_shift_consumed.exchange(false);
+                if (was_down && !consumed && !IsShortcutModifierDown() &&
+                    !IsMouseButtonDown()) {
+                    HWND target = nullptr;
+                    {
+                        std::lock_guard<std::mutex> lock(g_shift_hook_mutex);
+                        target = g_shift_hook_window;
+                    }
+                    if (target) {
+                        PostMessageW(target, kShiftHookToggleMessage, 0, 0);
+                    }
+                }
+            }
+        } else if (key_down && g_hook_shift_down.load()) {
+            g_hook_shift_consumed.store(true);
+        }
+    }
+    return CallNextHookEx(g_shift_hook, code, wparam, lparam);
+}
 
 class ClassFactory final : public IClassFactory {
 public:

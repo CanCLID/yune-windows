@@ -57,13 +57,14 @@ ABI unchanged.
 - `tools\dev\dev-reload-server.ps1 -RefreshSchema` now passes against the
   installed path after the readiness probe accepts the persisted active schema
   instead of requiring `jyut6ping3`.
-- `tools\dev\dev-reload-tsf.ps1 -RestartExplorer` did not copy the installed
-  DLL because `Codex.exe` held `YuneWindowsTSF.dll`; Codex was not force-closed
-  and profile deactivation was not run.
-- Required next operator action: use a holder-free session to run
-  `tools\dev\dev-reload-server.ps1 -RefreshSchema`, then
-  `tools\dev\dev-reload-tsf.ps1 -RestartExplorer` if a dev-owned Explorer
-  restart is acceptable, then execute the Tier-1 matrix.
+- User-approved `tools\dev\dev-reload-tsf.ps1 -RestartExplorer` passed on
+  2026-07-02 and is recorded in
+  `docs\evidence\m06\logs\2026-07-02-approved-tsf-reload.md`.
+- `docs\evidence\m06\environment.json` now records the installed TSF DLL hash
+  `280AC71822F213528B05B18D88BB37B18ABA0EE7B8EA914978B94CC831559771` for
+  current `main` commit `8d26e3ee8c13d3da4bde06c72703f4ab3b6e6fb5`.
+- Required next operator action: select Yune Windows in the dev Notepad or
+  target host, then execute the Tier-1 matrix.
 - Tooling must not force-close non-dev holder applications and must not run
   elevated install/register/unregister/cleanup/AppVerifier/PageHeap/registry
   steps without explicit approval in the current session.

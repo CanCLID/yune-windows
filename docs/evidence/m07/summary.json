@@ -26,6 +26,22 @@
       "force_closed_holder": false,
       "profile_deactivation_run": false,
       "elevated_steps_run": false
+    },
+    {
+      "date": "2026-07-02",
+      "status": "tsf_swap_succeeded_live_checklist_pending",
+      "evidence": "docs/evidence/m06/logs/2026-07-02-approved-tsf-reload.md",
+      "post_swap_tsf_events": "docs/evidence/m06/logs/m06-m07-post-tsf-swap-tsf-events.md",
+      "server_reload": "passed_before_tsf_swap",
+      "preflight": "passed_no_tsf_holders",
+      "tsf_reload": "passed_hash_validated",
+      "installed_tsf_sha256": "280AC71822F213528B05B18D88BB37B18ABA0EE7B8EA914978B94CC831559771",
+      "installed_server_sha256": "0964658B40BF5B04C3FA959922B83FE1F1C0681CED21F85A1A5E63531266A9F5",
+      "git_head": "8d26e3ee8c13d3da4bde06c72703f4ab3b6e6fb5",
+      "explorer_restart_approved": true,
+      "force_closed_holder": false,
+      "profile_deactivation_run": false,
+      "elevated_steps_run": false
     }
   ],
   "manual_live_required": true,
@@ -56,7 +72,7 @@
     "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\test-milestone-naming-contract.ps1"
   ],
   "live_machine_state_required": true,
-  "live_machine_state_approval_in_current_session": false,
+  "live_machine_state_approval_in_current_session": true,
   "elevated_machine_state_steps_run": false,
   "plan_archived": false
 }

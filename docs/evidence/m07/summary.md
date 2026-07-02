@@ -53,13 +53,16 @@ Boundary: Yune engine internals and the default rime_get_api() ABI unchanged.
   `docs\evidence\m06\logs\2026-07-02-post-reboot-retry.md`.
 - The installed server reload passed after the readiness probe accepted the
   persisted active schema.
-- The installed TSF DLL was not swapped because `Codex.exe` held
-  `YuneWindowsTSF.dll`; Codex was not force-closed and profile deactivation was
-  not run.
-- Required next operator action: use a holder-free installed TSF DLL session,
-  run the M03 dev reload sequence for the current build, then follow
-  `live-checklist.md` in a real host to prove inline preedit and number-key
-  candidate selection advance through the remaining input instead of clearing it.
+- User-approved `tools\dev\dev-reload-tsf.ps1 -RestartExplorer` passed on
+  2026-07-02 and is recorded in
+  `docs\evidence\m06\logs\2026-07-02-approved-tsf-reload.md`.
+- The installed TSF DLL hash is
+  `280AC71822F213528B05B18D88BB37B18ABA0EE7B8EA914978B94CC831559771` for
+  current `main` commit `8d26e3ee8c13d3da4bde06c72703f4ab3b6e6fb5`.
+- Required next operator action: select Yune Windows in the dev Notepad or
+  target host, then follow `live-checklist.md` in a real host to prove inline
+  preedit and number-key candidate selection advance through the remaining
+  input instead of clearing it.
 - Also recheck single-word commit, raw Enter, Space candidate commit, backspace,
   Escape cancel, paging, shifted punctuation, lone-Shift, preserved-key toggles,
   and focus-loss cleanup.

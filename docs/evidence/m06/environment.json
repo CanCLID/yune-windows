@@ -1,9 +1,9 @@
 ﻿{
-    "generated_at":  "2026-07-02T08:48:51.2021717-07:00",
+    "generated_at":  "2026-07-02T09:13:17.3955612-07:00",
     "machine_state_changed":  false,
     "milestone":  "M06",
     "repo_root":  "C:\\Users\\laubonghaudoi\\Documents\\GitHub\\yune-windows",
-    "git_head":  "baca560f3443531b494ba3a1992c5e4dfee332c1",
+    "git_head":  "8d26e3ee8c13d3da4bde06c72703f4ab3b6e6fb5",
     "install_dir":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Yune\\WindowsIme",
     "os":  {
                "caption":  "Microsoft Windows 11 Pro",
@@ -16,16 +16,16 @@
                                 "tsf_dll":  {
                                                 "path":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Yune\\WindowsIme\\YuneWindowsTSF.dll",
                                                 "exists":  true,
-                                                "sha256":  "57D8C6CB5C7A9C380156C146B83C184136EE2325458494504521F035C797A36B",
-                                                "length":  424448,
-                                                "last_write_utc":  "2026-07-02T04:49:01.1925008Z"
+                                                "sha256":  "280AC71822F213528B05B18D88BB37B18ABA0EE7B8EA914978B94CC831559771",
+                                                "length":  446976,
+                                                "last_write_utc":  "2026-07-02T16:12:56.4268336Z"
                                             },
                                 "server_exe":  {
                                                    "path":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Yune\\WindowsIme\\YuneWindowsServer.exe",
                                                    "exists":  true,
-                                                   "sha256":  "4708572240E212C2CDD370966AA0C071E52658C4F4DF73BD419F06B2BEF42046",
+                                                   "sha256":  "0964658B40BF5B04C3FA959922B83FE1F1C0681CED21F85A1A5E63531266A9F5",
                                                    "length":  434688,
-                                                   "last_write_utc":  "2026-07-02T15:47:40.5077235Z"
+                                                   "last_write_utc":  "2026-07-02T16:07:55.3546672Z"
                                                },
                                 "profile_tool":  {
                                                      "path":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Yune\\WindowsIme\\YuneWindowsProfileTool.exe",

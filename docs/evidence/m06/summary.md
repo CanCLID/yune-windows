@@ -52,7 +52,14 @@ ABI unchanged.
 
 ## Holder-free Live Proof
 
-- Not yet executed by Codex in this session.
+- Partial post-reboot retry was executed by Codex on 2026-07-02 and recorded in
+  `docs\evidence\m06\logs\2026-07-02-post-reboot-retry.md`.
+- `tools\dev\dev-reload-server.ps1 -RefreshSchema` now passes against the
+  installed path after the readiness probe accepts the persisted active schema
+  instead of requiring `jyut6ping3`.
+- `tools\dev\dev-reload-tsf.ps1 -RestartExplorer` did not copy the installed
+  DLL because `Codex.exe` held `YuneWindowsTSF.dll`; Codex was not force-closed
+  and profile deactivation was not run.
 - Required next operator action: use a holder-free session to run
   `tools\dev\dev-reload-server.ps1 -RefreshSchema`, then
   `tools\dev\dev-reload-tsf.ps1 -RestartExplorer` if a dev-owned Explorer

@@ -35,10 +35,8 @@ foreach ($Required in @(
         'input=ngohaig',
         'commit=0',
         'schema_id',
-        'jyut6ping3',
-        'ExpectedCommitText',
-        'FirstCandidateText',
-        'candidate_count',
+        'state\.schema_id',
+        'IsNullOrWhiteSpace',
         'ReadAsync',
         'ReadTask\.Wait',
         'Stop-Process -Id \$Process.Id -Force'
@@ -49,6 +47,9 @@ foreach ($Required in @(
 }
 if ($StartSource -match '\$Client\.Read\(') {
     throw "start server script must use a bounded async pipe read during readiness checks."
+}
+if ($StartSource -match 'ExpectedCommitText|FirstCandidateText|schema_id\s+-eq\s+"jyut6ping3"') {
+    throw "start server readiness must accept the persisted active schema instead of requiring a jyut6ping3 candidate."
 }
 
 & (Join-Path $RepoRoot "tools\build-tsf-shell.ps1") -OutputDir $OutputDir

@@ -49,7 +49,13 @@ Boundary: Yune engine internals and the default rime_get_api() ABI unchanged.
 
 ## Holder-free Live Proof
 
-- Not yet executed by Codex in this session.
+- Partial post-reboot retry was executed by Codex on 2026-07-02 and recorded in
+  `docs\evidence\m06\logs\2026-07-02-post-reboot-retry.md`.
+- The installed server reload passed after the readiness probe accepted the
+  persisted active schema.
+- The installed TSF DLL was not swapped because `Codex.exe` held
+  `YuneWindowsTSF.dll`; Codex was not force-closed and profile deactivation was
+  not run.
 - Required next operator action: use a holder-free installed TSF DLL session,
   run the M03 dev reload sequence for the current build, then follow
   `live-checklist.md` in a real host to prove inline preedit and number-key

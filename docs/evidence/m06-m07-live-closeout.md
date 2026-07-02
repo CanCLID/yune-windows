@@ -2,6 +2,11 @@
 
 Status: pending operator-run holder-free installed TSF DLL verification.
 
+Latest retry note: on 2026-07-02, the installed server reload passed after the
+readiness probe was made schema-flexible, but the installed TSF DLL swap stopped
+because `Codex.exe` held `YuneWindowsTSF.dll`. See
+`docs/evidence/m06/logs/2026-07-02-post-reboot-retry.md`.
+
 This file is the combined live closeout runbook for the M06 host matrix and the
 M07 inline composition proof. It does not replace the per-milestone evidence:
 

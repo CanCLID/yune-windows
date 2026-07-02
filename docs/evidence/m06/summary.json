@@ -25,6 +25,18 @@
     ]
   },
   "live_proof": [],
+  "live_attempts": [
+    {
+      "date": "2026-07-02",
+      "status": "blocked_before_tsf_swap",
+      "evidence": "docs/evidence/m06/logs/2026-07-02-post-reboot-retry.md",
+      "server_reload": "passed_after_schema_flexible_readiness_probe",
+      "blocked_by": "Codex.exe held installed YuneWindowsTSF.dll",
+      "force_closed_holder": false,
+      "profile_deactivation_run": false,
+      "elevated_steps_run": false
+    }
+  ],
   "manual_live_required": true,
   "follow_up_coverage": [
     "candidate anchoring in Chromium/Electron-rich fields",

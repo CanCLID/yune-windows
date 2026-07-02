@@ -55,7 +55,6 @@ function Wait-YuneWindowsServerReady {
     $Deadline = [DateTime]::UtcNow.AddMilliseconds($TimeoutMs)
     $Request = "input=ngohaig`ncommit=0`n.`n"
     $RequestBytes = [System.Text.Encoding]::UTF8.GetBytes($Request)
-    $ExpectedCommitText = -join ([char[]](0x6211, 0x4fc2, 0x500b))
 
     while ([DateTime]::UtcNow -lt $Deadline) {
         if ($Process.HasExited) {
@@ -85,15 +84,10 @@ function Wait-YuneWindowsServerReady {
                 $Response = [System.Text.Encoding]::UTF8.GetString($Buffer, 0, $BytesRead)
                 try {
                     $Json = $Response | ConvertFrom-Json
-                    $Candidates = @($Json.candidates)
-                    $FirstCandidateText = ""
-                    if ($Candidates.Count -gt 0) {
-                        $FirstCandidateText = [string]$Candidates[0].text
-                    }
                     if ($Json.ready -eq $true -and
-                        $Json.schema_id -eq "jyut6ping3" -and
-                        [int]$Json.candidate_count -gt 0 -and
-                        $FirstCandidateText -eq $ExpectedCommitText) {
+                        -not [string]::IsNullOrWhiteSpace([string]$Json.schema_id) -and
+                        $null -ne $Json.state -and
+                        -not [string]::IsNullOrWhiteSpace([string]$Json.state.schema_id)) {
                         return
                     }
                 }

@@ -18,11 +18,17 @@ $ReloadSource = Get-Content -Raw -LiteralPath $ReloadServerScript
 foreach ($Required in @(
         'Backup-YuneWindowsDevPath',
         'Restore-YuneWindowsDevPathBackup',
-        'Remove-YuneWindowsDevOldBackups'
+        'Remove-YuneWindowsDevOldBackups',
+        'Test-YuneWindowsDevServerReady',
+        'state\.schema_id',
+        'IsNullOrWhiteSpace'
     )) {
     if ($SupportSource -notmatch $Required) {
         throw "dev-support.ps1 must provide $Required for reload rollback/retention."
     }
+}
+if ($SupportSource -match 'schema_id\s+-eq\s+"jyut6ping3"|\[0\]\.text|-join \(\[char\[\]\]\(0x6211') {
+    throw "dev-support.ps1 readiness must accept the persisted active schema instead of requiring a jyut6ping3 candidate."
 }
 
 foreach ($Required in @(

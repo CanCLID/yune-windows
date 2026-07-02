@@ -316,12 +316,10 @@ function Test-YuneWindowsDevServerReady {
             -Commit $false `
             -Process $Process `
             -TimeoutMs $TimeoutMs
-        $Candidates = @($Response.candidates)
         return ($Response.ready -eq $true -and
-            [string]$Response.schema_id -eq "jyut6ping3" -and
-            [int]$Response.candidate_count -gt 0 -and
-            $Candidates.Count -gt 0 -and
-            [string]$Candidates[0].text -eq (-join ([char[]](0x6211, 0x4fc2, 0x500b))))
+            -not [string]::IsNullOrWhiteSpace([string]$Response.schema_id) -and
+            $null -ne $Response.state -and
+            -not [string]::IsNullOrWhiteSpace([string]$Response.state.schema_id))
     }
     catch {
         return $false

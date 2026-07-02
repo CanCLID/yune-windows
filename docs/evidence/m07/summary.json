@@ -3,6 +3,7 @@
   "title": "Persistent Composition and Candidate Selection",
   "status": "implementation_complete_live_pending",
   "evidence_policy": "compact-summary",
+  "operator_checklist": "docs/evidence/m07/live-checklist.md",
   "raw_artifacts_pruned": [],
   "executed_proof": [
     "persistent composition server protocol contract passed",

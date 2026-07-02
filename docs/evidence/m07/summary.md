@@ -9,6 +9,7 @@ Boundary: Yune engine internals and the default rime_get_api() ABI unchanged.
 
 - Status: implementation complete; holder-free live TSF proof pending.
 - Evidence retained here: compact summary and machine-readable summary.
+- Operator checklist: `docs\evidence\m07\live-checklist.md`.
 - Raw retained artifacts: none.
 - Closeout basis so far: non-elevated server protocol contract, TSF source
   contracts, TSF shell build, DLL export contract, and M06 regression contracts.
@@ -49,10 +50,9 @@ Boundary: Yune engine internals and the default rime_get_api() ABI unchanged.
 
 - Not yet executed by Codex in this session.
 - Required next operator action: use a holder-free installed TSF DLL session,
-  run the M03 dev reload sequence for the current build, then verify in a real
-  host that typing a multi-syllable input shows inline preedit and number-key
-  candidate selection advances through the remaining input instead of clearing
-  it.
+  run the M03 dev reload sequence for the current build, then follow
+  `live-checklist.md` in a real host to prove inline preedit and number-key
+  candidate selection advance through the remaining input instead of clearing it.
 - Also recheck single-word commit, raw Enter, Space candidate commit, backspace,
   Escape cancel, paging, shifted punctuation, lone-Shift, preserved-key toggles,
   and focus-loss cleanup.

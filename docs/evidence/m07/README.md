@@ -4,6 +4,7 @@ M07 evidence is retained as compact, reviewable files:
 
 - `summary.md`
 - `summary.json`
+- `live-checklist.md`
 
 The implementation proof is non-elevated and complete for the persistent
 server protocol plus TSF inline composition key path. Holder-free installed-DLL

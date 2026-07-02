@@ -6,14 +6,16 @@ $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $EvidenceRoot = Join-Path $RepoRoot "docs\evidence\m07"
 $SummaryPath = Join-Path $EvidenceRoot "summary.md"
 $JsonPath = Join-Path $EvidenceRoot "summary.json"
+$ChecklistPath = Join-Path $EvidenceRoot "live-checklist.md"
 
-foreach ($Path in @($SummaryPath, $JsonPath)) {
+foreach ($Path in @($SummaryPath, $JsonPath, $ChecklistPath)) {
     if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
         throw "missing M07 evidence file: $Path"
     }
 }
 
 $Summary = Get-Content -Raw -LiteralPath $SummaryPath
+$Checklist = Get-Content -Raw -LiteralPath $ChecklistPath
 $Evidence = Get-Content -Raw -LiteralPath $JsonPath | ConvertFrom-Json
 
 foreach ($RequiredSection in @(
@@ -31,7 +33,8 @@ foreach ($Required in @(
         "implementation complete; holder-free live TSF proof pending",
         "persistent per-client Rime composition sessions",
         "manual holder-free live verification remains required",
-        "Yune engine internals and the default rime_get_api() ABI unchanged"
+        "Yune engine internals and the default rime_get_api() ABI unchanged",
+        "docs\evidence\m07\live-checklist.md"
     )) {
     if ($Summary -notmatch [regex]::Escape($Required)) {
         throw "M07 summary is missing boundary text: $Required"
@@ -61,6 +64,22 @@ if ($Evidence.plan_archived -ne $false) {
 }
 if ($Evidence.live_proof_status -ne "pending_holder_free_installed_tsf_verification") {
     throw "M07 live proof status must remain pending until operator evidence lands."
+}
+if ($Evidence.operator_checklist -ne "docs/evidence/m07/live-checklist.md") {
+    throw "M07 summary JSON must point at the operator live checklist."
+}
+
+foreach ($Required in @(
+        "Inline preedit",
+        "Partial selection advances",
+        "powershell -NoProfile -ExecutionPolicy Bypass -File tools\dev\dev-reload-server.ps1 -RefreshSchema",
+        "powershell -NoProfile -ExecutionPolicy Bypass -File tools\dev\dev-reload-tsf.ps1 -RestartExplorer",
+        "tools\capture-m06-tsf-events-window.ps1 -Label m07-<host> -OutputDir docs\evidence\m07\logs",
+        "do not mark M07 complete"
+    )) {
+    if ($Checklist -notmatch [regex]::Escape($Required)) {
+        throw "M07 live checklist is missing required operator step: $Required"
+    }
 }
 
 Write-Host "M07 evidence summary keeps local proof separate from pending holder-free live TSF evidence."

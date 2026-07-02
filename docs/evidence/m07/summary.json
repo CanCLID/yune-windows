@@ -12,6 +12,7 @@
     "M06 key-path regression contract passed after M07 rewrite",
     "punctuation commit contract passed after persistent composition rewrite",
     "TSF key-eating contract passed after persistent composition rewrite",
+    "TSF server-unavailable raw fallback contract passed after host no-output report",
     "TSF IME state, key-up pass-through, and focus-loss contracts passed",
     "TSF shell build, DLL export contract, and milestone naming contract passed"
   ],
@@ -42,10 +43,33 @@
       "force_closed_holder": false,
       "profile_deactivation_run": false,
       "elevated_steps_run": false
+    },
+    {
+      "date": "2026-07-02",
+      "status": "live_checklist_blocked_by_no_output",
+      "evidence": "docs/evidence/m06/logs/2026-07-02-user-host-results.md",
+      "m07_tsf_events": "docs/evidence/m07/logs/m07-user-host-failures-tsf-events.md",
+      "notepad": "user_reported_normal_typing",
+      "failed_hosts": [
+        "Chrome",
+        "Zed",
+        "Telegram Desktop",
+        "Windows File Explorer"
+      ],
+      "observed_failure": "typing_produced_no_output_before_inline_preedit_or_selection_checks",
+      "server_direct_query": "passed_ready_140ms_30_candidates",
+      "compose_direct_probe": "passed_10_iterations",
+      "diagnosis": "TSF compose operation failure path ate keys then cleared state without raw fallback",
+      "source_fix": "raw fallback text plus server_query_call_failed error_code logging added after this installed-DLL attempt",
+      "installed_tsf_sha256": "280AC71822F213528B05B18D88BB37B18ABA0EE7B8EA914978B94CC831559771",
+      "raw_fallback_fix_installed": false,
+      "force_closed_holder": false,
+      "profile_deactivation_run": false,
+      "elevated_steps_run": false
     }
   ],
   "manual_live_required": true,
-  "live_proof_status": "pending_holder_free_installed_tsf_verification",
+  "live_proof_status": "failed_pending_raw_fallback_reload",
   "follow_up_coverage": [
     "segmented preedit display attributes",
     "mouse candidate selection",
@@ -63,6 +87,7 @@
     "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\test-m06-key-path-fixes-contract.ps1",
     "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\test-punctuation-commit-contract.ps1",
     "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\test-tsf-key-eating-contract.ps1",
+    "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\test-tsf-server-fallback-raw-commit-contract.ps1",
     "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\test-tsf-ime-state-hotkey-contract.ps1",
     "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\test-tsf-key-up-pass-through-contract.ps1",
     "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\test-tsf-focus-loss-clears-composition-contract.ps1",

@@ -1,6 +1,7 @@
 # M07 Holder-free Live Checklist
 
-Status: pending holder-free installed TSF DLL verification.
+Status: live attempt failed outside Notepad; raw-fallback fix pending
+holder-free installed TSF DLL reload.
 
 Use this checklist only after the current `main` build has been loaded into the
 installed path in a holder-free session. Do not force-close non-dev holder
@@ -42,8 +43,8 @@ Chromium or the daily editor as the richer host if the baseline passes.
 
 | Host | Inline preedit | Partial selection advances | Final phrase commit | Raw Enter | Space candidate commit | Backspace/Escape | Paging | M06 regressions | Evidence |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Notepad | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
-| Chromium or daily editor | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
+| Notepad | Pending detailed | Pending detailed | Pending detailed | Pending detailed | Pending detailed | Pending detailed | Pending detailed | Pending detailed | User reported normal Notepad typing after approved TSF reload, but M07 inline preedit and selection flow were not yet verified |
+| Chromium or daily editor | Fail no output | Pending retest | Pending retest | Pending retest | Pending retest | Pending retest | Pending retest | Fail no output | Chrome and Zed produced no output; see `../m06/logs/2026-07-02-user-host-results.md` and `logs/m07-user-host-failures-tsf-events.md` |
 
 ## Test Script
 

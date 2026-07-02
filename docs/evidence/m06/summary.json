@@ -11,12 +11,13 @@
     "M07 persistent composition server prerequisite contract passed",
     "punctuation commit contract passed with shift-aware signatures",
     "TSF key-eating contract passed with raw Enter split from Space",
+    "TSF server-unavailable raw fallback contract passed",
     "TSF IME state, key-up pass-through, and focus-loss contracts passed",
     "TSF shell build, DLL export contract, and milestone naming contract passed"
   ],
   "host_matrix": {
     "path": "docs/evidence/m06/matrix.md",
-    "status": "pending_holder_free_live_verification",
+    "status": "failed_pending_raw_fallback_reload",
     "tier_1_required": [
       "Notepad",
       "Chromium browser",
@@ -51,6 +52,34 @@
       "force_closed_holder": false,
       "profile_deactivation_run": false,
       "elevated_steps_run": false
+    },
+    {
+      "date": "2026-07-02",
+      "status": "live_host_matrix_failed_no_output",
+      "evidence": "docs/evidence/m06/logs/2026-07-02-user-host-results.md",
+      "m06_tsf_events": "docs/evidence/m06/logs/m06-m07-user-host-failures-tsf-events.md",
+      "m07_tsf_events": "docs/evidence/m07/logs/m07-user-host-failures-tsf-events.md",
+      "notepad": "user_reported_normal_typing",
+      "failed_hosts": [
+        "Chrome",
+        "Zed",
+        "Telegram Desktop",
+        "Windows File Explorer"
+      ],
+      "not_installed_or_untested": [
+        "VS Code",
+        "WeChat"
+      ],
+      "observed_failure": "typing_produced_no_output",
+      "server_direct_query": "passed_ready_140ms_30_candidates",
+      "compose_direct_probe": "passed_10_iterations",
+      "diagnosis": "TSF compose operation failure path ate keys then cleared state without raw fallback",
+      "source_fix": "raw fallback text plus server_query_call_failed error_code logging added after this installed-DLL attempt",
+      "installed_tsf_sha256": "280AC71822F213528B05B18D88BB37B18ABA0EE7B8EA914978B94CC831559771",
+      "raw_fallback_fix_installed": false,
+      "force_closed_holder": false,
+      "profile_deactivation_run": false,
+      "elevated_steps_run": false
     }
   ],
   "manual_live_required": true,
@@ -68,6 +97,7 @@
     "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\test-m06-key-path-fixes-contract.ps1",
     "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\test-punctuation-commit-contract.ps1",
     "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\test-tsf-key-eating-contract.ps1",
+    "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\test-tsf-server-fallback-raw-commit-contract.ps1",
     "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\test-tsf-ime-state-hotkey-contract.ps1",
     "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\test-tsf-key-up-pass-through-contract.ps1",
     "powershell -NoProfile -ExecutionPolicy Bypass -File tools\\test-tsf-focus-loss-clears-composition-contract.ps1",

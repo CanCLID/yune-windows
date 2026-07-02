@@ -7,7 +7,8 @@ Boundary: Yune engine internals and the default rime_get_api() ABI unchanged.
 
 ## Final Status
 
-- Status: implementation complete; holder-free live TSF proof pending.
+- Status: implementation complete; holder-free live TSF proof failed outside
+  Notepad and is pending a raw-fallback TSF reload/retest.
 - Evidence retained here: compact summary and machine-readable summary.
 - Operator checklist: `docs\evidence\m07\live-checklist.md`.
 - Combined live runbook: `docs\evidence\m06-m07-live-closeout.md`.
@@ -15,8 +16,9 @@ Boundary: Yune engine internals and the default rime_get_api() ABI unchanged.
 - Closeout basis so far: non-elevated server protocol contract, TSF source
   contracts, TSF shell build, DLL export contract, and M06 regression contracts.
 - Manual holder-free live verification remains required before M07 is marked
-  complete: the installed TSF DLL must be swapped in a holder-free session, then
-  a real host must verify inline preedit plus partial candidate selection.
+  complete: the installed TSF DLL produced normal typing in Notepad, but Chrome,
+  Zed, Telegram, and File Explorer produced no output before the inline preedit
+  and partial-selection checks could be completed.
 
 ## Executed Proof
 
@@ -36,8 +38,10 @@ Boundary: Yune engine internals and the default rime_get_api() ABI unchanged.
   through Rime `get_commit` and composing punctuation commits the active
   persistent composition before inserting punctuation.
 - `tools\test-tsf-key-eating-contract.ps1` verifies `OnTestKeyDown` and
-  `OnKeyDown` still consume handled composition keys consistently, including
-  the not-ready-server drop path.
+  `OnKeyDown` still consume handled composition keys consistently.
+- `tools\test-tsf-server-fallback-raw-commit-contract.ps1` verifies the TSF key
+  path inserts raw fallback text instead of silently dropping an eaten letter
+  when `compose-begin` or `compose-key` fails.
 - `tools\test-tsf-ime-state-hotkey-contract.ps1`,
   `tools\test-tsf-key-up-pass-through-contract.ps1`, and
   `tools\test-tsf-focus-loss-clears-composition-contract.ps1` verify preserved
@@ -56,13 +60,19 @@ Boundary: Yune engine internals and the default rime_get_api() ABI unchanged.
 - User-approved `tools\dev\dev-reload-tsf.ps1 -RestartExplorer` passed on
   2026-07-02 and is recorded in
   `docs\evidence\m06\logs\2026-07-02-approved-tsf-reload.md`.
+- User host testing after that reload is recorded in
+  `docs\evidence\m06\logs\2026-07-02-user-host-results.md` and failed outside
+  Notepad with repeated `server_query_failed` events and no `commit_text`
+  events in the failed-host capture.
 - The installed TSF DLL hash is
-  `280AC71822F213528B05B18D88BB37B18ABA0EE7B8EA914978B94CC831559771` for
-  current `main` commit `8d26e3ee8c13d3da4bde06c72703f4ab3b6e6fb5`.
-- Required next operator action: select Yune Windows in the dev Notepad or
-  target host, then follow `live-checklist.md` in a real host to prove inline
-  preedit and number-key candidate selection advance through the remaining
-  input instead of clearing it.
+  `280AC71822F213528B05B18D88BB37B18ABA0EE7B8EA914978B94CC831559771` for the
+  tested installed DLL; the raw-fallback fix added after the user host report
+  still needs a holder-free installed-DLL reload.
+- Required next operator action: close non-dev TSF DLL holders, reload the
+  updated raw-fallback TSF DLL in a holder-free session, then follow
+  `live-checklist.md` in a real host to prove inline preedit and number-key
+  candidate selection advance through the remaining input instead of clearing
+  it.
 - Also recheck single-word commit, raw Enter, Space candidate commit, backspace,
   Escape cancel, paging, shifted punctuation, lone-Shift, preserved-key toggles,
   and focus-loss cleanup.
@@ -95,6 +105,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-m07-tsf-compositi
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-m06-key-path-fixes-contract.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-punctuation-commit-contract.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-tsf-key-eating-contract.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-tsf-server-fallback-raw-commit-contract.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-tsf-ime-state-hotkey-contract.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-tsf-key-up-pass-through-contract.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-tsf-focus-loss-clears-composition-contract.ps1

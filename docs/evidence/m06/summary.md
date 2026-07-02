@@ -6,7 +6,8 @@ ABI unchanged.
 
 ## Final Status
 
-- Status: implementation complete; holder-free live host matrix pending.
+- Status: implementation complete; holder-free live host matrix failed outside
+  Notepad and is pending a raw-fallback TSF reload/retest.
 - Evidence retained here: compact summary, matrix template, environment
   snapshot.
 - Combined live runbook: `docs\evidence\m06-m07-live-closeout.md`.
@@ -14,8 +15,8 @@ ABI unchanged.
 - Closeout basis so far: non-elevated build and source/runtime contracts for
   F1, F2a/F2b, F5, and F6.
 - Manual holder-free live verification remains required before M06 is marked
-  complete: Tier-1 Notepad, Chromium, daily editor, and Telegram host cells in
-  `matrix.md` are still pending.
+  complete: Notepad has only a user smoke pass, while Chrome, Zed, Telegram,
+  and File Explorer currently fail with no output in the installed DLL.
 
 ## Executed Proof
 
@@ -34,6 +35,9 @@ ABI unchanged.
   active composition before punctuation.
 - `tools\test-tsf-key-eating-contract.ps1` verifies the key sink consumes
   handled composition keys consistently after `OnTestKeyDown`.
+- `tools\test-tsf-server-fallback-raw-commit-contract.ps1` verifies that a
+  compose-operation failure no longer silently drops an eaten letter key: the
+  TSF path inserts the raw key or raw buffer fallback text.
 - `tools\test-tsf-ime-state-hotkey-contract.ps1`,
   `tools\test-tsf-key-up-pass-through-contract.ps1`, and
   `tools\test-tsf-focus-loss-clears-composition-contract.ps1` verify the
@@ -46,9 +50,11 @@ ABI unchanged.
 
 - `docs\evidence\m06\matrix.md` exists and encodes the Tier 1-3 hosts, the
   12 compatibility checklist items, and the per-host operator script.
-- Current matrix status: pending holder-free live verification.
-- No host pass/fail claims are made in this summary until the operator-run
-  matrix is filled with current installed-build evidence.
+- Current matrix status: failed outside Notepad, pending holder-free reload of
+  the raw-fallback TSF build and retest.
+- Current host claims are limited to the user-reported installed-DLL attempt:
+  Notepad normal typing worked; Chrome, Zed, Telegram, and File Explorer
+  produced no output; VS Code and WeChat were not installed or not tested.
 
 ## Holder-free Live Proof
 
@@ -60,11 +66,17 @@ ABI unchanged.
 - User-approved `tools\dev\dev-reload-tsf.ps1 -RestartExplorer` passed on
   2026-07-02 and is recorded in
   `docs\evidence\m06\logs\2026-07-02-approved-tsf-reload.md`.
-- `docs\evidence\m06\environment.json` now records the installed TSF DLL hash
-  `280AC71822F213528B05B18D88BB37B18ABA0EE7B8EA914978B94CC831559771` for
-  current `main` commit `8d26e3ee8c13d3da4bde06c72703f4ab3b6e6fb5`.
-- Required next operator action: select Yune Windows in the dev Notepad or
-  target host, then execute the Tier-1 matrix.
+- User host testing after that reload is recorded in
+  `docs\evidence\m06\logs\2026-07-02-user-host-results.md` and failed outside
+  Notepad with repeated `server_query_failed` events and no `commit_text`
+  events in the failed-host capture.
+- `docs\evidence\m06\environment.json` records the tested installed TSF DLL hash
+  `280AC71822F213528B05B18D88BB37B18ABA0EE7B8EA914978B94CC831559771`; the
+  raw-fallback fix added after the user host report still needs a holder-free
+  installed-DLL reload.
+- Required next operator action: close non-dev TSF DLL holders, reload the
+  updated raw-fallback TSF DLL in a holder-free session, then rerun the Tier-1
+  matrix.
 - Tooling must not force-close non-dev holder applications and must not run
   elevated install/register/unregister/cleanup/AppVerifier/PageHeap/registry
   steps without explicit approval in the current session.
@@ -93,6 +105,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-server-request-re
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-m06-key-path-fixes-contract.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-punctuation-commit-contract.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-tsf-key-eating-contract.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-tsf-server-fallback-raw-commit-contract.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-tsf-ime-state-hotkey-contract.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-tsf-key-up-pass-through-contract.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-tsf-focus-loss-clears-composition-contract.ps1

@@ -35,10 +35,11 @@ if ($Summary -match "Status:\s*complete\b") {
 }
 
 foreach ($Required in @(
-        "implementation complete; holder-free live host matrix pending",
+        "implementation complete; holder-free live host matrix failed outside",
         "F1, F2a/F2b, F5, and F6",
         "manual holder-free live verification remains required",
-        "No host pass/fail claims are made"
+        "Chrome, Zed, Telegram",
+        "File Explorer currently fail with no output"
     )) {
     if ($Summary -notmatch [regex]::Escape($Required)) {
         throw "M06 summary is missing boundary text: $Required"
@@ -67,8 +68,8 @@ if ($Evidence.manual_live_required -ne $true) {
 if ($Evidence.plan_archived -ne $false) {
     throw "M06 plan must stay active until live host-matrix closeout is complete."
 }
-if ($Evidence.host_matrix.status -ne "pending_holder_free_live_verification") {
-    throw "M06 host matrix status must remain pending until operator evidence lands."
+if ($Evidence.host_matrix.status -ne "failed_pending_raw_fallback_reload") {
+    throw "M06 host matrix status must record the failed live attempt until the raw-fallback reload is verified."
 }
 
 foreach ($HostName in @("Notepad", "Chromium browser", "Telegram Desktop")) {

@@ -212,7 +212,10 @@ model with a real composition).
 - [x] Remove the fake-selection/`buffer_`-commit path; keep ascii pass-through,
   toggles, punctuation working (commit/cancel composition on toggle).
 - [x] Contracts + build. Commit to `main`.
-- [ ] Holder-free installed-DLL live-verify.
+- [ ] Holder-free installed-DLL live-verify. First attempt: Notepad smoke passed,
+  but Chrome, Zed, Telegram, and File Explorer produced no output before M07
+  inline preedit/selection proof could run; reload the raw-fallback DLL and
+  retest.
 
 ### Task 3: Slice C — evidence + docs
 - [x] `docs\evidence\m07\` summary + contract; roadmap/README/decisions updates.

@@ -30,9 +30,10 @@ foreach ($RequiredSection in @(
 }
 
 foreach ($Required in @(
-        "implementation complete; holder-free live TSF proof pending",
+        "implementation complete; holder-free live TSF proof failed outside",
         "persistent per-client Rime composition sessions",
         "manual holder-free live verification remains required",
+        "produced no output before the inline preedit",
         "Yune engine internals and the default rime_get_api() ABI unchanged",
         "docs\evidence\m07\live-checklist.md",
         "docs\evidence\m06-m07-live-closeout.md"
@@ -63,8 +64,8 @@ if ($Evidence.manual_live_required -ne $true) {
 if ($Evidence.plan_archived -ne $false) {
     throw "M07 plan must stay active until live installed-DLL proof is complete."
 }
-if ($Evidence.live_proof_status -ne "pending_holder_free_installed_tsf_verification") {
-    throw "M07 live proof status must remain pending until operator evidence lands."
+if ($Evidence.live_proof_status -ne "failed_pending_raw_fallback_reload") {
+    throw "M07 live proof status must record the failed live attempt until the raw-fallback reload is verified."
 }
 if ($Evidence.operator_checklist -ne "docs/evidence/m07/live-checklist.md") {
     throw "M07 summary JSON must point at the operator live checklist."

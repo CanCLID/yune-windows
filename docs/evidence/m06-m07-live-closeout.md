@@ -1,12 +1,18 @@
 # M06/M07 Holder-free Live Closeout
 
-Status: installed TSF DLL reload passed; operator-run host verification pending.
+Status: installed TSF DLL reload passed; first operator-run host verification
+failed outside Notepad; raw-fallback fix pending holder-free reload.
 
 Latest reload note: on 2026-07-02, the installed server reload passed, then the
 user-approved non-elevated TSF DLL reload with Explorer restart passed. See
-`docs/evidence/m06/logs/2026-07-02-approved-tsf-reload.md`. The M06 host matrix
-and M07 live checklist remain pending until Yune Windows is selected in a real
-host and the required typing proof is recorded.
+`docs/evidence/m06/logs/2026-07-02-approved-tsf-reload.md`. User testing after
+that reload found Notepad normal typing worked, but Chrome, Zed, Telegram, and
+Windows File Explorer produced no output. See
+`docs/evidence/m06/logs/2026-07-02-user-host-results.md`. A source fix now
+inserts raw fallback text instead of silently dropping eaten keys when TSF
+compose operations fail, and logs `server_query_call_failed error_code=...` for
+the next live capture. The updated TSF DLL still needs a holder-free reload
+before the M06 host matrix and M07 checklist can be rerun.
 
 This file is the combined live closeout runbook for the M06 host matrix and the
 M07 inline composition proof. It does not replace the per-milestone evidence:
@@ -37,7 +43,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\collect-m06-compatibil
 
 ## Run Order
 
-1. Start from a holder-free desktop session.
+1. Start from a holder-free desktop session. If this run follows the
+   2026-07-02 no-output failure, make sure the raw-fallback source fix is in
+   the build being swapped.
 2. Confirm the installed TSF DLL is not held by this Codex process or another
    non-dev desktop holder. If the planned reload will restart Explorer, include
    `-RestartExplorerPlanned`; the preflight must pass before attempting the TSF DLL swap:

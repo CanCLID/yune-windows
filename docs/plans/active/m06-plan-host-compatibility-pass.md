@@ -464,10 +464,13 @@ a reboot per bug.
 - [x] Run the collector; confirm well-formed output. Commit to `main`.
 
 ### Task 2: Slice B — observation pass
-- [ ] One holder-free `dev-reload-server` + `dev-reload-tsf`; confirm live build
-  SHA via the collector; warm the server.
+- [x] One holder-free `dev-reload-server` + `dev-reload-tsf`; confirm live build
+  SHA via the collector; warm the server. First approved reload passed on
+  2026-07-02.
 - [ ] Operator runs the matrix Tier 1 → 3; GPT records every cell + captures
   per-host logs/screenshots; classify each Fail (`bug`/`host-limit`/`cosmetic`).
+  First attempt: Notepad smoke passed, but Chrome, Zed, Telegram, and File
+  Explorer produced no output and require raw-fallback reload/retest.
 - [ ] Commit the filled `matrix.md` + evidence to `main`.
 
 ### Task 3: Slice C — triage + fixes
@@ -487,6 +490,10 @@ a reboot per bug.
   Telegram. (The Telegram freeze is covered by F2.)
 - [x] **F6 (Enter commits raw):** split Enter from Space — Enter commits the raw
   typed letters verbatim, Space commits the candidate; add the commit-split contract.
+- [x] **No-output host failure fallback:** after the first host attempt, add a
+  TSF raw-text fallback for compose-operation failures so an eaten key is not
+  silently dropped; log `server_query_call_failed error_code=...` for the next
+  live capture.
 - [ ] Candidate anchoring: fix web/Electron anchoring failures with a principled
   fallback (no top-left corner regression).
 - [ ] Language-bar / reconciliation / indicator fixes as findings dictate.

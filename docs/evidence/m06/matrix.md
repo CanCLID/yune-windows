@@ -1,6 +1,7 @@
 # M06 Host Compatibility Matrix
 
-Status: pending holder-free live verification.
+Status: live attempt failed outside Notepad; raw-fallback fix pending
+holder-free installed TSF reload.
 
 This matrix is the operator-facing checklist for M06. Fill each cell with
 `Pass`, `Fail`, `N-A`, or `Pending`, followed by a short note and any linked
@@ -25,10 +26,10 @@ log/screenshot evidence. Tier 1 must be complete before M06 is marked complete.
 
 | Host | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | Evidence |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Notepad | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending holder-free run |
-| Chromium browser | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Address bar, plain input, rich editor |
-| VS Code or daily editor | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Confirm actual editor |
-| Telegram Desktop | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Qt lone-Shift target |
+| Notepad | Pass user smoke | Pending detailed | Pending detailed | Pending detailed | Pending detailed | Pending detailed | Pending detailed | Pending detailed | Pending detailed | Pending detailed | Pending detailed | Pending detailed | User reported Notepad worked and normal typing succeeded after approved TSF reload; detailed 12-item checklist still pending |
+| Chromium browser | Fail no output | Pending retest | Pending retest | Pending retest | Fail no output | Pending retest | Pending retest | Pending retest | Pending retest | Pending retest | Fail no output | Pending retest | User reported Chrome produced no output; see `logs/m06-m07-user-host-failures-tsf-events.md` and `logs/2026-07-02-user-host-results.md` |
+| VS Code or daily editor | Fail no output | Pending retest | Pending retest | Pending retest | Fail no output | Pending retest | Pending retest | Pending retest | Pending retest | Pending retest | Fail no output | Pending retest | Zed produced no output; VS Code not installed; see `logs/m06-m07-user-host-failures-tsf-events.md` |
+| Telegram Desktop | Fail no output | Pending retest | Pending retest | Pending retest | Fail no output | Pending retest | Pending retest | Pending retest | Pending retest | Pending retest | Fail no output | Pending retest | User reported Telegram produced no output; see `logs/m06-m07-user-host-failures-tsf-events.md`; lone-Shift cannot be closed until typing output works |
 
 ## Tier 2
 
@@ -36,8 +37,8 @@ log/screenshot evidence. Tier 1 must be complete before M06 is marked complete.
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Rich edit host | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | WordPad or Word if available |
 | Windows Terminal or console | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Reduced fidelity expected |
-| File Explorer rename/search | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Rename plus non-UWP field |
-| WeChat | N-A | N-A | N-A | N-A | N-A | N-A | N-A | N-A | N-A | N-A | N-A | N-A | Only run if installed |
+| File Explorer rename/search | Fail no output | Pending retest | Pending retest | Pending retest | Fail no output | Pending retest | Pending retest | Pending retest | Pending retest | Pending retest | Fail no output | Pending retest | User reported Windows File Explorer produced no output |
+| WeChat | N-A | N-A | N-A | N-A | N-A | N-A | N-A | N-A | N-A | N-A | N-A | N-A | Not installed or not tested |
 
 ## Tier 3
 
@@ -63,4 +64,3 @@ For each host:
 10. Switch to another host and confirm state/language-bar reconciliation.
 11. Capture a structural log window with
     `tools\capture-m06-tsf-events-window.ps1 -Label <host-label>`.
-

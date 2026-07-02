@@ -238,7 +238,8 @@ LRESULT CALLBACK ShiftHookWindowProc(HWND hwnd, UINT message, WPARAM wparam,
 LRESULT CALLBACK LowLevelKeyboardProc(int code, WPARAM wparam, LPARAM lparam);
 
 void WriteStructuralEvent(const char* event_name, int buffer_length = -1,
-                          int candidate_count = -1) {
+                          int candidate_count = -1,
+                          DWORD error_code = ERROR_SUCCESS) {
     try {
         const std::filesystem::path module_dir = ModuleDirectory();
         if (module_dir.empty()) {
@@ -259,6 +260,9 @@ void WriteStructuralEvent(const char* event_name, int buffer_length = -1,
         }
         if (candidate_count >= 0) {
             log << " candidate_count=" << candidate_count;
+        }
+        if (error_code != ERROR_SUCCESS) {
+            log << " error_code=" << error_code;
         }
         log << "\n";
     } catch (...) {
@@ -790,6 +794,7 @@ ServerResponse QueryServerOperation(
     char response[65536] = {};
     DWORD read = 0;
     const int max_attempts = mode == RefreshStateMode::AllowLaunch ? 3 : 1;
+    DWORD last_error = ERROR_SUCCESS;
     const DWORD reconnect_wait_ms =
         timeout_ms < kServerPipeReconnectWaitMs ? timeout_ms
                                                 : kServerPipeReconnectWaitMs;
@@ -815,6 +820,7 @@ ServerResponse QueryServerOperation(
         }
 
         const DWORD error = GetLastError();
+        last_error = error;
         if (error == ERROR_FILE_NOT_FOUND) {
             if (mode == RefreshStateMode::ExistingServerOnly) {
                 break;
@@ -832,6 +838,9 @@ ServerResponse QueryServerOperation(
             }
         }
         break;
+    }
+    if (last_error != ERROR_SUCCESS) {
+        WriteStructuralEvent("server_query_call_failed", -1, -1, last_error);
     }
     WriteStructuralEvent("server_query_failed");
     return {};
@@ -1440,11 +1449,11 @@ public:
         if (!shift_pressed &&
             ((key >= L'A' && key <= L'Z') || (key >= L'a' && key <= L'z'))) {
             *eaten = TRUE;
+            std::wstring key_text(1, LowerAscii(key));
             if (!EnsureComposeSession(context)) {
-                ClearCompositionState(false);
+                (void)CommitRawFallback(context, key_text);
                 return S_OK;
             }
-            std::wstring key_text(1, LowerAscii(key));
             std::string payload = "op=compose-key\nsession=";
             payload += Narrow(compose_session_);
             payload += "\nkey=";
@@ -1452,7 +1461,7 @@ public:
             payload += "\nmask=0\n.\n";
             ServerResponse response = QueryComposeOperation(payload, context);
             if (!response.ok) {
-                ClearCompositionState(false);
+                (void)CommitRawFallback(context, buffer_ + key_text);
                 return S_OK;
             }
             (void)ApplyComposeResponse(context, response);
@@ -2124,6 +2133,16 @@ private:
         WriteStructuralEvent("commit_text",
                              static_cast<int>(text.size()));
         return true;
+    }
+
+    bool CommitRawFallback(ITfContext* context, const std::wstring& text) {
+        WriteStructuralEvent("server_fallback_raw_commit",
+                             static_cast<int>(text.size()));
+        ClearCompositionState(false);
+        if (text.empty()) {
+            return true;
+        }
+        return CommitText(context, text);
     }
 
     bool CommitRawBuffer(ITfContext* context) {

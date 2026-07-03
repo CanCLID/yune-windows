@@ -1,18 +1,21 @@
 # M09 Settings Panel + Skin Picker Plan
 
 > **Status:** active (next after M08). Give the toolbar a **settings button** that
-> opens a **full settings panel** with yune-web-parity structure: all supported
-> toggles + skin picker wired, and schema-import / userdb import-export scaffolded
-> and ready for future implementation. Rich SVG/image asset rendering remains a
-> deliberate skin-renderer extension if M09 needs it.
+> opens a **native settings panel**: the supported toggles + a skin picker wired,
+> and schema-import / userdb import-export scaffolded and ready for future
+> implementation. **UI tech decided: native Win32** (extend
+> `YuneWindowsSettings.exe`) — the user does not need web/visual parity with
+> yune-web, so no WebView2. Rich SVG/image asset rendering remains a deliberate
+> skin-renderer extension if M09 needs it.
 
-**Goal:** make the toolbar the launch point for a complete config surface and a
-skin picker. A ⚙ button on the bar opens a settings panel modeled on
-https://yune-web.pages.dev/ where the user can toggle every setting, pick a skin,
-and (eventually) import schemas and import/export the user dictionary. Features
-that aren't supported yet (userdb, schema import, deploy-time engine prefs) are
-**present but disabled** with the plumbing shaped so they can be wired later
-without a redesign.
+**Goal:** make the toolbar the launch point for a config surface and a skin
+picker. A ⚙ button on the bar opens a native settings window where the user can
+change the supported settings, pick a skin, and (eventually) import schemas and
+import/export the user dictionary. It covers the same *functional* areas as
+https://yune-web.pages.dev/ but is a focused native window, **not** a visual replica
+(parity is explicitly not a goal). Features that aren't supported yet (userdb,
+schema import, deploy-time engine prefs) are **present but disabled** with the
+plumbing shaped so they can be wired later without a redesign.
 
 **Skin-breadth (more built-in skins, user-imported skins) and candidate-window
 skinning move to M10** so M09 stays focused on the panel + finishing M08.
@@ -42,6 +45,8 @@ skinning move to M10** so M09 stays focused on the panel + finishing M08.
 
 ## Non-Goals
 
+- No WebView2 or visual/behavioral parity replica of yune-web — native Win32
+  panel (decided). Same functional areas, not the same UI.
 - No animated/mascot skins (later `YuneWindowsUiHost.exe` milestone).
 - No candidate-window restyle here (M10).
 - No actual userdb persistence or learning (D-05 keeps `disable_learning` forced —
@@ -53,8 +58,8 @@ skinning move to M10** so M09 stays focused on the panel + finishing M08.
 
 1. **Slice A — Toolbar settings button** (a ⚙ segment that opens the settings
    panel; routed like the other segments but launches or focuses the panel).
-2. **Slice B — Full settings panel** (yune-web-parity layout; wire the supported
-   settings, scaffold the rest as disabled + future-ready).
+2. **Slice B — Native settings panel** (wire the supported settings, scaffold the
+   rest as disabled + future-ready).
 
 ## Design Details
 
@@ -72,9 +77,9 @@ from the settings button and panel work.
   (or focuses it if already open) — a normal on-demand window, not a floating
   surface. Keep the click/drag threshold behavior from M08.
 
-### Slice B — Full settings panel (yune-web parity)
+### Slice B — Native settings panel
 
-- **Panel scope (parity layout).** One window with sections mirroring yune-web:
+- **Panel scope.** One native Win32 window with sections covering:
   - **Input / session** — 中/英, 全/半, output standard, extended charset, disabled
     (wire via the existing M05 `op=` verbs — supported today).
   - **Appearance** — skin picker (choose among installed skins via `op=set-skin`,
@@ -91,29 +96,25 @@ from the settings button and panel work.
   - **Schemas** — list installed schemas (switch via `op=select-schema`, supported)
     and a **scaffolded** "import schema" affordance (future customize/deploy).
 - **Every unsupported control is visibly present but disabled** with a short
-  "coming soon" note, so the panel matches yune-web's shape and nothing needs a
-  redesign when the backing features land.
-- **UI tech decision (the key M09 question):** the settings panel is an ordinary
-  on-demand window (not floating/perf-critical), so **WebView2 reusing yune-web's
-  Preferences/Dictionary/schema components** is the natural high-parity, low-effort
-  choice — repoint yune-web's engine adapter from wasm Rime to the Windows
-  named-pipe server. Tradeoff: it reintroduces the WebView2 runtime dependency for
-  the settings exe (opened occasionally, so no always-on perf cost). The
-  alternative is extending the native Win32 `YuneWindowsSettings.exe` (no
-  dependency, but every parity control is hand-built). **Recommendation: WebView2
-  for the panel** (the toolbar stays native D2D). Confirm before building.
+  "coming soon" note, so nothing needs a redesign when the backing features land.
+- **UI tech: native Win32 (decided).** Extend `YuneWindowsSettings.exe` (already a
+  native Win32 exe wired to the server `op=` verbs) with the sections above — no
+  WebView2, no runtime dependency, consistent with the native toolbar. Since web
+  parity is not a goal, only build the controls the IME actually needs. The skin
+  picker's **live preview** reuses the shared `D2DSurface` to render the bar inside
+  a preview area of the window. Scaffolded sections are ordinary disabled Win32
+  controls with a "coming soon" note.
 
 ## Tasks
 - [ ] Slice A: toolbar ⚙ settings button that opens the settings panel.
-- [ ] Slice B: settings panel (WebView2 or native per the decision) with the parity
-  layout; wire session toggles + schema switch + skin picker; scaffold engine /
-  dictionary / schema-import as disabled + future-ready.
+- [ ] Slice B: native Win32 settings panel (extend `YuneWindowsSettings.exe`); wire
+  session toggles + schema switch + skin picker (live preview via `D2DSurface`);
+  scaffold engine / dictionary / schema-import as disabled + future-ready.
 - [ ] Evidence under `docs/evidence/m09/`; contracts (panel launch, skin picker,
   scaffold-disabled invariants); roadmap/decisions. Commit to `main`.
 
 ## Reviewer Questions
-- **Panel tech: WebView2 (reuse yune-web, recommended) vs. native Win32?** This is
-  the pivotal decision.
+- Panel tech is decided: **native Win32** (no WebView2).
 - Scaffolded sections: disabled controls with "coming soon", or hide them until
   their backing milestone lands? (Recommend: show disabled, so the shape is
   visible and future-ready.)
@@ -122,7 +123,7 @@ from the settings button and panel work.
 
 ## Completion Gates
 - A ⚙ button on the toolbar opens the settings panel.
-- The settings panel presents the full yune-web-parity layout; the supported
+- The native settings panel presents the settings sections; the supported
   settings (session toggles, schema switch, skin pick) work; unsupported ones
   (engine prefs, userdb import/export, schema import) are present-but-disabled with
   the plumbing shaped for future wiring.

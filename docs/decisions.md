@@ -141,6 +141,18 @@ scaffolding is shared so M09 can adopt it deliberately. M08 renders manifest
 segment glyph labels; SVG/image asset rendering is deferred until a renderer path
 actually consumes those assets.
 
+### D-16 - Settings panel is native Win32 (no WebView2)
+
+The M09 settings panel is a native Win32 window (extending
+`YuneWindowsSettings.exe`), not WebView2 and not a visual/behavioral replica of
+yune-web. The user does not need web parity, so the panel covers the same
+*functional* areas (session toggles, skin picker, and scaffolded schema-import /
+userdb import-export / deploy-time engine prefs) with only the controls the IME
+needs, avoiding a WebView2 runtime dependency and staying consistent with the
+native Direct2D toolbar. This narrows D-04/D-12's "WebView2 may be evaluated for
+settings" to "settings panel is native"; WebView2 is not adopted for any Yune
+Windows surface.
+
 ## Last Updated
 
 2026-07-02 - M08 Modern Floating Toolbar landed the native Direct2D/DirectWrite

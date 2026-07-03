@@ -97,11 +97,21 @@ protocol + drag. C is the visual finish. D proves it.
 ### Slice A — Shared Direct2D renderer + skin manifest + default skin
 
 - **Add a reusable D2D surface** (e.g. `yune_windows::D2DSurface`): owns the
-  `ID2D1Factory`/`ID2D1DeviceContext` (or `ID2D1HwndRenderTarget`),
-  `IDWriteFactory`, and (if used) WIC factory. Handle **device loss** (recreate on
-  `D2DERR_RECREATE_TARGET`) and **per-monitor-v2 DPI** (`WM_DPICHANGED`, DPI-scaled
-  metrics). This surface is written once and reused by the toolbar now and the
-  candidate window later.
+  `ID2D1Factory`, `IDWriteFactory`, and WIC factory, and draws skin geometry/text/
+  icons. Handle **device loss** (recreate on `D2DERR_RECREATE_TARGET`) and
+  **per-monitor-v2 DPI** (`WM_DPICHANGED`, DPI-scaled metrics). Written once and
+  reused by the toolbar now and the candidate window later.
+- **Transparency backend — pick one (decided): `UpdateLayeredWindow` + a D2D
+  bitmap render target.** Draw the skin into an off-screen premultiplied-alpha
+  bitmap (`ID2D1DCRenderTarget` on a memory DC, or a WIC/DXGI bitmap target) and
+  present it with `UpdateLayeredWindow` (ULW) for true per-pixel alpha. This is the
+  simplest, proven path for a small translucent custom-shaped toolbar and needs no
+  compositor plumbing. **Isolate presentation behind the `D2DSurface` abstraction**
+  so the draw/skin code doesn't depend on it: `DirectComposition` (a DComp visual
+  fed by a D2D surface, for smooth off-thread animation) is the documented upgrade
+  path for the later animated-skins / UI-host milestone, swappable without touching
+  the skin renderer. Do **not** mix ULW with an `ID2D1HwndRenderTarget` — that is
+  the surprise GPT flagged.
 - **Skin manifest.** Define a JSON skin schema — `skins/<name>/theme.json` +
   assets — covering: colors (background, text, accent, hover, pressed, separator,
   shadow), geometry (corner radius, padding, bar height, segment gap), background
@@ -110,11 +120,24 @@ protocol + drag. C is the visual finish. D proves it.
   `skins/`; **validate and fall back to the built-in default** if a skin is
   missing or malformed. **The default skin ships through this manifest** (not
   hardcoded) so M09 only adds skins + a picker.
+- **Skin-asset deployment (do NOT skip — the manifest is useless if the files
+  aren't on disk at runtime).** Add a repo source-of-truth `skins/default/`
+  (`theme.json` + assets) and wire it through every path that currently ships only
+  binaries/schema/runtime:
+  - `tools/build-tsf-shell.ps1` copies `skins/` next to the built DLL/exes.
+  - `tools/install-yune-windows-ime.ps1` copies `skins/` into the install root (it
+    currently copies binaries/schema/runtime only, ~`:173`).
+  - the dev swaps (`dev-reload-tsf.ps1` / `dev-swap-tsf-dll.ps1`) refresh `skins/`
+    alongside the DLL so a swapped build has its skins.
+  - the smoke exe + contracts point at a known `skins/default/` fixture.
+  The DLL resolves `skins/` relative to its module directory (as it already does
+  for `rime.dll`/`schema`), with the compiled-in default as the last-resort
+  fallback if the folder is absent.
 - **Toolbar renderer.** Replace `LanguageBarWindow::Paint` (GDI) with a D2D render
   that draws the skinned pill: rounded translucent background, soft shadow,
   separators, each segment with its icon + hover/pressed state. Keep the window
-  `WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW | WS_EX_TOPMOST`; make the background
-  translucent via a layered/composited window (per-pixel alpha).
+  `WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW | WS_EX_TOPMOST | WS_EX_LAYERED` and present
+  via `UpdateLayeredWindow` (per the transparency backend above).
 - **Verify:** the bar renders with the default skin, crisp at 100%/150%/200% DPI,
   no device-loss glitches after a display mode change. Holder-free swap.
 
@@ -167,11 +190,23 @@ protocol + drag. C is the visual finish. D proves it.
 
 ## Tasks
 
+### Task 0: De-risk spike (do this first)
+- [ ] A throwaway no-activate, `WS_EX_LAYERED` translucent rounded window drawn
+  with D2D and presented via `UpdateLayeredWindow`, that **drags smoothly, never
+  steals focus** from the composing app, and renders crisply at 100/150/200% DPI.
+  This proves the risky native bits (transparency backend + no-activate drag + DPI)
+  before any skin parsing or server-state work. If ULW disappoints, evaluate the
+  DirectComposition fallback here, not mid-build.
+
 ### Task 1: Slice A — renderer + skin manifest
-- [ ] Shared `D2DSurface` (device, DPI, device-loss recovery); add
-  `d2d1/dwrite`(+`windowscodecs`) to the DLL + smoke link.
+- [ ] Shared `D2DSurface` (ULW presentation, device, DPI, device-loss recovery);
+  add `d2d1/dwrite`(+`windowscodecs`) to the DLL + smoke link.
 - [ ] Skin-manifest schema + loader with validation and default fallback; ship the
   default skin via the manifest.
+- [ ] **Skin-asset deployment:** repo `skins/default/`; copy `skins/` through
+  `build-tsf-shell`, `install-yune-windows-ime`, and the dev swaps; DLL resolves
+  `skins/` from its module dir with a compiled-in fallback. Add a deployment
+  contract.
 - [ ] D2D toolbar render (rounded translucent pill, shadow, separators, segments).
 - [ ] Holder-free swap; verify render + DPI + device-loss.
 

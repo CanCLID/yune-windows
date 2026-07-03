@@ -243,10 +243,13 @@ Historical plan:
 
 ## Candidate Next Milestones (for discussion)
 
-M02 through M07 are complete. The remaining rows are candidate next milestones.
+M02 through M07 are complete. **M08 and M09 are the active UI track** (planned,
+in `docs/plans/active/`); the rows below them are later candidates.
 
 | Candidate | Delivers | Rough size | Key dependency / risk |
 | --- | --- | --- | --- |
+| **M08 — Modern floating toolbar (active)** | Replace the flat GDI language bar with a draggable, position-remembering, Direct2D/DirectWrite toolbar (rounded translucent icon pill) driven by a JSON skin-pack architecture. Native, a few MB, no WebView2. Fixes the fixed-corner + dated-look complaints. | M | `UpdateLayeredWindow`+D2D transparency backend; no-activate drag; position/skin persisted via new server `op=` verbs; renderer/skin built to be reused by the candidate window later. Plan: `docs/plans/active/m08-plan-modern-toolbar.md`. |
+| **M09 — Skins + picker (next)** | Skin picker in `YuneWindowsSettings.exe`, a second built-in skin, user-imported skin folders, and applying the shared D2D renderer + skin to the candidate window. | M | Depends on M08's renderer/skin schema. No server→client push, so cross-app skin change lands on next focus/state refresh. Plan: `docs/plans/active/m09-plan-skins-and-picker.md`. |
 | **Non-blocking cold-start / per-user broker** | Removes the up-to-15s foreground freeze on the first cold keystroke and makes launch work in sandboxed/AppContainer hosts (UWP, WeChat, some Store/Electron). Reduces AV/EDR risk of spawning an unsigned exe from a browser. | M | Adds per-user autostart/broker state that install/uninstall must create and remove; documented M02 fast-follow. |
 | **Dogfood package hardening (WIN-11)** | Self-contained install bundle decoupled from the local Yune source build, so a second machine can install without a Rust/Yune toolchain. | M | Production signing stays deferred; needs pre-staged `rime.dll` + schema + binaries + `install-info.json`. |
 | **User-data preservation (D-09)** | Preserve or migrate the learned dictionary / personalization across reinstall loops instead of deleting `user-data` on uninstall. | S | Decide backup vs. a `-PurgeUserData` switch; small but touches the uninstall path. |

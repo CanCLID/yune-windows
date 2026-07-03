@@ -50,8 +50,14 @@ the renderer to a second surface.
 ## Design Details
 
 - **Skin picker (A):** enumerate `skins/` (install) + the user skins dir; show
-  name/preview; selecting one sends `op=set-skin`; the toolbar (and, after Slice D,
-  the candidate window) re-render from the new manifest on the next state push.
+  name/preview; selecting one sends `op=set-skin` (server persists it). **No
+  server→client push exists** (M08 deferred that), so the picker renders a **live
+  preview inside the settings window itself**, and the actual toolbars/candidate
+  windows in other apps pick up the new skin on their **next focus / state refresh**
+  (the DLL already reads the state block on `op=get-state`/focus and per-keystroke
+  responses — extend it to re-load the skin when the skin name in the state block
+  changes). If instant cross-app switching is ever wanted, that is the deferred
+  UI-host push channel, not this milestone.
 - **Second skin (B):** author a contrasting skin (e.g. dark/glass) purely as a
   manifest + assets — no code change — to prove the schema covers real variation.
   Fix any schema gaps found.
@@ -82,8 +88,9 @@ the renderer to a second surface.
   declared assets only)?
 
 ## Completion Gates
-- The user can pick among at least two built-in skins from the settings UI and the
-  toolbar (and candidate window, if Slice D lands) re-render live.
+- The user can pick among at least two built-in skins from the settings UI, which
+  shows a live preview; the toolbar (and candidate window, if Slice D lands) in
+  other apps adopt the skin on their next focus / state refresh.
 - A user-imported skin folder loads and applies; a malformed one is rejected with a
   clean fallback to the default (no crash, nothing executed from the skin).
 - The candidate window (if restyled) matches the skin and shows no latency

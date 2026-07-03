@@ -1,7 +1,10 @@
 # M11 UI Modernization + Cantonese Localization Plan
 
-> **Status:** active (non-elevated implementation in progress; live visual proof
-> remains approval-gated). Modernizes the two native
+> **Status:** Slices A + B implemented non-elevated (`c014f18`). **Slice C
+> (glass) is scaffolding only** — the toolbar still renders flat; the real WinRT
+> `Windows.UI.Composition` host-backdrop backend is **deferred** to an on-device
+> follow-up (it needs the live spike and can't be verified blind). Modernizes the
+> two native
 > UI surfaces — the Win32 settings panel and the Direct2D floating toolbar — and
 > localizes **all** user-facing text from English to written Cantonese, mirroring
 > `yune-web`'s terminology. Stays native (no WebView2), consistent with D-15
@@ -309,7 +312,14 @@ The toolbar short glyph is a **C++ literal** (Slice A item 6), not a manifest fi
 | jyut6ping3 | 粵語拼音 | 粵 |
 | cangjie5 | 倉頡五代 | 倉 |
 | luna_pinyin | 朙月拼音 | 朙 (was 拼 → change) |
-| luna_pinyin_octagram | 朙月拼音 + Octagram | 朙 (**add case** — no fallthrough) |
+| luna_pinyin_octagram | 朙月拼音（八卦）ⁱ | 朙 (**add case** — no fallthrough) |
+
+ⁱ **Intentional deviation (implemented):** the full label renders `朙月拼音（八卦）`
+(fully Cantonese) instead of mirroring yune-web's Latin `朙月拼音 + Octagram`, to
+keep the panel free of Latin per the all-Cantonese goal. Caveat: 八卦 also means
+"gossip" colloquially in HK Cantonese — if the user prefers the yune-web proper
+noun, switch `kSchemaLunaPinyinOctagram` to `朙月拼音 + Octagram` and add an
+"Octagram" carve-out to the no-ASCII contract check.
 
 **Appearance**
 | English | Cantonese | Source |

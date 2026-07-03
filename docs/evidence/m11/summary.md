@@ -1,6 +1,6 @@
 # M11 UI Modernization + Cantonese Localization Evidence
 
-Status: non-elevated implementation evidence complete. Live visual proof remains approval-gated because it would require loading the TSF DLL in real desktop hosts and visually checking the glass toolbar over app content.
+Status: Slices A (native theming + Cantonese) and B (Win11 DWM polish) are implemented non-elevated. Slice C (glass toolbar) is **scaffolding only** — the toolbar still renders flat; the real WinRT composition host-backdrop backend is **deferred** to an on-device follow-up (see "Glass toolbar" below). Live visual proof remains approval-gated because it would require loading the TSF DLL in real desktop hosts and visually checking the toolbar over app content.
 
 ## Implemented Scope
 
@@ -26,16 +26,31 @@ Status: non-elevated implementation evidence complete. Live visual proof remains
     longer fall through to the first Latin character.
   - `skins/default/theme.json` uses CJK segment glyphs and adds glass metadata
     with back-compatible compiled-in defaults.
-- Glass toolbar shell:
-  - A `GlassSurface` abstraction owns the toolbar presentation path above the
-    existing Direct2D content renderer.
-  - The documented host backdrop brush path is represented first:
-    `DWMWA_USE_HOSTBACKDROPBRUSH` + WinRT `Windows.UI.Composition`
-    `Compositor.CreateHostBackdropBrush` + `WS_EX_NOREDIRECTIONBITMAP`.
-  - Fallback paths are represented in order: undocumented
-    `SetWindowCompositionAttribute` `ACCENT_ENABLE_ACRYLICBLURBEHIND`, DWM
-    transient acrylic, then static translucent tint. The fallback preserves the
-    M08 no-activate/drag/device-loss invariants and avoids a hollow bar.
+- Glass toolbar — **scaffolding only; real glass deferred**:
+  - **The toolbar is unchanged and still renders flat.** It stays on the existing
+    `WS_EX_LAYERED` + `UpdateLayeredWindow` Direct2D path; `GlassSurface` is
+    currently a thin wrapper over `D2DSurface`, not a composition renderer.
+  - What landed is metadata + a mechanism-dispatch scaffold: `glass_mechanism`,
+    `glass_tint`/opacity/blur/highlight skin fields (back-compatible defaults), and
+    an `ApplyToolbarGlassBackdrop` switch. **The default skin uses
+    `glass_mechanism = host_backdrop`, whose `ApplyHostBackdropBrush` only sets the
+    `DWMWA_USE_HOSTBACKDROPBRUSH` flag — a no-op without a WinRT composition tree —
+    so there is NO visible glass yet.** The `accent_acrylic` and `dwm_acrylic`
+    branches are opt-in stubs (not default); accent-acrylic on a layered window
+    would blur the whole window rectangle (a rectangular halo behind the rounded
+    pill), which is exactly the limitation the composition path is meant to solve.
+  - **Deferred to an on-device Slice C follow-up:** the real WinRT
+    `Windows.UI.Composition` host-backdrop backend — `Compositor.CreateHostBackdropBrush`,
+    dropping `WS_EX_LAYERED` for `WS_EX_NOREDIRECTIONBITMAP`, a rounded composition
+    clip, and click-through hit-testing. It is **not implemented** here because it
+    cannot be visually verified without a live TSF host (approval-gated), and
+    landing it blind would risk the working toolbar. The static-tint/layered path
+    remains the guaranteed non-hollow, no-activate, draggable fallback, preserving
+    the M08/M09 clone-trail + no-activate + drag invariants.
+- Localization note: `luna_pinyin_octagram` intentionally renders as
+  `朙月拼音（八卦）` (fully Cantonese) rather than mirroring yune-web's Latin
+  `朙月拼音 + Octagram`, to keep the panel free of Latin text per the
+  all-Cantonese goal (see M11 plan appendix).
 
 ## Verification Results
 

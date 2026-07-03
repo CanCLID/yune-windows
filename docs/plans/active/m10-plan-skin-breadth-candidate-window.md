@@ -1,6 +1,6 @@
 # M10 Skin Breadth + Candidate-Window Skinning Plan
 
-> **Status:** active (after M09). Broadens the skin system (more built-in skins,
+> **Status:** active. Broadens the skin system (more built-in skins,
 > user-imported skins) and extends the shared Direct2D renderer + active skin to
 > the candidate window, so the whole IME surface — toolbar *and* candidate panel —
 > looks consistent (the larger part of the "Sogou fancy" impression).

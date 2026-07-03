@@ -11,7 +11,8 @@
 
 namespace {
 
-bool g_clicked = false;
+bool g_ascii_clicked = false;
+bool g_settings_clicked = false;
 bool g_position_changed = false;
 int g_position_x = 0;
 int g_position_y = 0;
@@ -30,7 +31,10 @@ std::filesystem::path ModuleDirectory() {
 
 void ClickHandler(yune_windows::LanguageBarSegment segment, void*) {
     if (segment == yune_windows::LanguageBarSegment::AsciiMode) {
-        g_clicked = true;
+        g_ascii_clicked = true;
+    }
+    if (segment == yune_windows::LanguageBarSegment::Settings) {
+        g_settings_clicked = true;
     }
 }
 
@@ -48,7 +52,7 @@ LRESULT CALLBACK OwnerProc(HWND hwnd, UINT message, WPARAM wparam,
 BOOL CALLBACK FindLanguageBarWindowProc(HWND hwnd, LPARAM lparam) {
     wchar_t class_name[128] = {};
     GetClassNameW(hwnd, class_name, ARRAYSIZE(class_name));
-    if (std::wstring(class_name) == L"YuneWindowsLanguageBar") {
+    if (std::wstring(class_name).rfind(L"YuneWindowsLanguageBar", 0) == 0) {
         *reinterpret_cast<HWND*>(lparam) = hwnd;
         return FALSE;
     }
@@ -93,7 +97,7 @@ int SelfTest() {
     }
 
     yune_windows::ToolbarSkin custom_skin;
-    custom_skin.segment_labels = {L"AA", L"SS", L"OO", L"KK"};
+    custom_skin.segment_labels = {L"AA", L"SS", L"OO", L"KK", L"GG"};
     yune_windows::LanguageBarState label_state;
     label_state.ascii_mode = false;
     label_state.full_shape = false;
@@ -110,7 +114,10 @@ int SelfTest() {
             custom_skin) != L"OO" ||
         yune_windows::ToolbarSegmentLabelForState(
             yune_windows::LanguageBarSegment::Schema, label_state,
-            custom_skin) != L"KK") {
+            custom_skin) != L"KK" ||
+        yune_windows::ToolbarSegmentLabelForState(
+            yune_windows::LanguageBarSegment::Settings, label_state,
+            custom_skin) != L"GG") {
         std::cerr << "toolbar segment labels did not use the skin manifest\n";
         return 1;
     }
@@ -129,7 +136,10 @@ int SelfTest() {
             custom_skin) != L"\x7b80" ||
         yune_windows::ToolbarSegmentLabelForState(
             yune_windows::LanguageBarSegment::Schema, label_state,
-            custom_skin) != L"\x62fc") {
+            custom_skin) != L"\x62fc" ||
+        yune_windows::ToolbarSegmentLabelForState(
+            yune_windows::LanguageBarSegment::Settings, label_state,
+            custom_skin) != L"GG") {
         std::cerr << "toolbar state-specific labels were not preserved\n";
         return 1;
     }
@@ -229,8 +239,38 @@ int SelfTest() {
         MAKELPARAM(Scale(42, state.dpi), Scale(18, state.dpi));
     SendMessageW(bar_hwnd, WM_LBUTTONDOWN, MK_LBUTTON, click_point);
     SendMessageW(bar_hwnd, WM_LBUTTONUP, 0, click_point);
-    if (!g_clicked) {
+    if (!g_ascii_clicked) {
         std::cerr << "language bar click did not route to segment handler\n";
+        DestroyWindow(owner);
+        return 1;
+    }
+
+    RECT client = {};
+    GetClientRect(bar_hwnd, &client);
+    g_settings_clicked = false;
+    RECT before_settings_drag = {};
+    GetWindowRect(bar_hwnd, &before_settings_drag);
+    const LPARAM settings_drag_start =
+        MAKELPARAM(client.right - Scale(18, state.dpi), Scale(18, state.dpi));
+    const LPARAM settings_drag_move =
+        MAKELPARAM(client.right - Scale(74, state.dpi), Scale(44, state.dpi));
+    SendMessageW(bar_hwnd, WM_LBUTTONDOWN, MK_LBUTTON, settings_drag_start);
+    SendMessageW(bar_hwnd, WM_MOUSEMOVE, MK_LBUTTON, settings_drag_move);
+    SendMessageW(bar_hwnd, WM_LBUTTONUP, 0, settings_drag_move);
+    RECT after_settings_drag = {};
+    GetWindowRect(bar_hwnd, &after_settings_drag);
+    if (g_settings_clicked ||
+        (after_settings_drag.left == before_settings_drag.left &&
+         after_settings_drag.top == before_settings_drag.top)) {
+        std::cerr << "settings segment drag clicked or failed to move toolbar\n";
+        DestroyWindow(owner);
+        return 1;
+    }
+
+    SendMessageW(bar_hwnd, WM_LBUTTONDOWN, MK_LBUTTON, settings_drag_start);
+    SendMessageW(bar_hwnd, WM_LBUTTONUP, 0, settings_drag_start);
+    if (!g_settings_clicked) {
+        std::cerr << "settings segment click did not route to handler\n";
         DestroyWindow(owner);
         return 1;
     }

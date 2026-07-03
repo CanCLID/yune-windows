@@ -7,7 +7,7 @@ intentionally separate from Yune engine-performance work.
 
 | Lane | Current state | Next gate |
 | --- | --- | --- |
-| Product shell | Renamed public baseline with TSF DLL, shared server, native candidate window, diagnostics tooling, installer scripts, non-elevated contract tests, M02 product-owned server startup, M03 development inner-loop tooling, M04 candidate typing-quality implementation, and M05 IME controls implementation. Latest approved live closeout reached install/register, profile activation, Notepad, Chromium, diagnostics export, uninstall, and post-reboot no-residue cleanup. M04 runtime evidence covers clean candidate comments, 30-candidate server supply, full-width punctuation via `get_commit`, and installed-server reload/readiness. M05 adds server-owned persistent schema/options state in `state\ime-state.json`, `op=` IPC verbs, state reconciliation on every server response, lone-Shift and preserved-key toggles, a focus-scoped native mini language bar, and `YuneWindowsSettings.exe`. M05 review crash blockers are fixed in non-elevated scratch-server coverage: `ascii_mode=true` non-empty input, persisted ascii restart, invalid op/schema/option requests, and settings/schema-cycle fallback no longer kill the shared server. Post-reboot holder-free installed-path proof refreshed the installed server, swapped the TSF DLL, activated the profile, installed the settings executable, and manually verified the M05 typing controls in a dev-owned Notepad window. M06 is complete: server request resilience, async warm-up, capped foreground key-path IPC, shifted punctuation, raw Enter, the focus-gated low-level Shift fallback, a startup dictionary warm-up, and — the key fix — an explicit named-pipe security descriptor (current user + AppContainer) that resolved the no-output failure in sandboxed/lower-integrity hosts reboot-free. The folded-in fixes and core typing behaviors were confirmed live across the Tier-1 hosts (Notepad, Chromium, Telegram, Zed) plus Explorer's search box on 2026-07-02; the finer matrix items (language bar, settings live-apply, cross-app reconciliation, native indicator) are implemented, contract-covered, and spot-checked rather than exhaustively per-host audited. M07 persistent composition (server-held `compose-*` sessions, inline `ITfComposition`, Rime-routed selection, raw Enter, Space candidate commit) is confirmed live: F3 partial-selection compose (東突厥) and F4 inline preedit at the caret. Compact milestone summaries live under `docs/evidence/m01/` through `docs/evidence/m07/`; bulky raw artifacts are regenerated only when a fresh gate needs them. M08 delivered the draggable/glass Direct2D toolbar shell; its live host visual verification is a standalone pending user check (M09 re-confirms the bar since it modifies it). | Active UI track: M09 (toolbar ⚙ button + native settings panel, scaffolded for userdb/schema import; native Win32, no WebView2) then M10 (skin breadth + candidate-window skinning). Later: dogfood packaging, cold-start/broker. |
+| Product shell | Renamed public baseline with TSF DLL, shared server, native candidate window, diagnostics tooling, installer scripts, non-elevated contract tests, M02 product-owned server startup, M03 development inner-loop tooling, M04 candidate typing-quality implementation, and M05 IME controls implementation. Latest approved live closeout reached install/register, profile activation, Notepad, Chromium, diagnostics export, uninstall, and post-reboot no-residue cleanup. M04 runtime evidence covers clean candidate comments, 30-candidate server supply, full-width punctuation via `get_commit`, and installed-server reload/readiness. M05 adds server-owned persistent schema/options state in `state\ime-state.json`, `op=` IPC verbs, state reconciliation on every server response, lone-Shift and preserved-key toggles, a focus-scoped native mini language bar, and `YuneWindowsSettings.exe`. M05 review crash blockers are fixed in non-elevated scratch-server coverage: `ascii_mode=true` non-empty input, persisted ascii restart, invalid op/schema/option requests, and settings/schema-cycle fallback no longer kill the shared server. Post-reboot holder-free installed-path proof refreshed the installed server, swapped the TSF DLL, activated the profile, installed the settings executable, and manually verified the M05 typing controls in a dev-owned Notepad window. M06 is complete: server request resilience, async warm-up, capped foreground key-path IPC, shifted punctuation, raw Enter, the focus-gated low-level Shift fallback, a startup dictionary warm-up, and — the key fix — an explicit named-pipe security descriptor (current user + AppContainer) that resolved the no-output failure in sandboxed/lower-integrity hosts reboot-free. The folded-in fixes and core typing behaviors were confirmed live across the Tier-1 hosts (Notepad, Chromium, Telegram, Zed) plus Explorer's search box on 2026-07-02; the finer matrix items (language bar, settings live-apply, cross-app reconciliation, native indicator) are implemented, contract-covered, and spot-checked rather than exhaustively per-host audited. M07 persistent composition (server-held `compose-*` sessions, inline `ITfComposition`, Rime-routed selection, raw Enter, Space candidate commit) is confirmed live: F3 partial-selection compose (東突厥) and F4 inline preedit at the caret. Compact milestone summaries live under `docs/evidence/m01/` through `docs/evidence/m09/`; bulky raw artifacts are regenerated only when a fresh gate needs them. M08 delivered the draggable/glass Direct2D toolbar shell; its live host visual verification is a standalone pending user check. M09 added the toolbar settings segment, native Win32 settings panel, skin picker, and shared-renderer preview while keeping live TSF-host visual proof approval-gated. | Active UI track: M10 (skin breadth + candidate-window skinning). Later: dogfood packaging, cold-start/broker. |
 | Yune boundary | Windows consumes packaged Yune through `rime_get_api()` plus the opt-in `rime_get_yune_windows_profile_api()` surface. | Keep default `rime_get_api()` unchanged; send new engine needs to Yune as named proposals with tests. |
 | Reference code | Legacy Weasel-derived implementation is reference material only. | Extract no more code without a focused audit and smoke proof. |
 | Dogfood release | Public repo starts from clean initial history and omits old private evidence. Fresh post-rename live evidence exists, including Notepad, Chromium, diagnostics, recovered cleanup, compatibility target, signing decision, and complete closeout audit under the product-owned server contract. Compatibility target and signing decision are retained in compact M01 summary evidence; dogfood packaging, release signing, non-blocking cold-start, and user-data preservation remain open. | Start dogfood package hardening when selected. |
@@ -90,6 +90,18 @@ intentionally separate from Yune engine-performance work.
     (F4). No Yune ABI change; `disable_learning` forced. Confirmed live 2026-07-02.
     Historical plan:
     `docs/plans/history/m07-plan-persistent-composition-selection.md`.
+11. **Modern floating toolbar** - native Direct2D/DirectWrite layered language
+    bar, manifest skin loader, compiled-in fallback, no-activate grip drag,
+    monitor clamp, and server-owned toolbar position/skin state. Non-elevated
+    implementation evidence is complete; live TSF-host visual proof remains a
+    standalone approval-gated check. Historical plan:
+    `docs/plans/history/m08-plan-modern-toolbar.md`.
+12. **Settings panel and skin picker** - toolbar settings segment, launch/focus
+    behavior for `YuneWindowsSettings.exe`, native Win32 settings sections,
+    server-routed session/schema/skin changes, shared-renderer preview, and
+    disabled future engine/dictionary/schema controls. Non-elevated evidence is
+    complete; live TSF-host visual proof remains approval-gated. Historical plan:
+    `docs/plans/history/m09-plan-skins-and-picker.md`.
 
 ## Scope Ledger
 
@@ -241,17 +253,42 @@ already exposed in the linked RimeApi; `disable_learning` stays forced. See
 Historical plan:
 `docs/plans/history/m07-plan-persistent-composition-selection.md`.
 
+### M08 - Modern Floating Toolbar
+
+Status: non-elevated implementation complete with live visual pending. M08
+replaced the flat GDI language bar with a native Direct2D/DirectWrite layered
+toolbar, JSON skin manifest loader, compiled-in default fallback, manual
+no-activate grip drag, monitor clamping, and server-owned toolbar position/skin
+state. It kept the candidate window behavior unchanged except for shared
+renderer scaffolding. See `docs/evidence/m08/summary.md`.
+
+Historical plan:
+`docs/plans/history/m08-plan-modern-toolbar.md`.
+
+### M09 - Settings Panel And Skin Picker
+
+Status: non-elevated implementation complete with live visual pending. M09 adds
+a persistent toolbar settings segment, launch/focus behavior for
+`YuneWindowsSettings.exe`, a native Win32 settings panel with supported session /
+schema / skin controls, a shared `D2DSurface` toolbar preview, and disabled
+future sections for engine preferences, dictionary import/export, and schema
+import. The candidate window remains visually unchanged for M10. See
+`docs/evidence/m09/summary.md`.
+
+Historical plan:
+`docs/plans/history/m09-plan-skins-and-picker.md`.
+
 ## Candidate Next Milestones (for discussion)
 
-M02 through M07 are complete. **M08's non-elevated implementation is complete
-with live visual pending**, and **M09 is the active UI track**; the rows below it
+M02 through M09 are complete. **M08/M09 non-elevated implementation is complete
+with live visual pending**, and **M10 is the active UI track**; the rows below it
 are later candidates.
 
 | Candidate | Delivers | Rough size | Key dependency / risk |
 | --- | --- | --- | --- |
-| **M08 — Modern floating toolbar (non-elevated implementation complete; live visual pending)** | Replaced the flat GDI language bar with a draggable, position-remembering, Direct2D/DirectWrite toolbar (rounded translucent pill) driven by a JSON skin manifest. Native, a few MB, no WebView2. `UpdateLayeredWindow`+D2D (correct premultiplied alpha), no-activate capture-drag, device-loss + per-monitor DPI, position/skin persisted via server `op=` verbs, deployment wired, and manifest segment glyph labels rendered. | M | **Standalone pending:** real TSF-host visual verification (single bar after a clean DLL load, drag/persist/no-focus-steal) is a user check; M09 re-confirms the bar since it modifies it. SVG/image asset rendering is deferred (M08 ships no inert image assets). Evidence: `docs/evidence/m08/summary.md`; historical plan: `docs/plans/history/m08-plan-modern-toolbar.md`. |
-| **M09 — Settings panel + skin picker (active)** | Add a toolbar ⚙ button and a **native settings panel** covering the supported settings + skin picker; engine prefs / userdb import-export / schema import stay scaffolded present-but-disabled and future-ready. Real image/icon asset rendering can be added deliberately here or in M10. | M | UI tech decided: **native Win32** (extend `YuneWindowsSettings.exe`), no WebView2, no web-parity replica (D-16). Plan: `docs/plans/active/m09-plan-skins-and-picker.md`. |
-| **M10 — Skin breadth + candidate-window skinning (next)** | More built-in skins, user-imported skin folders (strict validation), and applying the shared Direct2D renderer + active skin to the candidate window. | M | Depends on M09's skin picker and M08's shared renderer. Candidate restyle is render-only, must show no latency regression vs M04. Plan: `docs/plans/active/m10-plan-skin-breadth-candidate-window.md`. |
+| **M08 — Modern floating toolbar (non-elevated implementation complete; live visual pending)** | Replaced the flat GDI language bar with a draggable, position-remembering, Direct2D/DirectWrite toolbar (rounded translucent pill) driven by a JSON skin manifest. Native, a few MB, no WebView2. `UpdateLayeredWindow`+D2D (correct premultiplied alpha), no-activate capture-drag, device-loss + per-monitor DPI, position/skin persisted via server `op=` verbs, deployment wired, and manifest segment glyph labels rendered. | M | **Standalone pending:** real TSF-host visual verification (single bar after a clean DLL load, drag/persist/no-focus-steal) is a user check. SVG/image asset rendering is deferred (M08 ships no inert image assets). Evidence: `docs/evidence/m08/summary.md`; historical plan: `docs/plans/history/m08-plan-modern-toolbar.md`. |
+| **M09 — Settings panel + skin picker (non-elevated implementation complete; live visual pending)** | Added a toolbar settings segment and a **native Win32 settings panel** covering supported session toggles, schema switch, skin picker, and shared-renderer preview; engine prefs / userdb import-export / schema import stay scaffolded present-but-disabled and future-ready. | M | UI tech decided: **native Win32** (extend `YuneWindowsSettings.exe`), no WebView2, no web-parity replica (D-16). Evidence: `docs/evidence/m09/summary.md`; historical plan: `docs/plans/history/m09-plan-skins-and-picker.md`. |
+| **M10 — Skin breadth + candidate-window skinning (active)** | More built-in skins, user-imported skin folders (strict validation), and applying the shared Direct2D renderer + active skin to the candidate window. | M | Depends on M09's skin picker and M08's shared renderer. Candidate restyle is render-only, must show no latency regression vs M04. Plan: `docs/plans/active/m10-plan-skin-breadth-candidate-window.md`. |
 | **Engine prefs / schema import / userdb (future, scaffolded in M09)** | Actually apply deploy-time engine prefs (completion/correction/sentence/prediction) via a server `customize`+`deploy` path; import new schemas; userdb import/export + on-device learning. | M–L | Engine prefs + schema import need the customize/deploy path; userdb/learning is gated by D-05 privacy. M09 scaffolds the UI so these wire in without a redesign. |
 | **Non-blocking cold-start / per-user broker** | Removes the up-to-15s foreground freeze on the first cold keystroke and makes launch work in sandboxed/AppContainer hosts (UWP, WeChat, some Store/Electron). Reduces AV/EDR risk of spawning an unsigned exe from a browser. | M | Adds per-user autostart/broker state that install/uninstall must create and remove; documented M02 fast-follow. |
 | **Dogfood package hardening (WIN-11)** | Self-contained install bundle decoupled from the local Yune source build, so a second machine can install without a Rust/Yune toolchain. | M | Production signing stays deferred; needs pre-staged `rime.dll` + schema + binaries + `install-info.json`. |

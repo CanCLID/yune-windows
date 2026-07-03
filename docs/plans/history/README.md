@@ -22,3 +22,6 @@ Completed implementation plans live here for auditability.
 - `m08-plan-modern-toolbar.md` - Direct2D/DirectWrite floating toolbar,
   skin-manifest architecture, no-activate drag, and server-owned toolbar
   position/skin state.
+- `m09-plan-skins-and-picker.md` - toolbar settings segment, native Win32
+  settings panel, skin picker, shared-renderer preview, and disabled future
+  engine/dictionary/schema sections.

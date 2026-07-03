@@ -32,6 +32,7 @@ enum class LanguageBarSegment {
     FullShape,
     OutputStandard,
     Schema,
+    Settings,
 };
 
 struct ToolbarPosition {
@@ -52,7 +53,7 @@ struct ToolbarSkin {
     std::wstring font_family = L"Segoe UI";
     float font_size = 14.0f;
     int height = 42;
-    int min_width = 268;
+    int min_width = 318;
     int padding_x = 12;
     int padding_y = 8;
     int segment_gap = 6;
@@ -65,8 +66,8 @@ struct ToolbarSkin {
     ToolbarSkinColor pressed = {0.74f, 0.84f, 0.96f, 0.90f};
     ToolbarSkinColor separator = {0.33f, 0.38f, 0.45f, 0.28f};
     ToolbarSkinColor shadow = {0.0f, 0.0f, 0.0f, 0.24f};
-    std::array<std::wstring, 4> segment_labels = {
-        L"\x4e2d", L"\x534a", L"\x6e2f", L"\x7cb5"};
+    std::array<std::wstring, 5> segment_labels = {
+        L"\x4e2d", L"\x534a", L"\x6e2f", L"\x7cb5", L"\x2699"};
 };
 
 struct LanguageBarState {
@@ -113,6 +114,9 @@ public:
                             LanguageBarSegment pressed_segment,
                             bool has_hover,
                             bool has_pressed);
+    bool PaintLanguageBarPreview(HWND hwnd, HDC dc, const RECT& bounds,
+                                 const LanguageBarState& state,
+                                 const ToolbarSkin& skin);
     void DiscardDeviceResources();
     bool device_loss_recovery_available() const { return true; }
 
@@ -172,6 +176,8 @@ private:
     LanguageBarSegment SegmentFromPoint(POINT point) const;
     void Render();
     bool IsPointInDragZone(POINT point) const;
+    bool IsPointInGripZone(POINT point) const;
+    bool IsPointInSettingsSegment(POINT point) const;
     void TrackMouseLeave();
     void BeginPointerInteraction(POINT client_point);
     void ContinuePointerInteraction(POINT client_point);
@@ -189,6 +195,7 @@ private:
     bool pointer_captured_ = false;
     bool dragging_ = false;
     bool drag_allowed_ = false;
+    bool click_allowed_ = false;
     POINT drag_start_screen_ = {0, 0};
     RECT drag_start_rect_ = {0, 0, 0, 0};
     POINT pointer_down_client_ = {0, 0};

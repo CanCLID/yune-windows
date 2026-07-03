@@ -3,7 +3,7 @@
   "name": "default",
   "geometry": {
     "height": 42,
-    "min_width": 268,
+    "min_width": 318,
     "padding_x": 12,
     "padding_y": 8,
     "segment_gap": 6,
@@ -27,6 +27,7 @@
     "ascii": "\u4e2d",
     "shape": "\u534a",
     "standard": "\u6e2f",
-    "schema": "\u7cb5"
+    "schema": "\u7cb5",
+    "settings": "\u2699"
   }
 }

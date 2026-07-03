@@ -149,11 +149,21 @@ yune-web. The user does not need web parity, so the panel covers the same
 *functional* areas (session toggles, skin picker, and scaffolded schema-import /
 userdb import-export / deploy-time engine prefs) with only the controls the IME
 needs, avoiding a WebView2 runtime dependency and staying consistent with the
-native Direct2D toolbar. This narrows D-04/D-12's "WebView2 may be evaluated for
-settings" to "settings panel is native"; WebView2 is not adopted for any Yune
-Windows surface.
+native Direct2D toolbar. The toolbar settings segment launches or focuses this
+native executable; supported changes still flow through server `op=` verbs, and
+the settings executable must not read or write `state\ime-state.json` directly.
+This narrows D-04/D-12's "WebView2 may be evaluated for settings" to "settings
+panel is native"; WebView2 is not adopted for any Yune Windows surface.
 
 ## Last Updated
+
+2026-07-03 - M09 Settings Panel + Skin Picker landed a persistent toolbar
+settings segment, native Win32 settings panel sections, server-routed session /
+schema / skin changes, a shared `D2DSurface` toolbar preview, and disabled
+future engine/dictionary/schema controls. The candidate window remains visually
+unchanged for M10. Evidence is non-elevated build/contract/toolbar-smoke/
+settings-self-test proof under `docs/evidence/m09/`; live-machine steps were
+not run without current-session approval.
 
 2026-07-02 - M08 Modern Floating Toolbar landed the native Direct2D/DirectWrite
 layered toolbar, default skin manifest glyph labels, no-activate grip drag,

@@ -1,0 +1,26 @@
+{
+  "milestone": "M09",
+  "status": "non_elevated_implementation_complete_live_visual_pending",
+  "evidence_type": "build_contract_toolbar_smoke_settings_self_test",
+  "live_machine_steps_skipped": true,
+  "live_visual_check_pending": true,
+  "live_machine_skip_reason": "Elevated install/register/unregister/cleanup, registry mutation, verifier setup, and full live IME loops require explicit current-session approval.",
+  "settings_panel": "Native Win32 YuneWindowsSettings.exe with session, appearance, engine, dictionary, and schemas sections.",
+  "window_class_isolation": "Candidate-window and language-bar classes are module-scoped to avoid dispatching temp-build smokes into an installed TSF DLL.",
+  "candidate_window": "Unchanged in M09; candidate-window skinning remains M10 scope.",
+  "checks": [
+    "git diff --check",
+    "tools/test-tsf-shell-build.ps1",
+    "tools/test-m08-modern-toolbar-contract.ps1",
+    "tools/test-language-bar-window-contract.ps1",
+    "tools/test-language-bar-smoke.ps1",
+    "tools/test-settings-ime-state-contract.ps1",
+    "tools/test-m09-settings-panel-contract.ps1",
+    "tools/test-settings-window-smoke.ps1",
+    "tools/test-server-ime-state-protocol-contract.ps1",
+    "tools/test-candidate-window-smoke.ps1",
+    "tools/test-tsf-ime-state-hotkey-contract.ps1",
+    "tools/test-tsf-server-response-validation-contract.ps1",
+    "tools/test-dev-repl-ime-state-contract.ps1"
+  ]
+}

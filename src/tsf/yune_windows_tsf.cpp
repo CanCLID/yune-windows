@@ -2139,6 +2139,40 @@ private:
         SetOutputStandard(NextOutputStandard(), context);
     }
 
+    void LaunchOrFocusSettings() {
+        HWND existing = FindWindowW(L"YuneWindowsSettingsWindow", nullptr);
+        if (existing && IsWindow(existing)) {
+            ShowWindow(existing, SW_SHOWNORMAL);
+            SetForegroundWindow(existing);
+            WriteStructuralEvent("settings_focus");
+            return;
+        }
+
+        const std::filesystem::path settings_exe =
+            ModuleDirectory() / L"YuneWindowsSettings.exe";
+        if (!PathExists(settings_exe)) {
+            WriteStructuralEvent("settings_launch_failed");
+            return;
+        }
+
+        std::wstring command_line = QuoteCommandLineArgument(settings_exe);
+        STARTUPINFOW startup = {};
+        startup.cb = sizeof(startup);
+        startup.dwFlags = STARTF_USESHOWWINDOW;
+        startup.wShowWindow = SW_SHOWNORMAL;
+        PROCESS_INFORMATION process = {};
+        const BOOL launched = CreateProcessW(
+            settings_exe.c_str(), command_line.data(), nullptr, nullptr, FALSE,
+            0, nullptr, ModuleDirectory().c_str(), &startup, &process);
+        if (!launched) {
+            WriteStructuralEvent("settings_launch_failed");
+            return;
+        }
+        CloseHandle(process.hThread);
+        CloseHandle(process.hProcess);
+        WriteStructuralEvent("settings_launch_started");
+    }
+
     void HandleLanguageBarClick(yune_windows::LanguageBarSegment segment) {
         switch (segment) {
             case yune_windows::LanguageBarSegment::AsciiMode:
@@ -2152,6 +2186,9 @@ private:
                 break;
             case yune_windows::LanguageBarSegment::Schema:
                 CycleSchema(nullptr);
+                break;
+            case yune_windows::LanguageBarSegment::Settings:
+                LaunchOrFocusSettings();
                 break;
         }
     }

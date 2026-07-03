@@ -1,13 +1,6 @@
 # Active Plans
 
-- `m09-plan-skins-and-picker.md` — **current focus.** Add a toolbar ⚙ button and a
-  **native Win32 settings panel** (extend `YuneWindowsSettings.exe`; no WebView2,
-  no web-parity replica — D-16) covering session toggles + schema switch + skin
-  picker (live preview via the shared `D2DSurface`), with engine prefs / userdb
-  import-export / schema import scaffolded (present-but-disabled, future-ready).
-  Rich SVG/image asset rendering is optional follow-up only when the renderer
-  consumes those assets.
-- `m10-plan-skin-breadth-candidate-window.md` — **next.** More built-in skins,
+- `m10-plan-skin-breadth-candidate-window.md` - **current focus.** More built-in skins,
   user-imported skins, and applying the shared Direct2D renderer + skin to the
   candidate window.
 
@@ -19,6 +12,6 @@ Later / unplanned, noted so the settings panel is designed for them:
 - Per-user `YuneWindowsUiHost.exe` with a single always-on toolbar + animated skins,
   only if native Direct2D skins prove insufficient.
 
-M01 through M08 are in `docs/plans/history/`; see `docs/roadmap.md` for the
+M01 through M09 are in `docs/plans/history/`; see `docs/roadmap.md` for the
 milestone table and other candidate milestones (cold-start/broker, dogfood
 packaging).

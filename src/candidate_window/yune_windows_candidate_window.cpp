@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cwchar>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
@@ -27,7 +28,7 @@ constexpr COLORREF kHighlightColor = RGB(229, 241, 255);
 constexpr COLORREF kTextColor = RGB(20, 24, 31);
 constexpr COLORREF kCommentColor = RGB(88, 94, 104);
 constexpr int kLanguageBarDragThreshold = 4;
-constexpr int kToolbarSegmentCount = 4;
+constexpr int kToolbarSegmentCount = 5;
 
 int Scale(int value, UINT dpi) {
     return MulDiv(value, static_cast<int>(dpi == 0 ? 96 : dpi), 96);
@@ -41,14 +42,35 @@ D2D1_COLOR_F ToD2DColor(const ToolbarSkinColor& color) {
     return D2D1::ColorF(color.r, color.g, color.b, color.a);
 }
 
-std::filesystem::path ModuleDirectoryFromAddress() {
+HMODULE ModuleHandleFromAddress() {
     HMODULE module = nullptr;
     if (!GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
                                 GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
-                            reinterpret_cast<LPCWSTR>(&ModuleDirectoryFromAddress),
+                            reinterpret_cast<LPCWSTR>(&ModuleHandleFromAddress),
                             &module)) {
-        return {};
+        return GetModuleHandleW(nullptr);
     }
+    return module ? module : GetModuleHandleW(nullptr);
+}
+
+std::wstring ModuleScopedClassName(const wchar_t* base_name) {
+    wchar_t buffer[128] = {};
+    swprintf_s(buffer, L"%s_%p", base_name, ModuleHandleFromAddress());
+    return buffer;
+}
+
+const std::wstring& CandidateWindowClassName() {
+    static const std::wstring name = ModuleScopedClassName(kClassName);
+    return name;
+}
+
+const std::wstring& LanguageBarClassName() {
+    static const std::wstring name = ModuleScopedClassName(kLanguageBarClassName);
+    return name;
+}
+
+std::filesystem::path ModuleDirectoryFromAddress() {
+    HMODULE module = ModuleHandleFromAddress();
     wchar_t module_path[MAX_PATH] = {};
     if (!GetModuleFileNameW(module, module_path, ARRAYSIZE(module_path))) {
         return {};
@@ -298,9 +320,9 @@ bool RegisterCandidateWindowClass() {
     WNDCLASSEXW wc = {};
     wc.cbSize = sizeof(wc);
     wc.hCursor = LoadCursorW(nullptr, IDC_ARROW);
-    wc.hInstance = GetModuleHandleW(nullptr);
+    wc.hInstance = ModuleHandleFromAddress();
     wc.lpfnWndProc = NativeCandidateWindow::WindowProc;
-    wc.lpszClassName = kClassName;
+    wc.lpszClassName = CandidateWindowClassName().c_str();
     wc.style = CS_HREDRAW | CS_VREDRAW;
     registered = RegisterClassExW(&wc);
     return registered != 0 || GetLastError() == ERROR_CLASS_ALREADY_EXISTS;
@@ -315,9 +337,9 @@ bool RegisterLanguageBarWindowClass() {
     WNDCLASSEXW wc = {};
     wc.cbSize = sizeof(wc);
     wc.hCursor = LoadCursorW(nullptr, IDC_ARROW);
-    wc.hInstance = GetModuleHandleW(nullptr);
+    wc.hInstance = ModuleHandleFromAddress();
     wc.lpfnWndProc = LanguageBarWindow::WindowProc;
-    wc.lpszClassName = kLanguageBarClassName;
+    wc.lpszClassName = LanguageBarClassName().c_str();
     wc.style = CS_HREDRAW | CS_VREDRAW;
     registered = RegisterClassExW(&wc);
     return registered != 0 || GetLastError() == ERROR_CLASS_ALREADY_EXISTS;
@@ -351,7 +373,7 @@ std::wstring RowLabel(size_t index, const CandidateWindowCandidate& candidate) {
 }
 
 SIZE LanguageBarDesiredSize(UINT dpi, const ToolbarSkin& skin) {
-    return {Scale(std::max(220, skin.min_width), dpi),
+    return {Scale(std::max(270, skin.min_width), dpi),
             Scale(std::max(32, skin.height + skin.shadow_radius), dpi)};
 }
 
@@ -419,6 +441,8 @@ std::wstring ToolbarSegmentLabelForState(LanguageBarSegment segment,
                 return SkinSegmentLabelOr(skin, 3, SchemaLabel(state.schema_id));
             }
             return SchemaLabel(state.schema_id);
+        case LanguageBarSegment::Settings:
+            return SkinSegmentLabelOr(skin, 4, L"\x2699");
     }
     return L"";
 }
@@ -560,8 +584,8 @@ ToolbarSkin LoadToolbarSkin(const std::filesystem::path& install_root,
     LoadSkinColor(json, "separator", &skin.separator);
     LoadSkinColor(json, "shadow", &skin.shadow);
 
-    const char* label_keys[kToolbarSegmentCount] = {"ascii", "shape", "standard",
-                                                    "schema"};
+    const char* label_keys[kToolbarSegmentCount] = {
+        "ascii", "shape", "standard", "schema", "settings"};
     for (int i = 0; i < kToolbarSegmentCount; ++i) {
         const std::string label = JsonStringValue(json, label_keys[i]);
         if (!label.empty()) {
@@ -650,6 +674,139 @@ struct D2DSurface::Impl {
     ComPtr<ID2D1Factory> d2d_factory;
     ComPtr<IDWriteFactory> dwrite_factory;
 };
+
+HRESULT DrawLanguageBarContent(ID2D1RenderTarget* target,
+                               IDWriteFactory* dwrite_factory,
+                               SIZE size,
+                               const LanguageBarState& state,
+                               const ToolbarSkin& skin,
+                               LanguageBarSegment hover_segment,
+                               LanguageBarSegment pressed_segment,
+                               bool has_hover,
+                               bool has_pressed,
+                               D2D1_COLOR_F clear_color) {
+    target->Clear(clear_color);
+
+    ComPtr<ID2D1SolidColorBrush> brush;
+    if (SUCCEEDED(target->CreateSolidColorBrush(ToD2DColor(skin.shadow),
+                                                &brush))) {
+        const float shadow =
+            ScaleFloat(static_cast<float>(skin.shadow_radius), state.dpi);
+        const D2D1_ROUNDED_RECT shadow_rect = D2D1::RoundedRect(
+            D2D1::RectF(shadow * 0.55f, shadow * 0.70f,
+                        static_cast<float>(size.cx) - shadow * 0.45f,
+                        static_cast<float>(size.cy) - shadow * 0.35f),
+            ScaleFloat(static_cast<float>(skin.corner_radius), state.dpi),
+            ScaleFloat(static_cast<float>(skin.corner_radius), state.dpi));
+        target->FillRoundedRectangle(shadow_rect, brush.Get());
+        brush.Reset();
+    }
+
+    const float shadow_offset =
+        ScaleFloat(static_cast<float>(skin.shadow_radius), state.dpi);
+    const float pill_left = shadow_offset * 0.35f;
+    const float pill_top = shadow_offset * 0.15f;
+    const float pill_right = static_cast<float>(size.cx) - shadow_offset * 0.35f;
+    const float pill_bottom =
+        std::min(static_cast<float>(size.cy) - shadow_offset * 0.45f,
+                 pill_top + ScaleFloat(static_cast<float>(skin.height),
+                                       state.dpi));
+    const float radius =
+        ScaleFloat(static_cast<float>(skin.corner_radius), state.dpi);
+    const D2D1_ROUNDED_RECT pill =
+        D2D1::RoundedRect(D2D1::RectF(pill_left, pill_top, pill_right,
+                                      pill_bottom),
+                          radius, radius);
+    if (SUCCEEDED(target->CreateSolidColorBrush(ToD2DColor(skin.background),
+                                                &brush))) {
+        target->FillRoundedRectangle(pill, brush.Get());
+        brush.Reset();
+    }
+
+    const float grip_width = ScaleFloat(24.0f, state.dpi);
+    const float segment_left = pill_left + grip_width;
+    const float segment_width = std::max(
+        1.0f, (pill_right - segment_left -
+               ScaleFloat(static_cast<float>(skin.padding_x), state.dpi)) /
+                  static_cast<float>(kToolbarSegmentCount));
+
+    if (SUCCEEDED(target->CreateSolidColorBrush(ToD2DColor(skin.separator),
+                                                &brush))) {
+        for (int i = 0; i < kToolbarSegmentCount - 1; ++i) {
+            const float x = segment_left + segment_width * (i + 1);
+            target->DrawLine(
+                D2D1::Point2F(x, pill_top + ScaleFloat(9.0f, state.dpi)),
+                D2D1::Point2F(x, pill_bottom - ScaleFloat(9.0f, state.dpi)),
+                brush.Get(), ScaleFloat(1.0f, state.dpi));
+        }
+        const float dot_x = pill_left + ScaleFloat(9.0f, state.dpi);
+        const float dot_gap = ScaleFloat(5.0f, state.dpi);
+        for (int i = 0; i < 3; ++i) {
+            const D2D1_ELLIPSE dot = D2D1::Ellipse(
+                D2D1::Point2F(dot_x, (pill_top + pill_bottom) * 0.5f +
+                                         (static_cast<float>(i) - 1.0f) * dot_gap),
+                ScaleFloat(1.2f, state.dpi), ScaleFloat(1.2f, state.dpi));
+            target->FillEllipse(dot, brush.Get());
+        }
+        brush.Reset();
+    }
+
+    const LanguageBarSegment segments[kToolbarSegmentCount] = {
+        LanguageBarSegment::AsciiMode,
+        LanguageBarSegment::FullShape,
+        LanguageBarSegment::OutputStandard,
+        LanguageBarSegment::Schema,
+        LanguageBarSegment::Settings,
+    };
+    ComPtr<IDWriteTextFormat> text_format;
+    HRESULT hr = dwrite_factory->CreateTextFormat(
+        skin.font_family.c_str(), nullptr, DWRITE_FONT_WEIGHT_SEMI_BOLD,
+        DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL,
+        ScaleFloat(skin.font_size, state.dpi), L"", &text_format);
+    if (FAILED(hr)) {
+        return hr;
+    }
+    text_format->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER);
+    text_format->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
+    for (int i = 0; i < kToolbarSegmentCount; ++i) {
+        const float left = segment_left + segment_width * i;
+        const D2D1_RECT_F segment_rect =
+            D2D1::RectF(left + ScaleFloat(3.0f, state.dpi),
+                        pill_top + ScaleFloat(4.0f, state.dpi),
+                        left + segment_width - ScaleFloat(3.0f, state.dpi),
+                        pill_bottom - ScaleFloat(4.0f, state.dpi));
+        const bool pressed = has_pressed && pressed_segment == segments[i];
+        const bool hover = has_hover && hover_segment == segments[i];
+        if ((pressed || hover) &&
+            SUCCEEDED(target->CreateSolidColorBrush(
+                ToD2DColor(pressed ? skin.pressed : skin.hover), &brush))) {
+            const D2D1_ROUNDED_RECT hover_rect =
+                D2D1::RoundedRect(segment_rect,
+                                  ScaleFloat(12.0f, state.dpi),
+                                  ScaleFloat(12.0f, state.dpi));
+            target->FillRoundedRectangle(hover_rect, brush.Get());
+            brush.Reset();
+        }
+
+        ToolbarSkinColor text_color = skin.text;
+        if ((segments[i] == LanguageBarSegment::AsciiMode &&
+             !state.ascii_mode) ||
+            (segments[i] == LanguageBarSegment::FullShape &&
+             state.full_shape)) {
+            text_color = skin.accent;
+        }
+        if (SUCCEEDED(target->CreateSolidColorBrush(ToD2DColor(text_color),
+                                                    &brush))) {
+            const std::wstring label =
+                ToolbarSegmentLabelForState(segments[i], state, skin);
+            target->DrawTextW(label.c_str(), static_cast<UINT32>(label.size()),
+                              text_format.Get(), segment_rect, brush.Get(),
+                              D2D1_DRAW_TEXT_OPTIONS_CLIP);
+            brush.Reset();
+        }
+    }
+    return S_OK;
+}
 
 D2DSurface::~D2DSurface() {
     delete impl_;
@@ -755,128 +912,12 @@ bool D2DSurface::PresentLanguageBar(HWND hwnd, const LanguageBarState& state,
 
     if (SUCCEEDED(hr)) {
         target->BeginDraw();
-        target->Clear(D2D1::ColorF(0.0f, 0.0f, 0.0f, 0.0f));
-
-        ComPtr<ID2D1SolidColorBrush> brush;
-        if (SUCCEEDED(target->CreateSolidColorBrush(ToD2DColor(skin.shadow),
-                                                    &brush))) {
-            const float shadow = ScaleFloat(static_cast<float>(skin.shadow_radius),
-                                            state.dpi);
-            const D2D1_ROUNDED_RECT shadow_rect = D2D1::RoundedRect(
-                D2D1::RectF(shadow * 0.55f, shadow * 0.70f,
-                            static_cast<float>(width) - shadow * 0.45f,
-                            static_cast<float>(height) - shadow * 0.35f),
-                ScaleFloat(static_cast<float>(skin.corner_radius), state.dpi),
-                ScaleFloat(static_cast<float>(skin.corner_radius), state.dpi));
-            target->FillRoundedRectangle(shadow_rect, brush.Get());
-            brush.Reset();
-        }
-
-        const float shadow_offset =
-            ScaleFloat(static_cast<float>(skin.shadow_radius), state.dpi);
-        const float pill_left = shadow_offset * 0.35f;
-        const float pill_top = shadow_offset * 0.15f;
-        const float pill_right = static_cast<float>(width) - shadow_offset * 0.35f;
-        const float pill_bottom =
-            std::min(static_cast<float>(height) - shadow_offset * 0.45f,
-                     pill_top + ScaleFloat(static_cast<float>(skin.height),
-                                           state.dpi));
-        const float radius =
-            ScaleFloat(static_cast<float>(skin.corner_radius), state.dpi);
-        const D2D1_ROUNDED_RECT pill =
-            D2D1::RoundedRect(D2D1::RectF(pill_left, pill_top, pill_right,
-                                          pill_bottom),
-                              radius, radius);
-        if (SUCCEEDED(target->CreateSolidColorBrush(ToD2DColor(skin.background),
-                                                    &brush))) {
-            target->FillRoundedRectangle(pill, brush.Get());
-            brush.Reset();
-        }
-
-        const float grip_width = ScaleFloat(24.0f, state.dpi);
-        const float segment_left = pill_left + grip_width;
-        const float segment_width = std::max(
-            1.0f, (pill_right - segment_left -
-                   ScaleFloat(static_cast<float>(skin.padding_x), state.dpi)) /
-                      static_cast<float>(kToolbarSegmentCount));
-
-        if (SUCCEEDED(target->CreateSolidColorBrush(ToD2DColor(skin.separator),
-                                                    &brush))) {
-            for (int i = 0; i < 3; ++i) {
-                const float x = segment_left + segment_width * (i + 1);
-                target->DrawLine(D2D1::Point2F(x, pill_top + ScaleFloat(9.0f, state.dpi)),
-                                 D2D1::Point2F(x, pill_bottom - ScaleFloat(9.0f, state.dpi)),
-                                 brush.Get(), ScaleFloat(1.0f, state.dpi));
-            }
-            const float dot_x = pill_left + ScaleFloat(9.0f, state.dpi);
-            const float dot_gap = ScaleFloat(5.0f, state.dpi);
-            for (int i = 0; i < 3; ++i) {
-                const D2D1_ELLIPSE dot = D2D1::Ellipse(
-                    D2D1::Point2F(dot_x, (pill_top + pill_bottom) * 0.5f +
-                                             (static_cast<float>(i) - 1.0f) * dot_gap),
-                    ScaleFloat(1.2f, state.dpi), ScaleFloat(1.2f, state.dpi));
-                target->FillEllipse(dot, brush.Get());
-            }
-            brush.Reset();
-        }
-
-        const LanguageBarSegment segments[] = {
-            LanguageBarSegment::AsciiMode,
-            LanguageBarSegment::FullShape,
-            LanguageBarSegment::OutputStandard,
-            LanguageBarSegment::Schema,
-        };
-        ComPtr<IDWriteTextFormat> text_format;
-        hr = impl_->dwrite_factory->CreateTextFormat(
-            skin.font_family.c_str(), nullptr, DWRITE_FONT_WEIGHT_SEMI_BOLD,
-            DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL,
-            ScaleFloat(skin.font_size, state.dpi), L"", &text_format);
-        if (SUCCEEDED(hr)) {
-            text_format->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER);
-            text_format->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
-            for (int i = 0; i < kToolbarSegmentCount; ++i) {
-                const float left = segment_left + segment_width * i;
-                const D2D1_RECT_F segment_rect =
-                    D2D1::RectF(left + ScaleFloat(3.0f, state.dpi),
-                                pill_top + ScaleFloat(4.0f, state.dpi),
-                                left + segment_width - ScaleFloat(3.0f, state.dpi),
-                                pill_bottom - ScaleFloat(4.0f, state.dpi));
-                const bool pressed =
-                    has_pressed && pressed_segment == segments[i];
-                const bool hover = has_hover && hover_segment == segments[i];
-                if ((pressed || hover) &&
-                    SUCCEEDED(target->CreateSolidColorBrush(
-                        ToD2DColor(pressed ? skin.pressed : skin.hover),
-                        &brush))) {
-                    const D2D1_ROUNDED_RECT hover_rect =
-                        D2D1::RoundedRect(segment_rect,
-                                          ScaleFloat(12.0f, state.dpi),
-                                          ScaleFloat(12.0f, state.dpi));
-                    target->FillRoundedRectangle(hover_rect, brush.Get());
-                    brush.Reset();
-                }
-
-                ToolbarSkinColor text_color = skin.text;
-                if ((segments[i] == LanguageBarSegment::AsciiMode &&
-                     !state.ascii_mode) ||
-                    (segments[i] == LanguageBarSegment::FullShape &&
-                     state.full_shape)) {
-                    text_color = skin.accent;
-                }
-                if (SUCCEEDED(target->CreateSolidColorBrush(ToD2DColor(text_color),
-                                                            &brush))) {
-                    const std::wstring label =
-                        ToolbarSegmentLabelForState(segments[i], state, skin);
-                    target->DrawTextW(label.c_str(),
-                                      static_cast<UINT32>(label.size()),
-                                      text_format.Get(), segment_rect, brush.Get(),
-                                      D2D1_DRAW_TEXT_OPTIONS_CLIP);
-                    brush.Reset();
-                }
-            }
-        }
-
-        hr = target->EndDraw();
+        const HRESULT draw_hr = DrawLanguageBarContent(
+            target.Get(), impl_->dwrite_factory.Get(), {width, height}, state,
+            skin, hover_segment, pressed_segment, has_hover, has_pressed,
+            D2D1::ColorF(0.0f, 0.0f, 0.0f, 0.0f));
+        const HRESULT end_hr = target->EndDraw();
+        hr = FAILED(draw_hr) ? draw_hr : end_hr;
     }
 
     bool presented = false;
@@ -903,6 +944,47 @@ bool D2DSurface::PresentLanguageBar(HWND hwnd, const LanguageBarState& state,
     return presented;
 }
 
+bool D2DSurface::PaintLanguageBarPreview(HWND hwnd, HDC dc, const RECT& bounds,
+                                         const LanguageBarState& state,
+                                         const ToolbarSkin& skin) {
+    if (!hwnd || !dc || !EnsureFactories()) {
+        return false;
+    }
+    const int width =
+        std::max(1, static_cast<int>(bounds.right - bounds.left));
+    const int height =
+        std::max(1, static_cast<int>(bounds.bottom - bounds.top));
+
+    ComPtr<ID2D1DCRenderTarget> target;
+    D2D1_RENDER_TARGET_PROPERTIES properties = D2D1::RenderTargetProperties(
+        D2D1_RENDER_TARGET_TYPE_DEFAULT,
+        D2D1::PixelFormat(DXGI_FORMAT_B8G8R8A8_UNORM,
+                          D2D1_ALPHA_MODE_IGNORE),
+        static_cast<FLOAT>(state.dpi == 0 ? 96 : state.dpi),
+        static_cast<FLOAT>(state.dpi == 0 ? 96 : state.dpi));
+    HRESULT hr = impl_->d2d_factory->CreateDCRenderTarget(&properties, &target);
+    if (SUCCEEDED(hr)) {
+        RECT bind_rect = bounds;
+        hr = target->BindDC(dc, &bind_rect);
+    }
+    if (FAILED(hr)) {
+        return false;
+    }
+
+    target->BeginDraw();
+    const HRESULT draw_hr = DrawLanguageBarContent(
+        target.Get(), impl_->dwrite_factory.Get(), {width, height}, state, skin,
+        LanguageBarSegment::Settings, LanguageBarSegment::Settings, false, false,
+        D2D1::ColorF(0.96f, 0.97f, 0.98f, 1.0f));
+    const HRESULT end_hr = target->EndDraw();
+    hr = FAILED(draw_hr) ? draw_hr : end_hr;
+    if (hr == D2DERR_RECREATE_TARGET) {
+        DiscardDeviceResources();
+        return false;
+    }
+    return SUCCEEDED(hr);
+}
+
 NativeCandidateWindow::~NativeCandidateWindow() {
     if (hwnd_) {
         DestroyWindow(hwnd_);
@@ -924,9 +1006,9 @@ bool NativeCandidateWindow::EnsureCreated(HWND owner) {
     }
 
     hwnd_ = CreateWindowExW(WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW | WS_EX_TOPMOST,
-                            kClassName, L"YuneWindows Candidates", WS_POPUP, 0, 0,
-                            1, 1, owner, nullptr, GetModuleHandleW(nullptr),
-                            this);
+                            CandidateWindowClassName().c_str(),
+                            L"YuneWindows Candidates", WS_POPUP, 0, 0, 1, 1,
+                            owner, nullptr, ModuleHandleFromAddress(), this);
     owner_ = owner;
     return hwnd_ != nullptr;
 }
@@ -1142,9 +1224,10 @@ bool LanguageBarWindow::EnsureCreated(HWND owner) {
 
     hwnd_ = CreateWindowExW(WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW |
                                 WS_EX_TOPMOST | WS_EX_LAYERED,
-                            kLanguageBarClassName, L"YuneWindowsLanguageBar",
+                            LanguageBarClassName().c_str(),
+                            L"YuneWindowsLanguageBar",
                             WS_POPUP, 0, 0, 1, 1, owner, nullptr,
-                            GetModuleHandleW(nullptr), this);
+                            ModuleHandleFromAddress(), this);
     owner_ = owner;
     return hwnd_ != nullptr;
 }
@@ -1176,6 +1259,7 @@ void LanguageBarWindow::Hide() {
             ReleaseCapture();
             pointer_captured_ = false;
         }
+        click_allowed_ = false;
         tracking_mouse_leave_ = false;
         has_hover_segment_ = false;
         ShowWindow(hwnd_, SW_HIDE);
@@ -1273,6 +1357,7 @@ LRESULT LanguageBarWindow::HandleMessage(UINT message, WPARAM wparam,
         case WM_CAPTURECHANGED:
             pointer_captured_ = false;
             dragging_ = false;
+            click_allowed_ = false;
             has_pressed_segment_ = false;
             Render();
             return 0;
@@ -1287,9 +1372,10 @@ LanguageBarSegment LanguageBarWindow::SegmentFromPoint(POINT point) const {
     const int grip_width = Scale(24, state_.dpi);
     const int width = std::max(
         1, static_cast<int>(client.right - client.left) - grip_width);
-    const int segment_width = std::max(1, width / 4);
+    const int segment_width = std::max(1, width / kToolbarSegmentCount);
     const int point_x = std::max(0, static_cast<int>(point.x) - grip_width);
-    const int index = std::max(0, std::min(3, point_x / segment_width));
+    const int index =
+        std::max(0, std::min(kToolbarSegmentCount - 1, point_x / segment_width));
     switch (index) {
         case 0:
             return LanguageBarSegment::AsciiMode;
@@ -1297,8 +1383,10 @@ LanguageBarSegment LanguageBarWindow::SegmentFromPoint(POINT point) const {
             return LanguageBarSegment::FullShape;
         case 2:
             return LanguageBarSegment::OutputStandard;
-        default:
+        case 3:
             return LanguageBarSegment::Schema;
+        default:
+            return LanguageBarSegment::Settings;
     }
 }
 
@@ -1314,11 +1402,23 @@ void LanguageBarWindow::Render() {
 }
 
 bool LanguageBarWindow::IsPointInDragZone(POINT point) const {
+    return IsPointInGripZone(point) || IsPointInSettingsSegment(point);
+}
+
+bool LanguageBarWindow::IsPointInGripZone(POINT point) const {
     RECT client = {};
     GetClientRect(hwnd_, &client);
     const int grip_width = Scale(24, state_.dpi);
     return point.x >= client.left && point.x <= client.left + grip_width &&
            point.y >= client.top && point.y <= client.bottom;
+}
+
+bool LanguageBarWindow::IsPointInSettingsSegment(POINT point) const {
+    RECT client = {};
+    GetClientRect(hwnd_, &client);
+    return point.x >= client.left && point.x <= client.right &&
+           point.y >= client.top && point.y <= client.bottom &&
+           SegmentFromPoint(point) == LanguageBarSegment::Settings;
 }
 
 void LanguageBarWindow::TrackMouseLeave() {
@@ -1336,7 +1436,9 @@ void LanguageBarWindow::TrackMouseLeave() {
 
 void LanguageBarWindow::BeginPointerInteraction(POINT client_point) {
     pointer_down_client_ = client_point;
-    drag_allowed_ = IsPointInDragZone(client_point);
+    const bool in_grip = IsPointInGripZone(client_point);
+    drag_allowed_ = in_grip || IsPointInSettingsSegment(client_point);
+    click_allowed_ = !in_grip;
     dragging_ = false;
     SetCapture(hwnd_);
     pointer_captured_ = true;
@@ -1344,7 +1446,7 @@ void LanguageBarWindow::BeginPointerInteraction(POINT client_point) {
     ClientToScreen(hwnd_, &drag_start_screen_);
     GetWindowRect(hwnd_, &drag_start_rect_);
     pressed_segment_ = SegmentFromPoint(client_point);
-    has_pressed_segment_ = true;
+    has_pressed_segment_ = click_allowed_;
     Render();
 }
 
@@ -1376,12 +1478,14 @@ void LanguageBarWindow::ContinuePointerInteraction(POINT client_point) {
 
 void LanguageBarWindow::EndPointerInteraction(POINT client_point) {
     const bool was_dragging = dragging_;
+    const bool click_allowed = click_allowed_;
     if (pointer_captured_) {
         ReleaseCapture();
     }
     pointer_captured_ = false;
     dragging_ = false;
     has_pressed_segment_ = false;
+    click_allowed_ = false;
 
     if (was_dragging) {
         RECT rect = {};
@@ -1393,7 +1497,7 @@ void LanguageBarWindow::EndPointerInteraction(POINT client_point) {
         return;
     }
 
-    if (!drag_allowed_ && click_handler_) {
+    if (click_allowed && click_handler_) {
         click_handler_(SegmentFromPoint(client_point), click_context_);
     }
     Render();

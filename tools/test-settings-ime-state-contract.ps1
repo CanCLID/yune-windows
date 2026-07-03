@@ -31,11 +31,16 @@ foreach ($Required in @(
         'op=list-schemas',
         'op=set-option',
         'op=select-schema',
+        'op=set-skin',
         'CreateWindowExW',
         'ascii_mode',
         'full_shape',
         'output_standard',
-        'schema_id'
+        'schema_id',
+        'EnumerateInstalledSkins',
+        'PaintLanguageBarPreview',
+        'coming soon',
+        'WS_DISABLED'
     )) {
     if ($Settings -notmatch $Required) {
         throw "settings exe must use server-owned IME state protocol: $Required"

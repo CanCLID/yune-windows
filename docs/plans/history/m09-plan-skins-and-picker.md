@@ -1,12 +1,12 @@
 # M09 Settings Panel + Skin Picker Plan
 
-> **Status:** active (next after M08). Give the toolbar a **settings button** that
-> opens a **native settings panel**: the supported toggles + a skin picker wired,
-> and schema-import / userdb import-export scaffolded and ready for future
+> **Status:** complete (2026-07-03). The toolbar has a persistent settings segment
+> that launches or focuses a **native settings panel**: supported toggles, schema
+> switch, and skin picker are wired; schema-import / userdb import-export /
+> deploy-time engine preferences are scaffolded and disabled for future
 > implementation. **UI tech decided: native Win32** (extend
-> `YuneWindowsSettings.exe`) — the user does not need web/visual parity with
-> yune-web, so no WebView2. Rich SVG/image asset rendering remains a deliberate
-> skin-renderer extension if M09 needs it.
+> `YuneWindowsSettings.exe`) - no WebView2. Rich SVG/image asset rendering remains
+> a deliberate skin-renderer extension for M10 or later.
 
 **Goal:** make the toolbar the launch point for a config surface and a skin
 picker. A ⚙ button on the bar opens a native settings window where the user can
@@ -109,11 +109,11 @@ from the settings button and panel work.
   controls with a "coming soon" note.
 
 ## Tasks
-- [ ] Slice A: toolbar ⚙ settings button that opens the settings panel.
-- [ ] Slice B: native Win32 settings panel (extend `YuneWindowsSettings.exe`); wire
+- [x] Slice A: toolbar settings button that opens the settings panel.
+- [x] Slice B: native Win32 settings panel (extend `YuneWindowsSettings.exe`); wire
   session toggles + schema switch + skin picker (live preview via `D2DSurface`);
   scaffold engine / dictionary / schema-import as disabled + future-ready.
-- [ ] Evidence under `docs/evidence/m09/`; contracts (panel launch, skin picker,
+- [x] Evidence under `docs/evidence/m09/`; contracts (panel launch, skin picker,
   scaffold-disabled invariants); roadmap/decisions. Commit to `main`.
 
 ## Decisions (locked — no open questions for handoff)
@@ -124,11 +124,14 @@ from the settings button and panel work.
   note** (not hidden), so the surface shape is visible and future-ready.
 
 ## Completion Gates
+- Non-elevated implementation check: passed via build, contract, language-bar
+  smoke, and settings-window self-test evidence under `docs/evidence/m09/`.
 - Live toolbar check (M09 modifies the bar, so its live pass re-confirms it):
   after a clean DLL load, exactly **one** toolbar renders (the glass bar with the
   ⚙ segment), it drags and remembers its position, and it never steals focus. (This
   also stands in for M08's still-pending live visual, which is otherwise a
-  standalone user check.)
+  standalone user check.) This live-machine visual pass was not run without
+  explicit current-session approval.
 - A ⚙ button on the toolbar opens the settings panel.
 - The native settings panel presents the settings sections; the supported
   settings (session toggles, schema switch, skin pick) work; unsupported ones

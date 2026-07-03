@@ -34,6 +34,10 @@ foreach ($Required in @(
         'WS_EX_NOACTIVATE',
         'WS_EX_LAYERED',
         'UpdateLayeredWindow',
+        'ModuleScopedClassName',
+        'ModuleHandleFromAddress',
+        'LanguageBarClassName\(\)\.c_str\(\)',
+        'CandidateWindowClassName\(\)\.c_str\(\)',
         'D2D1CreateFactory',
         'DWriteCreateFactory',
         'D2DERR_RECREATE_TARGET',
@@ -70,6 +74,9 @@ foreach ($Required in @(
         'LanguageBarSegment::FullShape',
         'LanguageBarSegment::OutputStandard',
         'LanguageBarSegment::Schema',
+        'LanguageBarSegment::Settings',
+        'LaunchOrFocusSettings',
+        'YuneWindowsSettings\.exe',
         'language_bar_\.Hide\(\)'
     )) {
     if ($TsfSource -notmatch $Required) {

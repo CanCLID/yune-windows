@@ -91,10 +91,11 @@ resolves what the backdrop actually samples.
   **undocumented**: `SetWindowCompositionAttribute` with
   `ACCENT_ENABLE_ACRYLICBLURBEHIND` (user32; what TranslucentTB and most Win32
   glass apps use — works on Win10/11 but unofficial and build-fragile) or
-  `DwmpCreateSharedThumbnailVisual` (private). **Product decision required**
-  (Reviewer Q): accept wallpaper-based frosted glass (supported, stable, what
-  Start/Explorer use) *or* live-content blur (undocumented, fragile). The spike
-  decides; the plan no longer assumes any brush blurs the app behind the bar.
+  `DwmpCreateSharedThumbnailVisual` (private). **Decision (locked, Decision 4):**
+  use `ACCENT_ENABLE_ACRYLICBLURBEHIND` for live blur with a **mandatory graceful
+  fallback** (DWM wallpaper acrylic → static tint) so a broken build never yields
+  a hollow bar. The spike validates the path + fallbacks; the plan does not assume
+  any `CompositionBackdropBrush` blurs the app behind the bar.
 - **R2 — Combo display text == server value.** The output/schema/skin combos put
   raw IDs as visible text and `SelectedComboText()` round-trips that visible text
   to the server as the ID. Localizing the visible text **will break** `op=`
@@ -105,9 +106,10 @@ resolves what the backdrop actually samples.
   `UpdateLayeredWindow`. Dropping them must not resurrect the M08/M09 clone-trail
   or focus-steal, and must re-achieve per-pixel-alpha click-through (see Slice C).
 
-## Decisions to lock (recommendations; reviewer confirm)
-1. **Language scope:** Cantonese-only now, strings centralized in one `ui_strings`
-   header mirroring `uiText.yue` so an English toggle can drop in later. *(Rec.)*
+## Decisions (locked by user 2026-07-03 unless marked "reviewer confirm")
+1. **Language scope — LOCKED: Cantonese-only now.** Strings centralized in one
+   `ui_strings` header mirroring `uiText.yue` so an English toggle can drop in
+   later, but **no runtime 粵/En switcher is built this milestone**.
 2. **UI font:** `Microsoft JhengHei UI` primary (covers Traditional + acceptable
    Latin); this is the Tier-1 font decision, which is why localization is folded
    into the same slice. Toolbar keeps DirectWrite fallback but the manifest `font`
@@ -116,15 +118,25 @@ resolves what the backdrop actually samples.
    which is a Mainland-software convention); `coming soon` → **（即將推出）**;
    `connected`/`offline` → **已連線 / 離線**; `default` (skin name) → **預設**;
    `Unknown` → **未知**. (Reviewer confirm wording.)
-4. **Glass backdrop mechanism:** decided by the Slice C spike (see R1). Default
-   lean: try `SetWindowCompositionAttribute` acrylic for a live frosted look on
-   Win11; fall back to DWM Desktop Acrylic (wallpaper) or a static translucent
-   tint. Do **not** depend on `CompositionBackdropBrush` for behind-window blur.
+4. **Glass backdrop mechanism — LOCKED: live acrylic blur.** Primary path is
+   `SetWindowCompositionAttribute` with `ACCENT_ENABLE_ACRYLICBLURBEHIND` (blurs
+   the *live* content behind the bar; undocumented but the de-facto Win32 glass
+   API — TranslucentTB et al.). **Graceful fallback is mandatory:** if the acrylic
+   attribute fails / is broken on a given build, degrade to DWM Desktop Acrylic
+   (wallpaper blur) and then to a static translucent tint — never a hollow bar.
+   Do **not** use `CompositionBackdropBrush` for behind-window blur (it can't).
+   The Slice C spike *validates* this path + fallbacks; it no longer chooses
+   between approaches.
 5. **M10 reconciliation:** build the composition renderer once; candidate window
    rides it, **conditional on the spike** (R3, and the candidate-over-content
-   caveat).
+   caveat). *(Reviewer confirm the fold-in + M10 annotation.)*
 6. **Output-standard glyphs:** `uiText.yue` is authoritative — change the C++
    literals (`繁→傳`, `臺→台`, `拼→朙`) and `L"EN"→英` to match the appendix.
+7. **Windows 10 — LOCKED: flat-native fallback.** Glass/Mica/rounded are
+   Win11-only and build-gated; **Windows 10 gets the clean themed look** (v6
+   manifest + JhengHei font + dark mode) with **no glass/blur** and no attempt at
+   the older composition path. Do not spend implementation/testing budget on Win10
+   glass.
 
 ---
 
@@ -381,26 +393,24 @@ false-positive on legitimate ASCII (`op=` verbs, `schema_id`s like `jyut6ping3`,
 - **No English remains** on any user-facing surface (panel, title, dialog
   captions + bodies, toolbar labels incl. ascii-active and octagram); terminology
   matches `uiText.yue`; server `op=` calls still work (label/value split verified).
-- Toolbar shows a frosted-glass look — **blurred backdrop (wallpaper/desktop via
-  supported APIs, or live content only if the undocumented acrylic path is
-  accepted) + tint + rounded + shadow + specular** — still no-activate, drags as a
-  single bar with no clone trail, persists position.
+- Toolbar shows a frosted-glass look — **live acrylic blur of the content behind
+  the bar (via `ACCENT_ENABLE_ACRYLICBLURBEHIND`) + tint + rounded + shadow +
+  specular**, with graceful fallback to wallpaper acrylic / static tint if a build
+  breaks it — still no-activate, drags as a single bar with no clone trail,
+  persists position.
 - Candidate window (if folded in) matches the active skin with no latency
   regression vs M04.
 - No WebView2/Electron/HTML; no engine/ABI change; `disable_learning` forced.
 - Tier 3 remains a clean future option that Slices A/B set up.
 
 ## Reviewer Questions
-- **Glass (R1):** accept wallpaper-based frosted glass (supported/stable) or
-  require live-content blur (undocumented `SetWindowCompositionAttribute`, fragile)?
-  Decide after the spike.
+Three big forks are **already decided** (see Decisions 1/4/7): glass = **live
+acrylic blur with mandatory fallback**; language = **Cantonese-only now**; Win10
+= **flat-native fallback, no glass**. Remaining open items:
 - Confirm new terms: 主題 (skin), 即將推出, 已連線/離線, 預設, 未知, and the
   derived strings (window title, status-line template, "已安裝方案可喺上面切換。",
   error bodies/caption, 工具列預覽無法顯示).
 - Confirm output-standard glyph change 繁→傳 (mirror `uiText.yue`) and the
   toolbar literal edits (EN→英, 臺→台, 拼→朙, add octagram 朙).
-- Cantonese-only now vs build the yune-web-style 粵/En toggle this milestone?
 - M10 reconciliation: fold candidate-window migration into M11 Slice C
   (recommended) and annotate M10 Slice C? Confirm the hard dependency ordering.
-- Windows 10 support target — flat-native fallback acceptable, or is glass
-  required on Win10 too (needs the older `SetWindowCompositionAttribute` path)?

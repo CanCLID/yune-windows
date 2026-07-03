@@ -127,7 +127,7 @@ int SelfTest() {
     label_state.schema_id = L"luna_pinyin";
     if (yune_windows::ToolbarSegmentLabelForState(
             yune_windows::LanguageBarSegment::AsciiMode, label_state,
-            custom_skin) != L"EN" ||
+            custom_skin) != L"\x82f1" ||
         yune_windows::ToolbarSegmentLabelForState(
             yune_windows::LanguageBarSegment::FullShape, label_state,
             custom_skin) != L"\x5168" ||
@@ -136,11 +136,18 @@ int SelfTest() {
             custom_skin) != L"\x7b80" ||
         yune_windows::ToolbarSegmentLabelForState(
             yune_windows::LanguageBarSegment::Schema, label_state,
-            custom_skin) != L"\x62fc" ||
+            custom_skin) != L"\x6719" ||
         yune_windows::ToolbarSegmentLabelForState(
             yune_windows::LanguageBarSegment::Settings, label_state,
             custom_skin) != L"GG") {
         std::cerr << "toolbar state-specific labels were not preserved\n";
+        return 1;
+    }
+    label_state.schema_id = L"luna_pinyin_octagram";
+    if (yune_windows::ToolbarSegmentLabelForState(
+            yune_windows::LanguageBarSegment::Schema, label_state,
+            custom_skin) != L"\x6719") {
+        std::cerr << "toolbar octagram schema label fell back to a Latin glyph\n";
         return 1;
     }
 

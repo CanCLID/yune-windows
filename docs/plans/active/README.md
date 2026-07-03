@@ -5,11 +5,12 @@
   window. **Reconciled with M11:** the candidate-window migration rides M11's
   composition renderer (built once); only the second-skin / user-skin / candidate
   schema-field slices are independent — candidate skinning waits on M11 Slice C.
-- `m11-plan-ui-modernization-cantonese.md` - **planned.** Win11-native settings
-  panel (v6 manifest + JhengHei font + DWM Mica/rounded/dark), DirectComposition
-  frosted-glass toolbar, and full English→Cantonese localization mirroring
-  `yune-web`. Native, no WebView2. Carries locked risks (wallpaper-vs-live blur,
-  combo label/value split, ULW→DComp click-through).
+- `m11-plan-ui-modernization-cantonese.md` - **current implementation focus.**
+  Non-elevated implementation now covers the Win11-native settings baseline
+  (v6 manifest + JhengHei font + DWM gates), Cantonese settings/toolbar strings,
+  combo label/value split, toolbar glyph fixes, and the glass-toolbar surface
+  shell with host-backdrop/acrylic/static-tint fallback ordering. Live TSF-host
+  visual proof of the glass effect remains approval-gated.
 
 Later / unplanned, noted so the settings panel is designed for them:
 - Server `customize`+`deploy` path to actually apply the deploy-time **engine

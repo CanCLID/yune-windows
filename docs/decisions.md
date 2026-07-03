@@ -155,7 +155,28 @@ the settings executable must not read or write `state\ime-state.json` directly.
 This narrows D-04/D-12's "WebView2 may be evaluated for settings" to "settings
 panel is native"; WebView2 is not adopted for any Yune Windows surface.
 
+### D-17 - M11 localization and glass proof boundary
+
+M11 localizes the native settings panel and toolbar to Cantonese only for now,
+with user-visible strings centralized in a native `ui_strings` source so a
+future language toggle can be added without changing server protocol values.
+Settings combo boxes must keep display labels separate from the server IDs sent
+through `op=` payloads. The glass toolbar path prioritizes the documented Win11
+host backdrop brush, then accent acrylic, then DWM transient acrylic, then a
+static translucent tint fallback; non-elevated implementation evidence may prove
+the source and smoke contracts while live visual proof over real TSF hosts remains
+approval-gated.
+
 ## Last Updated
+
+2026-07-03 - M11 UI Modernization + Cantonese Localization added the embedded
+common-controls v6/PerMonitorV2 settings manifest, Microsoft JhengHei UI font
+and DPI relayout, build-gated DWM settings polish, centralized Cantonese UI
+strings, settings combo label/value split, toolbar glyph fixes including
+`luna_pinyin_octagram`, default-skin glass fields, and a `GlassSurface` shell
+with host-backdrop/acrylic/static-tint fallback ordering. Evidence is
+non-elevated under `docs/evidence/m11/`; live TSF-host glass visual proof remains
+approval-gated.
 
 2026-07-03 - M08/M09 live-test follow-up: fixed the toolbar "clone trail" on drag
 (made `SetWindowPos` the single position authority with a NULL `UpdateLayeredWindow`

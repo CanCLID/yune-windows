@@ -1,25 +1,53 @@
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 #include <windows.h>
+#include <commctrl.h>
+#include <dwmapi.h>
 #include <objbase.h>
+#include <winternl.h>
 #include <windowsx.h>
 
 #include <algorithm>
+#include <array>
 #include <filesystem>
 #include <iostream>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "../candidate_window/yune_windows_candidate_window.h"
+#include "yune_windows_ui_strings.h"
 
 namespace {
+
+namespace ui_strings = yune_windows::ui_strings;
 
 constexpr const wchar_t* kPipeName = L"\\\\.\\pipe\\yune-windows-ime";
 constexpr const wchar_t* kWindowClassName = L"YuneWindowsSettingsWindow";
 constexpr const wchar_t* kPreviewClassName = L"YuneWindowsSettingsPreview";
 constexpr const wchar_t* kInstanceMutexName =
     L"Local\\YuneWindowsSettingsInstance";
+constexpr int kWindowWidth = 720;
+constexpr int kWindowHeight = 580;
+constexpr int kDesignDpi = 96;
+constexpr COLORREF kSettingsAccentColor = RGB(8, 117, 190);
+
+#ifndef DWMWA_USE_IMMERSIVE_DARK_MODE
+#define DWMWA_USE_IMMERSIVE_DARK_MODE 20
+#endif
+#ifndef DWMWA_WINDOW_CORNER_PREFERENCE
+#define DWMWA_WINDOW_CORNER_PREFERENCE 33
+#endif
+#ifndef DWMWA_SYSTEMBACKDROP_TYPE
+#define DWMWA_SYSTEMBACKDROP_TYPE 38
+#endif
+#ifndef DWMWCP_ROUND
+#define DWMWCP_ROUND 2
+#endif
+#ifndef DWMSBT_MAINWINDOW
+#define DWMSBT_MAINWINDOW 2
+#endif
 
 constexpr int kButtonAscii = 1001;
 constexpr int kButtonFullShape = 1002;
@@ -28,6 +56,19 @@ constexpr int kComboSchema = 1004;
 constexpr int kButtonRefresh = 1005;
 constexpr int kComboSkin = 1006;
 constexpr int kPreviewToolbar = 1007;
+
+struct ComboItem {
+    std::wstring value;
+    std::wstring label;
+};
+
+struct LayoutEntry {
+    HWND hwnd = nullptr;
+    int x = 0;
+    int y = 0;
+    int width = 0;
+    int height = 0;
+};
 
 struct SettingsState {
     bool ready = false;
@@ -45,10 +86,30 @@ struct SettingsState {
     HWND skin_combo = nullptr;
     HWND preview_window = nullptr;
     HWND status_label = nullptr;
+    UINT dpi = kDesignDpi;
+    HFONT ui_font = nullptr;
+    std::vector<HWND> controls;
+    std::vector<LayoutEntry> layout_entries;
+    std::vector<ComboItem> output_items;
+    std::vector<ComboItem> schema_items;
+    std::vector<ComboItem> skin_items;
     yune_windows::D2DSurface preview_surface;
 };
 
 SettingsState g_state;
+
+int Scale(int value, UINT dpi) {
+    return MulDiv(value, static_cast<int>(dpi == 0 ? kDesignDpi : dpi),
+                  kDesignDpi);
+}
+
+int UnscaledWindowWidth(UINT dpi) {
+    return Scale(kWindowWidth, dpi);
+}
+
+int UnscaledWindowHeight(UINT dpi) {
+    return Scale(kWindowHeight, dpi);
+}
 
 std::filesystem::path ModuleDirectory() {
     wchar_t module_path[MAX_PATH] = {};
@@ -222,46 +283,94 @@ std::vector<std::wstring> EnumerateInstalledSkins(
     return skins;
 }
 
-std::wstring OutputStandardLabel(std::wstring_view value) {
+std::wstring OutputStandardDisplayLabel(std::wstring_view value) {
     if (value == L"opencc_traditional") {
-        return L"OpenCC traditional";
+        return ui_strings::kOutputOpenccTraditional;
     }
     if (value == L"hong_kong_traditional") {
-        return L"Hong Kong traditional";
+        return ui_strings::kOutputHongKongTraditional;
     }
     if (value == L"taiwan_traditional") {
-        return L"Taiwan traditional";
+        return ui_strings::kOutputTaiwanTraditional;
     }
     if (value == L"mainland_simplified") {
-        return L"Mainland simplified";
+        return ui_strings::kOutputMainlandSimplified;
     }
-    return L"Unknown";
+    return ui_strings::kStatusUnknown;
+}
+
+std::wstring SchemaDisplayLabel(std::wstring_view value) {
+    if (value == L"jyut6ping3") {
+        return ui_strings::kSchemaJyutping;
+    }
+    if (value == L"cangjie5") {
+        return ui_strings::kSchemaCangjie;
+    }
+    if (value == L"luna_pinyin") {
+        return ui_strings::kSchemaLunaPinyin;
+    }
+    if (value == L"luna_pinyin_octagram") {
+        return ui_strings::kSchemaLunaPinyinOctagram;
+    }
+    return ui_strings::kSchemaUnknown;
 }
 
 std::wstring SkinDisplayLabel(std::wstring_view skin) {
-    return L"Skin: " + std::wstring(skin);
+    if (skin.empty() || skin == L"default") {
+        return ui_strings::kSkinDefault;
+    }
+    return std::wstring(skin);
 }
 
-void ResetCombo(HWND combo) {
+std::wstring StatusLine() {
+    std::wstring status = ui_strings::kStatusPrefix;
+    status += g_state.ready ? ui_strings::kStatusConnected
+                            : ui_strings::kStatusOffline;
+    status += ui_strings::kStatusSeparator;
+    status += OutputStandardDisplayLabel(g_state.output_standard);
+    status += ui_strings::kStatusSeparator;
+    status += ui_strings::kStatusSkinPrefix;
+    status += SkinDisplayLabel(g_state.toolbar_skin);
+    return status;
+}
+
+void ResetCombo(HWND combo, std::vector<ComboItem>* items) {
     if (combo) {
         SendMessageW(combo, CB_RESETCONTENT, 0, 0);
     }
+    if (items) {
+        items->clear();
+    }
 }
 
-void AddComboItem(HWND combo, const std::wstring& value) {
-    SendMessageW(combo, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(value.c_str()));
+void AddComboItem(HWND combo, std::vector<ComboItem>* items,
+                  std::wstring value, std::wstring label) {
+    if (!combo || !items) {
+        return;
+    }
+    items->push_back({std::move(value), std::move(label)});
+    const size_t item_index = items->size() - 1;
+    const LRESULT combo_index =
+        SendMessageW(combo, CB_ADDSTRING, 0,
+                     reinterpret_cast<LPARAM>((*items)[item_index].label.c_str()));
+    if (combo_index != CB_ERR && combo_index != CB_ERRSPACE) {
+        SendMessageW(combo, CB_SETITEMDATA, static_cast<WPARAM>(combo_index),
+                     static_cast<LPARAM>(item_index));
+    }
 }
 
-void SelectComboItem(HWND combo, std::wstring_view value) {
+void SelectComboValue(HWND combo, const std::vector<ComboItem>& items,
+                      std::wstring_view value) {
     if (!combo) {
         return;
     }
     const LRESULT count = SendMessageW(combo, CB_GETCOUNT, 0, 0);
     for (LRESULT i = 0; i < count; ++i) {
-        wchar_t text[256] = {};
-        SendMessageW(combo, CB_GETLBTEXT, static_cast<WPARAM>(i),
-                     reinterpret_cast<LPARAM>(text));
-        if (value == text) {
+        const LRESULT item_data =
+            SendMessageW(combo, CB_GETITEMDATA, static_cast<WPARAM>(i), 0);
+        if (item_data >= 0 &&
+            static_cast<size_t>(item_data) < items.size() &&
+            value == items[static_cast<size_t>(item_data)].value) {
             SendMessageW(combo, CB_SETCURSEL, static_cast<WPARAM>(i), 0);
             return;
         }
@@ -269,7 +378,7 @@ void SelectComboItem(HWND combo, std::wstring_view value) {
     SendMessageW(combo, CB_SETCURSEL, 0, 0);
 }
 
-std::wstring SelectedComboText(HWND combo) {
+std::wstring SelectedComboValue(HWND combo, const std::vector<ComboItem>& items) {
     if (!combo) {
         return {};
     }
@@ -277,10 +386,12 @@ std::wstring SelectedComboText(HWND combo) {
     if (index == CB_ERR) {
         return {};
     }
-    wchar_t text[256] = {};
-    SendMessageW(combo, CB_GETLBTEXT, static_cast<WPARAM>(index),
-                 reinterpret_cast<LPARAM>(text));
-    return text;
+    const LRESULT item_data =
+        SendMessageW(combo, CB_GETITEMDATA, static_cast<WPARAM>(index), 0);
+    if (item_data < 0 || static_cast<size_t>(item_data) >= items.size()) {
+        return {};
+    }
+    return items[static_cast<size_t>(item_data)].value;
 }
 
 void UpdatePreview() {
@@ -292,39 +403,47 @@ void UpdatePreview() {
 void UpdateControls() {
     if (g_state.ascii_button) {
         SetWindowTextW(g_state.ascii_button,
-                       g_state.ascii_mode ? L"Mode: English" : L"Mode: Chinese");
+                       g_state.ascii_mode ? ui_strings::kModeEnglish
+                                          : ui_strings::kModeChinese);
     }
     if (g_state.full_shape_button) {
         SetWindowTextW(g_state.full_shape_button,
-                       g_state.full_shape ? L"Shape: Full" : L"Shape: Half");
+                       g_state.full_shape ? ui_strings::kShapeFull
+                                          : ui_strings::kShapeHalf);
     }
     if (g_state.output_combo) {
-        ResetCombo(g_state.output_combo);
-        AddComboItem(g_state.output_combo, L"opencc_traditional");
-        AddComboItem(g_state.output_combo, L"hong_kong_traditional");
-        AddComboItem(g_state.output_combo, L"taiwan_traditional");
-        AddComboItem(g_state.output_combo, L"mainland_simplified");
-        SelectComboItem(g_state.output_combo, g_state.output_standard);
+        ResetCombo(g_state.output_combo, &g_state.output_items);
+        for (const std::wstring& value : {
+                 std::wstring(L"opencc_traditional"),
+                 std::wstring(L"hong_kong_traditional"),
+                 std::wstring(L"taiwan_traditional"),
+                 std::wstring(L"mainland_simplified")}) {
+            AddComboItem(g_state.output_combo, &g_state.output_items, value,
+                         OutputStandardDisplayLabel(value));
+        }
+        SelectComboValue(g_state.output_combo, g_state.output_items,
+                         g_state.output_standard);
     }
     if (g_state.schema_combo) {
-        ResetCombo(g_state.schema_combo);
+        ResetCombo(g_state.schema_combo, &g_state.schema_items);
         for (const std::wstring& schema : g_state.schemas) {
-            AddComboItem(g_state.schema_combo, schema);
+            AddComboItem(g_state.schema_combo, &g_state.schema_items, schema,
+                         SchemaDisplayLabel(schema));
         }
-        SelectComboItem(g_state.schema_combo, g_state.schema_id);
+        SelectComboValue(g_state.schema_combo, g_state.schema_items,
+                         g_state.schema_id);
     }
     if (g_state.skin_combo) {
-        ResetCombo(g_state.skin_combo);
+        ResetCombo(g_state.skin_combo, &g_state.skin_items);
         for (const std::wstring& skin : g_state.skins) {
-            AddComboItem(g_state.skin_combo, skin);
+            AddComboItem(g_state.skin_combo, &g_state.skin_items, skin,
+                         SkinDisplayLabel(skin));
         }
-        SelectComboItem(g_state.skin_combo, g_state.toolbar_skin);
+        SelectComboValue(g_state.skin_combo, g_state.skin_items,
+                         g_state.toolbar_skin);
     }
     if (g_state.status_label) {
-        const std::wstring status =
-            L"State: " + std::wstring(g_state.ready ? L"connected" : L"offline") +
-            L" | " + OutputStandardLabel(g_state.output_standard) +
-            L" | " + SkinDisplayLabel(g_state.toolbar_skin);
+        const std::wstring status = StatusLine();
         SetWindowTextW(g_state.status_label, status.c_str());
     }
     UpdatePreview();
@@ -339,8 +458,9 @@ void RefreshState(HWND hwnd, bool show_error = true) {
     if (!SendServerRequest("op=get-state\n.\n")) {
         g_state.ready = false;
         if (show_error) {
-            MessageBoxW(hwnd, L"Yune Windows server is not available.",
-                        L"Yune Windows Settings", MB_OK | MB_ICONWARNING);
+            MessageBoxW(hwnd, ui_strings::kServerUnavailable,
+                        ui_strings::kSettingsWindowTitle,
+                        MB_OK | MB_ICONWARNING);
         }
         UpdateControls();
         return;
@@ -353,8 +473,9 @@ void ApplyOption(HWND hwnd, std::string_view name, std::string_view value) {
     std::string payload = "op=set-option\nname=" + std::string(name) +
                           "\nvalue=" + std::string(value) + "\n.\n";
     if (!SendServerRequest(payload)) {
-        MessageBoxW(hwnd, L"Unable to update Yune Windows state.",
-                    L"Yune Windows Settings", MB_OK | MB_ICONWARNING);
+        MessageBoxW(hwnd, ui_strings::kUpdateStateFailed,
+                    ui_strings::kSettingsWindowTitle,
+                    MB_OK | MB_ICONWARNING);
     }
     UpdateControls();
 }
@@ -365,8 +486,9 @@ void ApplySchema(HWND hwnd, const std::wstring& schema_id) {
     }
     std::string payload = "op=select-schema\nschema=" + Narrow(schema_id) + "\n.\n";
     if (!SendServerRequest(payload)) {
-        MessageBoxW(hwnd, L"Unable to update Yune Windows schema.",
-                    L"Yune Windows Settings", MB_OK | MB_ICONWARNING);
+        MessageBoxW(hwnd, ui_strings::kUpdateSchemaFailed,
+                    ui_strings::kSettingsWindowTitle,
+                    MB_OK | MB_ICONWARNING);
     }
     UpdateControls();
 }
@@ -377,8 +499,9 @@ void ApplySkin(HWND hwnd, const std::wstring& skin_name) {
     }
     std::string payload = "op=set-skin\nname=" + Narrow(skin_name) + "\n.\n";
     if (!SendServerRequest(payload)) {
-        MessageBoxW(hwnd, L"Unable to update Yune Windows skin.",
-                    L"Yune Windows Settings", MB_OK | MB_ICONWARNING);
+        MessageBoxW(hwnd, ui_strings::kUpdateSkinFailed,
+                    ui_strings::kSettingsWindowTitle,
+                    MB_OK | MB_ICONWARNING);
         UpdateControls();
         return;
     }
@@ -407,85 +530,226 @@ HWND WaitForSettingsWindow(DWORD timeout_ms) {
     }
 }
 
+HFONT CreateUIFont(UINT dpi) {
+    const int height = -MulDiv(10, static_cast<int>(dpi == 0 ? kDesignDpi : dpi),
+                              72);
+    return CreateFontW(height, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+                       DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                       CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE,
+                       L"Microsoft JhengHei UI");
+}
+
+void ApplyUIFontToControls() {
+    if (!g_state.ui_font) {
+        return;
+    }
+    for (HWND control : g_state.controls) {
+        if (control && IsWindow(control)) {
+            SendMessageW(control, WM_SETFONT,
+                         reinterpret_cast<WPARAM>(g_state.ui_font), TRUE);
+        }
+    }
+}
+
+void RefreshUIFont(UINT dpi) {
+    HFONT next_font = CreateUIFont(dpi);
+    if (!next_font) {
+        return;
+    }
+    HFONT old_font = g_state.ui_font;
+    g_state.ui_font = next_font;
+    ApplyUIFontToControls();
+    if (old_font) {
+        DeleteObject(old_font);
+    }
+}
+
+void RegisterControlForLayout(HWND control, int x, int y, int width, int height) {
+    if (!control) {
+        return;
+    }
+    g_state.controls.push_back(control);
+    g_state.layout_entries.push_back({control, x, y, width, height});
+    if (g_state.ui_font) {
+        SendMessageW(control, WM_SETFONT,
+                     reinterpret_cast<WPARAM>(g_state.ui_font), TRUE);
+    }
+}
+
+void RelayoutControls(UINT dpi) {
+    for (const LayoutEntry& entry : g_state.layout_entries) {
+        if (entry.hwnd && IsWindow(entry.hwnd)) {
+            MoveWindow(entry.hwnd, Scale(entry.x, dpi), Scale(entry.y, dpi),
+                       Scale(entry.width, dpi), Scale(entry.height, dpi), TRUE);
+        }
+    }
+}
+
+DWORD WindowsBuildNumber() {
+    using RtlGetVersionProc = LONG(WINAPI*)(PRTL_OSVERSIONINFOW);
+    HMODULE ntdll = GetModuleHandleW(L"ntdll.dll");
+    auto rtl_get_version = ntdll ? reinterpret_cast<RtlGetVersionProc>(
+                                      GetProcAddress(ntdll, "RtlGetVersion"))
+                                : nullptr;
+    if (!rtl_get_version) {
+        return 0;
+    }
+    RTL_OSVERSIONINFOW version = {};
+    version.dwOSVersionInfoSize = sizeof(version);
+    if (rtl_get_version(&version) != 0) {
+        return 0;
+    }
+    return version.dwBuildNumber;
+}
+
+bool SystemPrefersDarkMode() {
+    DWORD light_theme = 1;
+    DWORD size = sizeof(light_theme);
+    const LSTATUS status = RegGetValueW(
+        HKEY_CURRENT_USER,
+        L"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
+        L"AppsUseLightTheme", RRF_RT_REG_DWORD, nullptr, &light_theme, &size);
+    return status == ERROR_SUCCESS && light_theme == 0;
+}
+
+void ApplyDwmPolish(HWND hwnd) {
+    if (!hwnd) {
+        return;
+    }
+    const DWORD build = WindowsBuildNumber();
+    const BOOL use_dark_mode = SystemPrefersDarkMode() ? TRUE : FALSE;
+    HRESULT hr = DwmSetWindowAttribute(
+        hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, &use_dark_mode,
+        sizeof(use_dark_mode));
+    if (FAILED(hr)) {
+        constexpr DWORD fallback_dark_mode_attribute = 19;
+        (void)DwmSetWindowAttribute(hwnd, fallback_dark_mode_attribute,
+                                    &use_dark_mode, sizeof(use_dark_mode));
+    }
+
+    if (build >= 22000) {
+        const DWORD rounded = DWMWCP_ROUND;
+        (void)DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE,
+                                    &rounded, sizeof(rounded));
+    }
+    if (build >= 22621) {
+        const DWORD backdrop = DWMSBT_MAINWINDOW;
+        (void)DwmSetWindowAttribute(hwnd, DWMWA_SYSTEMBACKDROP_TYPE, &backdrop,
+                                    sizeof(backdrop));
+    }
+}
+
 HWND AddText(HWND hwnd, int x, int y, int w, int h, const wchar_t* text) {
-    return CreateWindowExW(0, L"STATIC", text, WS_CHILD | WS_VISIBLE,
-                           x, y, w, h, hwnd, nullptr, GetModuleHandleW(nullptr),
-                           nullptr);
+    HWND control = CreateWindowExW(0, L"STATIC", text, WS_CHILD | WS_VISIBLE,
+                                   Scale(x, g_state.dpi), Scale(y, g_state.dpi),
+                                   Scale(w, g_state.dpi), Scale(h, g_state.dpi),
+                                   hwnd, nullptr, GetModuleHandleW(nullptr),
+                                   nullptr);
+    RegisterControlForLayout(control, x, y, w, h);
+    return control;
 }
 
 HWND AddGroup(HWND hwnd, int x, int y, int w, int h, const wchar_t* text) {
-    return CreateWindowExW(0, L"BUTTON", text,
-                           WS_CHILD | WS_VISIBLE | BS_GROUPBOX,
-                           x, y, w, h, hwnd, nullptr, GetModuleHandleW(nullptr),
-                           nullptr);
+    HWND control = CreateWindowExW(0, L"BUTTON", text,
+                                   WS_CHILD | WS_VISIBLE | BS_GROUPBOX,
+                                   Scale(x, g_state.dpi), Scale(y, g_state.dpi),
+                                   Scale(w, g_state.dpi), Scale(h, g_state.dpi),
+                                   hwnd, nullptr, GetModuleHandleW(nullptr),
+                                   nullptr);
+    RegisterControlForLayout(control, x, y, w, h);
+    return control;
 }
 
 HWND AddButton(HWND hwnd, int id, int x, int y, int w, int h,
                const wchar_t* text) {
-    return CreateWindowExW(0, L"BUTTON", text, WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-                           x, y, w, h, hwnd,
-                           reinterpret_cast<HMENU>(static_cast<INT_PTR>(id)),
-                           GetModuleHandleW(nullptr), nullptr);
+    HWND control = CreateWindowExW(
+        0, L"BUTTON", text, WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+        Scale(x, g_state.dpi), Scale(y, g_state.dpi), Scale(w, g_state.dpi),
+        Scale(h, g_state.dpi), hwnd,
+        reinterpret_cast<HMENU>(static_cast<INT_PTR>(id)),
+        GetModuleHandleW(nullptr), nullptr);
+    RegisterControlForLayout(control, x, y, w, h);
+    return control;
 }
 
 HWND AddCombo(HWND hwnd, int id, int x, int y, int w, int h) {
-    return CreateWindowExW(0, L"COMBOBOX", L"",
-                           WS_CHILD | WS_VISIBLE | CBS_DROPDOWNLIST | WS_VSCROLL,
-                           x, y, w, h, hwnd,
-                           reinterpret_cast<HMENU>(static_cast<INT_PTR>(id)),
-                           GetModuleHandleW(nullptr), nullptr);
+    HWND control = CreateWindowExW(
+        0, L"COMBOBOX", L"",
+        WS_CHILD | WS_VISIBLE | CBS_DROPDOWNLIST | WS_VSCROLL,
+        Scale(x, g_state.dpi), Scale(y, g_state.dpi), Scale(w, g_state.dpi),
+        Scale(h, g_state.dpi), hwnd,
+        reinterpret_cast<HMENU>(static_cast<INT_PTR>(id)),
+        GetModuleHandleW(nullptr), nullptr);
+    RegisterControlForLayout(control, x, y, w, h);
+    return control;
 }
 
 HWND AddDisabled(HWND hwnd, int x, int y, int w, int h, const wchar_t* text) {
-    return CreateWindowExW(0, L"BUTTON", text,
-                           WS_CHILD | WS_VISIBLE | WS_DISABLED | BS_AUTOCHECKBOX,
-                           x, y, w, h, hwnd, nullptr, GetModuleHandleW(nullptr),
-                           nullptr);
+    HWND control = CreateWindowExW(
+        0, L"BUTTON", text,
+        WS_CHILD | WS_VISIBLE | WS_DISABLED | BS_AUTOCHECKBOX,
+        Scale(x, g_state.dpi), Scale(y, g_state.dpi), Scale(w, g_state.dpi),
+        Scale(h, g_state.dpi), hwnd, nullptr, GetModuleHandleW(nullptr),
+        nullptr);
+    RegisterControlForLayout(control, x, y, w, h);
+    return control;
 }
 
 void CreatePanelControls(HWND hwnd) {
-    AddText(hwnd, 18, 12, 640, 20, L"Native settings panel");
-    g_state.status_label = AddText(hwnd, 18, 34, 640, 22, L"State: offline");
+    g_state.controls.clear();
+    g_state.layout_entries.clear();
 
-    AddGroup(hwnd, 14, 64, 320, 190, L"Input / session");
+    AddText(hwnd, 18, 12, 640, 20, ui_strings::kSettingsPanelTitle);
+    g_state.status_label = AddText(hwnd, 18, 34, 640, 22, StatusLine().c_str());
+
+    AddGroup(hwnd, 14, 64, 320, 190, ui_strings::kSectionSession);
     g_state.ascii_button = AddButton(hwnd, kButtonAscii, 30, 92, 130, 30,
-                                     L"Mode: Chinese");
+                                     ui_strings::kModeChinese);
     g_state.full_shape_button = AddButton(hwnd, kButtonFullShape, 172, 92, 130,
-                                          30, L"Shape: Half");
-    AddText(hwnd, 30, 132, 110, 20, L"Output standard");
+                                          30, ui_strings::kShapeHalf);
+    AddText(hwnd, 30, 132, 110, 20, ui_strings::kOutputStandard);
     g_state.output_combo = AddCombo(hwnd, kComboOutputStandard, 146, 128, 156, 150);
-    AddText(hwnd, 30, 170, 110, 20, L"Schema switch");
+    AddText(hwnd, 30, 170, 110, 20, ui_strings::kSchemaSwitch);
     g_state.schema_combo = AddCombo(hwnd, kComboSchema, 146, 166, 156, 150);
-    AddDisabled(hwnd, 30, 208, 230, 24, L"Extended charset (coming soon)");
+    AddDisabled(hwnd, 30, 208, 230, 24,
+                ui_strings::kExtendedCharsetComingSoon);
 
-    AddGroup(hwnd, 354, 64, 330, 242, L"Appearance");
-    AddText(hwnd, 370, 92, 80, 20, L"Skin");
+    AddGroup(hwnd, 354, 64, 330, 242, ui_strings::kSectionAppearance);
+    AddText(hwnd, 370, 92, 80, 20, ui_strings::kSkin);
     g_state.skin_combo = AddCombo(hwnd, kComboSkin, 450, 88, 190, 150);
     g_state.preview_window = CreateWindowExW(
         WS_EX_CLIENTEDGE, kPreviewClassName, L"",
-        WS_CHILD | WS_VISIBLE, 370, 130, 292, 68, hwnd,
+        WS_CHILD | WS_VISIBLE, Scale(370, g_state.dpi), Scale(130, g_state.dpi),
+        Scale(292, g_state.dpi), Scale(68, g_state.dpi), hwnd,
         reinterpret_cast<HMENU>(static_cast<INT_PTR>(kPreviewToolbar)),
         GetModuleHandleW(nullptr), nullptr);
-    AddDisabled(hwnd, 370, 212, 250, 24, L"Candidate page size (coming soon)");
-    AddDisabled(hwnd, 370, 238, 250, 24, L"Candidate layout (coming soon)");
-    AddDisabled(hwnd, 370, 264, 250, 24, L"Romanization display (coming soon)");
+    RegisterControlForLayout(g_state.preview_window, 370, 130, 292, 68);
+    AddDisabled(hwnd, 370, 212, 250, 24,
+                ui_strings::kCandidatePageSizeComingSoon);
+    AddDisabled(hwnd, 370, 238, 250, 24,
+                ui_strings::kCandidateLayoutComingSoon);
+    AddDisabled(hwnd, 370, 264, 250, 24,
+                ui_strings::kRomanizationDisplayComingSoon);
 
-    AddGroup(hwnd, 14, 270, 320, 145, L"Engine");
-    AddDisabled(hwnd, 30, 298, 130, 24, L"Completion (coming soon)");
-    AddDisabled(hwnd, 172, 298, 130, 24, L"Correction (coming soon)");
-    AddDisabled(hwnd, 30, 326, 130, 24, L"Sentence mode (coming soon)");
-    AddDisabled(hwnd, 172, 326, 130, 24, L"Prediction (coming soon)");
-    AddDisabled(hwnd, 30, 354, 190, 24, L"Combine candidates (coming soon)");
+    AddGroup(hwnd, 14, 270, 320, 145, ui_strings::kSectionEngine);
+    AddDisabled(hwnd, 30, 298, 130, 24, ui_strings::kCompletionComingSoon);
+    AddDisabled(hwnd, 172, 298, 130, 24, ui_strings::kCorrectionComingSoon);
+    AddDisabled(hwnd, 30, 326, 130, 24, ui_strings::kSentenceModeComingSoon);
+    AddDisabled(hwnd, 172, 326, 130, 24, ui_strings::kPredictionComingSoon);
+    AddDisabled(hwnd, 30, 354, 190, 24,
+                ui_strings::kCombineCandidatesComingSoon);
 
-    AddGroup(hwnd, 354, 322, 330, 96, L"Dictionary");
-    AddDisabled(hwnd, 370, 350, 130, 26, L"Import userdb (coming soon)");
-    AddDisabled(hwnd, 512, 350, 130, 26, L"Export userdb (coming soon)");
+    AddGroup(hwnd, 354, 322, 330, 96, ui_strings::kSectionDictionary);
+    AddDisabled(hwnd, 370, 350, 130, 26,
+                ui_strings::kImportUserdbComingSoon);
+    AddDisabled(hwnd, 512, 350, 130, 26,
+                ui_strings::kExportUserdbComingSoon);
 
-    AddGroup(hwnd, 14, 432, 670, 92, L"Schemas");
-    AddText(hwnd, 30, 462, 356, 20,
-            L"Installed schema switching is available above.");
-    AddDisabled(hwnd, 30, 488, 180, 26, L"Import schema (coming soon)");
-    AddButton(hwnd, kButtonRefresh, 548, 482, 110, 30, L"Refresh");
+    AddGroup(hwnd, 14, 432, 670, 92, ui_strings::kSectionSchemas);
+    AddText(hwnd, 30, 462, 356, 20, ui_strings::kInstalledSchemaSwitching);
+    AddDisabled(hwnd, 30, 488, 180, 26,
+                ui_strings::kImportSchemaComingSoon);
+    AddButton(hwnd, kButtonRefresh, 548, 482, 110, 30, ui_strings::kRefresh);
 }
 
 void PaintPreview(HWND hwnd) {
@@ -507,7 +771,7 @@ void PaintPreview(HWND hwnd) {
     if (!g_state.preview_surface.PaintLanguageBarPreview(
             hwnd, dc, client, state, skin)) {
         FillRect(dc, &client, reinterpret_cast<HBRUSH>(COLOR_WINDOW + 1));
-        DrawTextW(dc, L"Toolbar preview unavailable", -1, &client,
+        DrawTextW(dc, ui_strings::kToolbarPreviewUnavailable, -1, &client,
                   DT_CENTER | DT_VCENTER | DT_SINGLELINE);
     }
     EndPaint(hwnd, &ps);
@@ -530,9 +794,34 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM wparam,
                             LPARAM lparam) {
     switch (message) {
         case WM_CREATE:
+            g_state.dpi = GetDpiForWindow(hwnd);
+            RefreshUIFont(g_state.dpi);
+            ApplyDwmPolish(hwnd);
             CreatePanelControls(hwnd);
             RefreshState(hwnd, false);
             return 0;
+        case WM_DPICHANGED:
+            g_state.dpi = HIWORD(wparam);
+            if (lparam) {
+                const RECT* suggested = reinterpret_cast<const RECT*>(lparam);
+                SetWindowPos(hwnd, nullptr, suggested->left, suggested->top,
+                             suggested->right - suggested->left,
+                             suggested->bottom - suggested->top,
+                             SWP_NOZORDER | SWP_NOACTIVATE);
+            }
+            RefreshUIFont(g_state.dpi);
+            RelayoutControls(g_state.dpi);
+            UpdatePreview();
+            return 0;
+        case WM_CTLCOLORSTATIC:
+            if (reinterpret_cast<HWND>(lparam) == g_state.status_label) {
+                HDC dc = reinterpret_cast<HDC>(wparam);
+                SetTextColor(dc, kSettingsAccentColor);
+                SetBkMode(dc, TRANSPARENT);
+                return reinterpret_cast<LRESULT>(
+                    GetSysColorBrush(COLOR_WINDOW));
+            }
+            break;
         case WM_COMMAND: {
             const int id = LOWORD(wparam);
             const int notification = HIWORD(wparam);
@@ -548,17 +837,22 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM wparam,
                 case kComboOutputStandard:
                     if (notification == CBN_SELCHANGE) {
                         ApplyOption(hwnd, "output_standard",
-                                    Narrow(SelectedComboText(g_state.output_combo)));
+                                    Narrow(SelectedComboValue(
+                                        g_state.output_combo,
+                                        g_state.output_items)));
                     }
                     return 0;
                 case kComboSchema:
                     if (notification == CBN_SELCHANGE) {
-                        ApplySchema(hwnd, SelectedComboText(g_state.schema_combo));
+                        ApplySchema(hwnd,
+                                    SelectedComboValue(g_state.schema_combo,
+                                                       g_state.schema_items));
                     }
                     return 0;
                 case kComboSkin:
                     if (notification == CBN_SELCHANGE) {
-                        ApplySkin(hwnd, SelectedComboText(g_state.skin_combo));
+                        ApplySkin(hwnd, SelectedComboValue(g_state.skin_combo,
+                                                           g_state.skin_items));
                     }
                     return 0;
                 case kButtonRefresh:
@@ -569,6 +863,10 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM wparam,
         }
         case WM_DESTROY:
             g_state.preview_surface.DiscardDeviceResources();
+            if (g_state.ui_font) {
+                DeleteObject(g_state.ui_font);
+                g_state.ui_font = nullptr;
+            }
             PostQuitMessage(0);
             return 0;
     }
@@ -615,6 +913,14 @@ int SelfTest() {
     if (!ApplyStateJson(state_json) || g_state.toolbar_skin != L"default" ||
         g_state.schemas.empty()) {
         std::cerr << "settings state JSON self-test failed\n";
+        return 1;
+    }
+    if (OutputStandardDisplayLabel(L"opencc_traditional") !=
+            ui_strings::kOutputOpenccTraditional ||
+        SchemaDisplayLabel(L"luna_pinyin_octagram") !=
+            ui_strings::kSchemaLunaPinyinOctagram ||
+        SkinDisplayLabel(L"default") != ui_strings::kSkinDefault) {
+        std::cerr << "settings localized label self-test failed\n";
         return 1;
     }
 
@@ -671,6 +977,10 @@ int SelfTest() {
 int wmain(int argc, wchar_t** argv) {
     const HRESULT coinit = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
     const bool should_uninit = SUCCEEDED(coinit);
+    INITCOMMONCONTROLSEX common_controls = {};
+    common_controls.dwSize = sizeof(common_controls);
+    common_controls.dwICC = ICC_STANDARD_CLASSES | ICC_WIN95_CLASSES;
+    (void)InitCommonControlsEx(&common_controls);
     if (argc == 2 && std::wstring(argv[1]) == L"--self-test") {
         const int result = SelfTest();
         if (should_uninit) {
@@ -716,10 +1026,12 @@ int wmain(int argc, wchar_t** argv) {
     }
 
     HWND hwnd = CreateWindowExW(WS_EX_APPWINDOW, kWindowClassName,
-                                L"Yune Windows Settings",
+                                ui_strings::kSettingsWindowTitle,
                                 WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU |
                                     WS_MINIMIZEBOX,
-                                CW_USEDEFAULT, CW_USEDEFAULT, 720, 580, nullptr,
+                                CW_USEDEFAULT, CW_USEDEFAULT,
+                                UnscaledWindowWidth(kDesignDpi),
+                                UnscaledWindowHeight(kDesignDpi), nullptr,
                                 nullptr, instance, nullptr);
     if (!hwnd) {
         if (instance_mutex) {

@@ -48,9 +48,16 @@ struct ToolbarSkinColor {
     float a = 1.0f;
 };
 
+enum class ToolbarGlassMechanism {
+    HostBackdrop,
+    AccentAcrylic,
+    DwmAcrylic,
+    StaticTint,
+};
+
 struct ToolbarSkin {
     std::wstring name = L"default";
-    std::wstring font_family = L"Segoe UI";
+    std::wstring font_family = L"Microsoft JhengHei UI";
     float font_size = 14.0f;
     int height = 42;
     int min_width = 318;
@@ -66,8 +73,13 @@ struct ToolbarSkin {
     ToolbarSkinColor pressed = {0.74f, 0.84f, 0.96f, 0.90f};
     ToolbarSkinColor separator = {0.33f, 0.38f, 0.45f, 0.28f};
     ToolbarSkinColor shadow = {0.0f, 0.0f, 0.0f, 0.24f};
+    ToolbarGlassMechanism glass_mechanism = ToolbarGlassMechanism::HostBackdrop;
+    ToolbarSkinColor glass_tint = {0.92f, 0.97f, 1.0f, 0.56f};
+    float glass_tint_opacity = 0.56f;
+    float blur_amount = 28.0f;
+    float highlight_intensity = 0.34f;
     std::array<std::wstring, 5> segment_labels = {
-        L"\x4e2d", L"\x534a", L"\x6e2f", L"\x7cb5", L"\x2699"};
+        L"\x4e2d", L"\x534a", L"\x50b3", L"\x6719", L"\x2699"};
 };
 
 struct LanguageBarState {
@@ -125,6 +137,30 @@ private:
 
     struct Impl;
     Impl* impl_ = nullptr;
+};
+
+class GlassSurface {
+public:
+    GlassSurface() = default;
+    ~GlassSurface() = default;
+
+    GlassSurface(const GlassSurface&) = delete;
+    GlassSurface& operator=(const GlassSurface&) = delete;
+
+    bool PresentLanguageBar(HWND hwnd, const LanguageBarState& state,
+                            const ToolbarSkin& skin,
+                            LanguageBarSegment hover_segment,
+                            LanguageBarSegment pressed_segment,
+                            bool has_hover,
+                            bool has_pressed);
+    bool PaintLanguageBarPreview(HWND hwnd, HDC dc, const RECT& bounds,
+                                 const LanguageBarState& state,
+                                 const ToolbarSkin& skin);
+    void DiscardDeviceResources();
+    bool device_loss_recovery_available() const { return true; }
+
+private:
+    D2DSurface d2d_surface_;
 };
 
 class NativeCandidateWindow {
@@ -187,7 +223,7 @@ private:
     HWND owner_ = nullptr;
     LanguageBarState state_;
     ToolbarSkin skin_;
-    D2DSurface surface_;
+    GlassSurface surface_;
     LanguageBarClickHandler click_handler_ = nullptr;
     void* click_context_ = nullptr;
     LanguageBarPositionChangedHandler position_changed_handler_ = nullptr;

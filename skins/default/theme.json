@@ -20,14 +20,19 @@
     "shadow": "#3C000000"
   },
   "font": {
-    "family": "Segoe UI",
+    "family": "Microsoft JhengHei UI",
     "size": 14
   },
+  "glass_mechanism": "host_backdrop",
+  "glass_tint": "#8FEAF8FF",
+  "glass_tint_opacity": 0.56,
+  "blur_amount": 28,
+  "highlight_intensity": 0.34,
   "segments": {
     "ascii": "\u4e2d",
     "shape": "\u534a",
-    "standard": "\u6e2f",
-    "schema": "\u7cb5",
+    "standard": "\u50b3",
+    "schema": "\u6719",
     "settings": "\u2699"
   }
 }

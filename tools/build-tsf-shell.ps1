@@ -17,6 +17,8 @@ $ServerSource = Join-Path $RepoRoot "src\server\yune_windows_server.cpp"
 $TsfSource = Join-Path $RepoRoot "src\tsf\yune_windows_tsf.cpp"
 $ProfileToolSource = Join-Path $RepoRoot "src\tools\yune_windows_profile_tool.cpp"
 $SettingsToolSource = Join-Path $RepoRoot "src\tools\yune_windows_settings.cpp"
+$SettingsUiStringsSource = Join-Path $RepoRoot "src\tools\yune_windows_ui_strings.cpp"
+$SettingsManifest = Join-Path $RepoRoot "src\tools\YuneWindowsSettings.exe.manifest"
 $CandidateWindowSource = Join-Path $RepoRoot "src\candidate_window\yune_windows_candidate_window.cpp"
 $CandidateWindowSmokeSource = Join-Path $RepoRoot "src\candidate_window\yune_windows_candidate_window_smoke.cpp"
 $LanguageBarSmokeSource = Join-Path $RepoRoot "src\candidate_window\yune_windows_language_bar_smoke.cpp"
@@ -31,6 +33,7 @@ $ServerObj = Join-Path $OutputDir "yune_windows_server.obj"
 $TsfObj = Join-Path $OutputDir "yune_windows_tsf.obj"
 $ProfileToolObj = Join-Path $OutputDir "yune_windows_profile_tool.obj"
 $SettingsToolObj = Join-Path $OutputDir "yune_windows_settings.obj"
+$SettingsUiStringsObj = Join-Path $OutputDir "yune_windows_ui_strings.obj"
 $CandidateWindowObj = Join-Path $OutputDir "yune_windows_candidate_window.obj"
 $CandidateWindowSmokeObj = Join-Path $OutputDir "yune_windows_candidate_window_smoke.obj"
 $LanguageBarSmokeObj = Join-Path $OutputDir "yune_windows_language_bar_smoke.obj"
@@ -40,6 +43,9 @@ if (-not (Test-Path -LiteralPath (Join-Path $IncludeDir "rime_yune_windows_profi
 }
 if (-not (Test-Path -LiteralPath (Join-Path $SkinSourceDir "default\theme.json") -PathType Leaf)) {
     throw "missing default toolbar skin manifest: $SkinSourceDir\default\theme.json"
+}
+if (-not (Test-Path -LiteralPath $SettingsManifest -PathType Leaf)) {
+    throw "missing settings manifest: $SettingsManifest"
 }
 
 function Find-VsDevCmd {
@@ -70,19 +76,19 @@ if ($LASTEXITCODE -ne 0) {
     throw "candidate window build failed with exit code $LASTEXITCODE"
 }
 
-$TsfCompile = "call `"$VsDevCmd`" -arch=x64 -host_arch=x64 >nul && cl.exe /nologo /std:c++20 /EHsc /W4 /permissive- /utf-8 /DUNICODE /D_UNICODE /LD /Fo`"$TsfObj`" /Fe`"$TsfDll`" `"$TsfSource`" `"$CandidateWindowObj`" /link ole32.lib uuid.lib advapi32.lib user32.lib gdi32.lib d2d1.lib dwrite.lib /EXPORT:DllGetClassObject,PRIVATE /EXPORT:DllCanUnloadNow,PRIVATE /EXPORT:DllRegisterServer,PRIVATE /EXPORT:DllUnregisterServer,PRIVATE"
+$TsfCompile = "call `"$VsDevCmd`" -arch=x64 -host_arch=x64 >nul && cl.exe /nologo /std:c++20 /EHsc /W4 /permissive- /utf-8 /DUNICODE /D_UNICODE /LD /Fo`"$TsfObj`" /Fe`"$TsfDll`" `"$TsfSource`" `"$CandidateWindowObj`" /link ole32.lib uuid.lib advapi32.lib user32.lib gdi32.lib dwmapi.lib d2d1.lib dwrite.lib /EXPORT:DllGetClassObject,PRIVATE /EXPORT:DllCanUnloadNow,PRIVATE /EXPORT:DllRegisterServer,PRIVATE /EXPORT:DllUnregisterServer,PRIVATE"
 cmd.exe /d /s /c "$TsfCompile"
 if ($LASTEXITCODE -ne 0) {
     throw "TSF DLL build failed with exit code $LASTEXITCODE"
 }
 
-$CandidateWindowSmokeCompile = "call `"$VsDevCmd`" -arch=x64 -host_arch=x64 >nul && cl.exe /nologo /std:c++20 /EHsc /W4 /permissive- /utf-8 /DUNICODE /D_UNICODE /Fo`"$CandidateWindowSmokeObj`" /Fe`"$CandidateWindowSmokeExe`" `"$CandidateWindowSmokeSource`" `"$CandidateWindowObj`" /link user32.lib gdi32.lib ole32.lib d2d1.lib dwrite.lib"
+$CandidateWindowSmokeCompile = "call `"$VsDevCmd`" -arch=x64 -host_arch=x64 >nul && cl.exe /nologo /std:c++20 /EHsc /W4 /permissive- /utf-8 /DUNICODE /D_UNICODE /Fo`"$CandidateWindowSmokeObj`" /Fe`"$CandidateWindowSmokeExe`" `"$CandidateWindowSmokeSource`" `"$CandidateWindowObj`" /link user32.lib gdi32.lib ole32.lib dwmapi.lib d2d1.lib dwrite.lib"
 cmd.exe /d /s /c "$CandidateWindowSmokeCompile"
 if ($LASTEXITCODE -ne 0) {
     throw "candidate window smoke build failed with exit code $LASTEXITCODE"
 }
 
-$LanguageBarSmokeCompile = "call `"$VsDevCmd`" -arch=x64 -host_arch=x64 >nul && cl.exe /nologo /std:c++20 /EHsc /W4 /permissive- /utf-8 /DUNICODE /D_UNICODE /Fo`"$LanguageBarSmokeObj`" /Fe`"$LanguageBarSmokeExe`" `"$LanguageBarSmokeSource`" `"$CandidateWindowObj`" /link user32.lib gdi32.lib ole32.lib d2d1.lib dwrite.lib"
+$LanguageBarSmokeCompile = "call `"$VsDevCmd`" -arch=x64 -host_arch=x64 >nul && cl.exe /nologo /std:c++20 /EHsc /W4 /permissive- /utf-8 /DUNICODE /D_UNICODE /Fo`"$LanguageBarSmokeObj`" /Fe`"$LanguageBarSmokeExe`" `"$LanguageBarSmokeSource`" `"$CandidateWindowObj`" /link user32.lib gdi32.lib ole32.lib dwmapi.lib d2d1.lib dwrite.lib"
 cmd.exe /d /s /c "$LanguageBarSmokeCompile"
 if ($LASTEXITCODE -ne 0) {
     throw "language bar smoke build failed with exit code $LASTEXITCODE"
@@ -94,7 +100,13 @@ if ($LASTEXITCODE -ne 0) {
     throw "profile tool build failed with exit code $LASTEXITCODE"
 }
 
-$SettingsToolCompile = "call `"$VsDevCmd`" -arch=x64 -host_arch=x64 >nul && cl.exe /nologo /std:c++20 /EHsc /W4 /permissive- /utf-8 /DUNICODE /D_UNICODE /Fo`"$SettingsToolObj`" /Fe`"$SettingsToolExe`" `"$SettingsToolSource`" `"$CandidateWindowObj`" /link ole32.lib user32.lib gdi32.lib d2d1.lib dwrite.lib /SUBSYSTEM:WINDOWS /ENTRY:wmainCRTStartup"
+$SettingsUiStringsCompile = "call `"$VsDevCmd`" -arch=x64 -host_arch=x64 >nul && cl.exe /nologo /std:c++20 /EHsc /W4 /permissive- /utf-8 /DUNICODE /D_UNICODE /Fo`"$SettingsUiStringsObj`" /c `"$SettingsUiStringsSource`""
+cmd.exe /d /s /c "$SettingsUiStringsCompile"
+if ($LASTEXITCODE -ne 0) {
+    throw "settings UI strings build failed with exit code $LASTEXITCODE"
+}
+
+$SettingsToolCompile = "call `"$VsDevCmd`" -arch=x64 -host_arch=x64 >nul && cl.exe /nologo /std:c++20 /EHsc /W4 /permissive- /utf-8 /DUNICODE /D_UNICODE /Fo`"$SettingsToolObj`" /Fe`"$SettingsToolExe`" `"$SettingsToolSource`" `"$SettingsUiStringsObj`" `"$CandidateWindowObj`" /link ole32.lib user32.lib gdi32.lib comctl32.lib dwmapi.lib advapi32.lib d2d1.lib dwrite.lib /SUBSYSTEM:WINDOWS /ENTRY:wmainCRTStartup /MANIFEST:EMBED /MANIFESTINPUT:`"$SettingsManifest`""
 cmd.exe /d /s /c "$SettingsToolCompile"
 if ($LASTEXITCODE -ne 0) {
     throw "settings tool build failed with exit code $LASTEXITCODE"

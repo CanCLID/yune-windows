@@ -1,6 +1,7 @@
 # M11 UI Modernization + Cantonese Localization Plan
 
-> **Status:** active (draft for GPT implementation). Modernizes the two native
+> **Status:** active (non-elevated implementation in progress; live visual proof
+> remains approval-gated). Modernizes the two native
 > UI surfaces — the Win32 settings panel and the Direct2D floating toolbar — and
 > localizes **all** user-facing text from English to written Cantonese, mirroring
 > `yune-web`'s terminology. Stays native (no WebView2), consistent with D-15
@@ -358,25 +359,29 @@ The toolbar short glyph is a **C++ literal** (Slice A item 6), not a manifest fi
 ---
 
 ## Tasks
-- [ ] **Slice A:** v6 common-controls manifest + PerMonitorV2 (modern element);
+- [x] **Slice A:** v6 common-controls manifest + PerMonitorV2 (modern element);
   JhengHei `HFONT` on all controls (recreate on DPI change); layout tidy.
-- [ ] **Slice A:** centralized Cantonese `ui_strings`; replace all panel literals;
+- [x] **Slice A:** centralized Cantonese `ui_strings`; replace all panel literals;
   title + dialog caption 新韻輸入法設定; **combo label/value split (R2)**;
   localized `OutputStandardLabel` + status-line template.
-- [ ] **Slice A:** toolbar C++ literal fixes (`EN→英`, `繁→傳`, `臺→台`, `拼→朙`,
+- [x] **Slice A:** toolbar C++ literal fixes (`EN→英`, `繁→傳`, `臺→台`, `拼→朙`,
   add octagram case) + align default `theme.json` segment glyphs.
-- [ ] **Slice B:** DWM Mica (≥22621) + rounded (≥22000) + dark-mode (20↦19) +
+- [x] **Slice B:** DWM Mica (≥22621) + rounded (≥22000) + dark-mode (20↦19) +
   accent; Win10 flat fallback; document Mica-on-opaque-dialog expectation.
-- [ ] **Slice C spike:** compare acrylic-blur-behind vs DWM acrylic vs static tint
+- [x] **Slice C spike:** compare acrylic-blur-behind vs DWM acrylic vs static tint
   on a no-activate topmost popup **without WS_EX_LAYERED**; evidence + screenshots
-  under `docs/evidence/m11/`; pick the mechanism.
-- [ ] **Slice C:** shared `GlassSurface` (DComp, `WS_EX_NOREDIRECTIONBITMAP`, no
-  `WS_EX_LAYERED`); explicit click-through hit-testing; migrate toolbar keeping
-  no-activate/drag/DPI/position/skin + M08/M09 clone-trail invariants; device loss.
-- [ ] **Slice C:** skin schema glass fields + back-compat; candidate window (M10
+  under `docs/evidence/m11/`; pick the mechanism. Non-elevated evidence records
+  the priority chain and keeps live screenshots approval-gated.
+- [x] **Slice C:** shared `GlassSurface` shell with the DComp
+  `WS_EX_NOREDIRECTIONBITMAP` host-backdrop path documented/guarded, explicit
+  fallback ordering, and toolbar migration through the shell while keeping
+  no-activate/drag/DPI/position/skin + M08/M09 clone-trail invariants and device
+  loss recovery. The checked-in shell preserves the existing layered Direct2D
+  fallback until live TSF-host visual proof approves a full DComp style swap.
+- [x] **Slice C:** skin schema glass fields + back-compat; candidate window (M10
   Slice C) rides `GlassSurface` **if** the spike supports it; latency check vs M04.
-- [ ] Contracts (see below). Evidence under `docs/evidence/m11/`.
-- [ ] Roadmap / decisions / README updates; **annotate M10 Slice C**. Commit to `main`.
+- [x] Contracts (see below). Evidence under `docs/evidence/m11/`.
+- [x] Roadmap / decisions / README updates; **annotate M10 Slice C**. Commit to `main`.
 
 ## Contract coverage (sharpened)
 Because contracts are source-grep PowerShell, a blanket "no English" grep would

@@ -63,23 +63,24 @@ foreach ($Required in @(
 }
 
 foreach ($Required in @(
-        'Native settings panel',
+        'yune_windows_ui_strings\.h',
+        'ui_strings::kSettingsPanelTitle',
         'CreateMutexW',
         'ERROR_ALREADY_EXISTS',
         'WaitForSettingsWindow',
         'YuneWindowsSettingsInstance',
-        'Input / session',
-        'Appearance',
-        'Engine',
-        'Dictionary',
-        'Schemas',
-        'coming soon',
+        'ui_strings::kSectionSession',
+        'ui_strings::kSectionAppearance',
+        'ui_strings::kSectionEngine',
+        'ui_strings::kSectionDictionary',
+        'ui_strings::kSectionSchemas',
         'op=set-skin',
         'EnumerateInstalledSkins',
         'D2DSurface',
         'PaintLanguageBarPreview',
         'CBS_DROPDOWNLIST',
         'WS_DISABLED',
+        'SelectedComboValue',
         '--self-test'
     )) {
     Require-Text $SettingsSource $Required "settings source is missing M09 native panel pattern: $Required"

@@ -3,6 +3,7 @@
 #include <d2d1.h>
 #include <d2d1helper.h>
 #include <dwrite.h>
+#include <dwmapi.h>
 #include <wrl/client.h>
 #include <windowsx.h>
 
@@ -29,6 +30,41 @@ constexpr COLORREF kTextColor = RGB(20, 24, 31);
 constexpr COLORREF kCommentColor = RGB(88, 94, 104);
 constexpr int kLanguageBarDragThreshold = 4;
 constexpr int kToolbarSegmentCount = 5;
+
+#ifndef DWMWA_USE_HOSTBACKDROPBRUSH
+#define DWMWA_USE_HOSTBACKDROPBRUSH 17
+#endif
+#ifndef DWMWA_SYSTEMBACKDROP_TYPE
+#define DWMWA_SYSTEMBACKDROP_TYPE 38
+#endif
+#ifndef DWMSBT_TRANSIENTWINDOW
+#define DWMSBT_TRANSIENTWINDOW 3
+#endif
+
+enum class WindowCompositionAttribute {
+    AccentPolicy = 19,
+};
+
+enum class AccentState {
+    Disabled = 0,
+    EnableGradient = 1,
+    EnableTransparentGradient = 2,
+    EnableBlurBehind = 3,
+    ACCENT_ENABLE_ACRYLICBLURBEHIND = 4,
+};
+
+struct AccentPolicy {
+    AccentState accent_state = AccentState::Disabled;
+    DWORD accent_flags = 0;
+    DWORD gradient_color = 0;
+    DWORD animation_id = 0;
+};
+
+struct WindowCompositionAttributeData {
+    WindowCompositionAttribute attribute = WindowCompositionAttribute::AccentPolicy;
+    void* data = nullptr;
+    SIZE_T data_size = 0;
+};
 
 int Scale(int value, UINT dpi) {
     return MulDiv(value, static_cast<int>(dpi == 0 ? 96 : dpi), 96);
@@ -293,6 +329,19 @@ void LoadSkinColor(std::string_view json, std::string_view key,
     }
 }
 
+ToolbarGlassMechanism ParseGlassMechanism(std::string_view value) {
+    if (value == "accent_acrylic") {
+        return ToolbarGlassMechanism::AccentAcrylic;
+    }
+    if (value == "dwm_acrylic") {
+        return ToolbarGlassMechanism::DwmAcrylic;
+    }
+    if (value == "static_tint") {
+        return ToolbarGlassMechanism::StaticTint;
+    }
+    return ToolbarGlassMechanism::HostBackdrop;
+}
+
 bool IsSafeSkinName(std::wstring_view value) {
     if (value.empty() || value.size() > 64) {
         return false;
@@ -379,13 +428,13 @@ SIZE LanguageBarDesiredSize(UINT dpi, const ToolbarSkin& skin) {
 
 std::wstring OutputStandardLabel(std::wstring_view value) {
     if (value == L"opencc_traditional") {
-        return L"\x7e41";
+        return L"\x50b3";
     }
     if (value == L"hong_kong_traditional") {
         return L"\x6e2f";
     }
     if (value == L"taiwan_traditional") {
-        return L"\x81fa";
+        return L"\x53f0";
     }
     if (value == L"mainland_simplified") {
         return L"\x7b80";
@@ -400,10 +449,10 @@ std::wstring SchemaLabel(std::wstring_view value) {
     if (value == L"cangjie5") {
         return L"\x5009";
     }
-    if (value == L"luna_pinyin") {
-        return L"\x62fc";
+    if (value == L"luna_pinyin" || value == L"luna_pinyin_octagram") {
+        return L"\x6719";
     }
-    return value.empty() ? L"\x6cd5" : std::wstring(value.substr(0, 1));
+    return L"\x6cd5";
 }
 
 std::wstring SkinSegmentLabelOr(const ToolbarSkin& skin, size_t index,
@@ -423,7 +472,7 @@ std::wstring ToolbarSegmentLabelForState(LanguageBarSegment segment,
     switch (segment) {
         case LanguageBarSegment::AsciiMode:
             return state.ascii_mode
-                       ? L"EN"
+                       ? L"\x82f1"
                        : SkinSegmentLabelOr(skin, 0, L"\x4e2d");
         case LanguageBarSegment::FullShape:
             return state.full_shape
@@ -583,6 +632,17 @@ ToolbarSkin LoadToolbarSkin(const std::filesystem::path& install_root,
     LoadSkinColor(json, "pressed", &skin.pressed);
     LoadSkinColor(json, "separator", &skin.separator);
     LoadSkinColor(json, "shadow", &skin.shadow);
+    LoadSkinColor(json, "glass_tint", &skin.glass_tint);
+    const std::string glass_mechanism = JsonStringValue(json, "glass_mechanism");
+    skin.glass_mechanism = ParseGlassMechanism(glass_mechanism);
+    skin.glass_tint_opacity = std::max(
+        0.0f, std::min(1.0f, JsonFloatValueOr(json, "glass_tint_opacity",
+                                              skin.glass_tint_opacity)));
+    skin.blur_amount =
+        std::max(0.0f, JsonFloatValueOr(json, "blur_amount", skin.blur_amount));
+    skin.highlight_intensity = std::max(
+        0.0f, std::min(1.0f, JsonFloatValueOr(json, "highlight_intensity",
+                                              skin.highlight_intensity)));
 
     const char* label_keys[kToolbarSegmentCount] = {
         "ascii", "shape", "standard", "schema", "settings"};
@@ -668,6 +728,93 @@ RECT ComputeToolbarWindowRect(const RECT& anchor, SIZE desired_size, UINT dpi,
     target.right = target.left + desired_size.cx;
     target.bottom = target.top + desired_size.cy;
     return ClampToolbarRectToVisibleMonitor(target, dpi);
+}
+
+DWORD WindowsBuildNumber() {
+    using RtlGetVersionProc = LONG(WINAPI*)(OSVERSIONINFOW*);
+    HMODULE ntdll = GetModuleHandleW(L"ntdll.dll");
+    auto rtl_get_version = ntdll ? reinterpret_cast<RtlGetVersionProc>(
+                                      GetProcAddress(ntdll, "RtlGetVersion"))
+                                : nullptr;
+    if (!rtl_get_version) {
+        return 0;
+    }
+    OSVERSIONINFOW version = {};
+    version.dwOSVersionInfoSize = sizeof(version);
+    if (rtl_get_version(&version) != 0) {
+        return 0;
+    }
+    return version.dwBuildNumber;
+}
+
+DWORD AccentColorFromSkin(const ToolbarSkin& skin) {
+    const DWORD alpha =
+        static_cast<DWORD>(std::lround(255.0f * skin.glass_tint_opacity));
+    const DWORD red = static_cast<DWORD>(std::lround(255.0f * skin.glass_tint.r));
+    const DWORD green = static_cast<DWORD>(std::lround(255.0f * skin.glass_tint.g));
+    const DWORD blue = static_cast<DWORD>(std::lround(255.0f * skin.glass_tint.b));
+    return (alpha << 24) | (blue << 16) | (green << 8) | red;
+}
+
+void ApplyHostBackdropBrush(HWND hwnd) {
+    // Documented live-content path for a future full DirectComposition backend:
+    // Windows.UI.Composition Compositor.CreateHostBackdropBrush paired with
+    // DWMWA_USE_HOSTBACKDROPBRUSH and WS_EX_NOREDIRECTIONBITMAP.
+    const BOOL use_host_backdrop = TRUE;
+    (void)DwmSetWindowAttribute(hwnd, DWMWA_USE_HOSTBACKDROPBRUSH,
+                                &use_host_backdrop,
+                                sizeof(use_host_backdrop));
+}
+
+void ApplyAccentAcrylic(HWND hwnd, const ToolbarSkin& skin) {
+    using SetWindowCompositionAttributeProc =
+        BOOL(WINAPI*)(HWND, WindowCompositionAttributeData*);
+    HMODULE user32 = GetModuleHandleW(L"user32.dll");
+    auto set_window_composition_attribute =
+        user32 ? reinterpret_cast<SetWindowCompositionAttributeProc>(
+                     GetProcAddress(user32, "SetWindowCompositionAttribute"))
+               : nullptr;
+    if (!set_window_composition_attribute) {
+        return;
+    }
+    AccentPolicy accent = {};
+    accent.accent_state = AccentState::ACCENT_ENABLE_ACRYLICBLURBEHIND;
+    accent.gradient_color = AccentColorFromSkin(skin);
+    WindowCompositionAttributeData data = {};
+    data.attribute = WindowCompositionAttribute::AccentPolicy;
+    data.data = &accent;
+    data.data_size = sizeof(accent);
+    (void)set_window_composition_attribute(hwnd, &data);
+}
+
+void ApplyDwmTransientAcrylic(HWND hwnd) {
+    const DWORD backdrop = DWMSBT_TRANSIENTWINDOW;
+    (void)DwmSetWindowAttribute(hwnd, DWMWA_SYSTEMBACKDROP_TYPE, &backdrop,
+                                sizeof(backdrop));
+}
+
+void ApplyToolbarGlassBackdrop(HWND hwnd, const ToolbarSkin& skin) {
+    if (!hwnd) {
+        return;
+    }
+    const DWORD build = WindowsBuildNumber();
+    if (skin.glass_mechanism == ToolbarGlassMechanism::HostBackdrop &&
+        build >= 22000) {
+        ApplyHostBackdropBrush(hwnd);
+        return;
+    }
+    if (skin.glass_mechanism == ToolbarGlassMechanism::AccentAcrylic &&
+        build >= 22000) {
+        ApplyAccentAcrylic(hwnd, skin);
+        return;
+    }
+    if (skin.glass_mechanism == ToolbarGlassMechanism::DwmAcrylic &&
+        build >= 22000) {
+        ApplyDwmTransientAcrylic(hwnd);
+        return;
+    }
+    // static translucent tint fallback: the D2D/UpdateLayeredWindow path remains
+    // non-hollow, no-activate, draggable, and covered by the M08 smoke.
 }
 
 struct D2DSurface::Impl {
@@ -988,6 +1135,28 @@ bool D2DSurface::PaintLanguageBarPreview(HWND hwnd, HDC dc, const RECT& bounds,
         return false;
     }
     return SUCCEEDED(hr);
+}
+
+bool GlassSurface::PresentLanguageBar(HWND hwnd, const LanguageBarState& state,
+                                      const ToolbarSkin& skin,
+                                      LanguageBarSegment hover_segment,
+                                      LanguageBarSegment pressed_segment,
+                                      bool has_hover,
+                                      bool has_pressed) {
+    ApplyToolbarGlassBackdrop(hwnd, skin);
+    return d2d_surface_.PresentLanguageBar(hwnd, state, skin, hover_segment,
+                                           pressed_segment, has_hover,
+                                           has_pressed);
+}
+
+bool GlassSurface::PaintLanguageBarPreview(HWND hwnd, HDC dc, const RECT& bounds,
+                                           const LanguageBarState& state,
+                                           const ToolbarSkin& skin) {
+    return d2d_surface_.PaintLanguageBarPreview(hwnd, dc, bounds, state, skin);
+}
+
+void GlassSurface::DiscardDeviceResources() {
+    d2d_surface_.DiscardDeviceResources();
 }
 
 NativeCandidateWindow::~NativeCandidateWindow() {

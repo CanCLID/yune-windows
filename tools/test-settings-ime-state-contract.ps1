@@ -39,7 +39,7 @@ foreach ($Required in @(
         'schema_id',
         'EnumerateInstalledSkins',
         'PaintLanguageBarPreview',
-        'coming soon',
+        'ui_strings::kExtendedCharsetComingSoon',
         'WS_DISABLED'
     )) {
     if ($Settings -notmatch $Required) {

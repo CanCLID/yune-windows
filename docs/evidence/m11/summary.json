@@ -1,0 +1,28 @@
+{
+  "milestone": "M11",
+  "title": "UI Modernization + Cantonese Localization",
+  "status": "non-elevated implementation evidence complete",
+  "evidence": "docs/evidence/m11/summary.md",
+  "live_visual_status": "approval-gated",
+  "live_machine_steps_run": false,
+  "verification_passed": [
+    "git diff --check",
+    "tools\\test-tsf-shell-build.ps1",
+    "tools\\test-m08-modern-toolbar-contract.ps1",
+    "tools\\test-m09-settings-panel-contract.ps1",
+    "tools\\test-m11-ui-modernization-contract.ps1",
+    "tools\\test-language-bar-window-contract.ps1",
+    "tools\\test-language-bar-smoke.ps1",
+    "tools\\test-settings-window-smoke.ps1",
+    "tools\\test-settings-ime-state-contract.ps1"
+  ],
+  "implemented": {
+    "settings_manifest_per_monitor_v2": true,
+    "settings_jhenghei_font_dpi_relayout": true,
+    "settings_cantonese_ui_strings": true,
+    "combo_label_value_split": true,
+    "toolbar_cantonese_glyphs": true,
+    "glass_surface_shell": true,
+    "host_backdrop_live_visual_proof": false
+  }
+}

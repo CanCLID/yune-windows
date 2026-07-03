@@ -1479,6 +1479,7 @@ void LanguageBarWindow::ContinuePointerInteraction(POINT client_point) {
 void LanguageBarWindow::EndPointerInteraction(POINT client_point) {
     const bool was_dragging = dragging_;
     const bool click_allowed = click_allowed_;
+    const LanguageBarSegment pressed_segment = pressed_segment_;
     if (pointer_captured_) {
         ReleaseCapture();
     }
@@ -1497,8 +1498,24 @@ void LanguageBarWindow::EndPointerInteraction(POINT client_point) {
         return;
     }
 
-    if (click_allowed && click_handler_) {
-        click_handler_(SegmentFromPoint(client_point), click_context_);
+    POINT release_screen = client_point;
+    ClientToScreen(hwnd_, &release_screen);
+    const int dx = release_screen.x - drag_start_screen_.x;
+    const int dy = release_screen.y - drag_start_screen_.y;
+    RECT client = {};
+    GetClientRect(hwnd_, &client);
+    const bool release_inside =
+        client_point.x >= client.left && client_point.x <= client.right &&
+        client_point.y >= client.top && client_point.y <= client.bottom;
+    const int threshold = Scale(kLanguageBarDragThreshold, state_.dpi);
+    const bool stayed_within_click_threshold =
+        std::abs(dx) < threshold && std::abs(dy) < threshold;
+    const bool released_on_pressed_segment =
+        release_inside && SegmentFromPoint(client_point) == pressed_segment;
+
+    if (click_allowed && stayed_within_click_threshold &&
+        released_on_pressed_segment && click_handler_) {
+        click_handler_(pressed_segment, click_context_);
     }
     Render();
 }

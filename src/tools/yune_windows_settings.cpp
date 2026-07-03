@@ -18,6 +18,8 @@ namespace {
 constexpr const wchar_t* kPipeName = L"\\\\.\\pipe\\yune-windows-ime";
 constexpr const wchar_t* kWindowClassName = L"YuneWindowsSettingsWindow";
 constexpr const wchar_t* kPreviewClassName = L"YuneWindowsSettingsPreview";
+constexpr const wchar_t* kInstanceMutexName =
+    L"Local\\YuneWindowsSettingsInstance";
 
 constexpr int kButtonAscii = 1001;
 constexpr int kButtonFullShape = 1002;
@@ -383,6 +385,28 @@ void ApplySkin(HWND hwnd, const std::wstring& skin_name) {
     UpdateControls();
 }
 
+void FocusSettingsWindow(HWND hwnd) {
+    if (!hwnd || !IsWindow(hwnd)) {
+        return;
+    }
+    ShowWindow(hwnd, SW_SHOWNORMAL);
+    SetForegroundWindow(hwnd);
+}
+
+HWND WaitForSettingsWindow(DWORD timeout_ms) {
+    const DWORD start = GetTickCount();
+    for (;;) {
+        HWND existing = FindWindowW(kWindowClassName, nullptr);
+        if (existing && IsWindow(existing)) {
+            return existing;
+        }
+        if (timeout_ms == 0 || GetTickCount() - start >= timeout_ms) {
+            return nullptr;
+        }
+        Sleep(25);
+    }
+}
+
 HWND AddText(HWND hwnd, int x, int y, int w, int h, const wchar_t* text) {
     return CreateWindowExW(0, L"STATIC", text, WS_CHILD | WS_VISIBLE,
                            x, y, w, h, hwnd, nullptr, GetModuleHandleW(nullptr),
@@ -655,10 +679,24 @@ int wmain(int argc, wchar_t** argv) {
         return result;
     }
 
-    HWND existing = FindWindowW(kWindowClassName, nullptr);
+    HANDLE instance_mutex = CreateMutexW(nullptr, TRUE, kInstanceMutexName);
+    const DWORD mutex_error = GetLastError();
+    if (instance_mutex && mutex_error == ERROR_ALREADY_EXISTS) {
+        FocusSettingsWindow(WaitForSettingsWindow(1500));
+        CloseHandle(instance_mutex);
+        if (should_uninit) {
+            CoUninitialize();
+        }
+        return 0;
+    }
+
+    HWND existing = WaitForSettingsWindow(0);
     if (existing && IsWindow(existing)) {
-        ShowWindow(existing, SW_SHOWNORMAL);
-        SetForegroundWindow(existing);
+        FocusSettingsWindow(existing);
+        if (instance_mutex) {
+            ReleaseMutex(instance_mutex);
+            CloseHandle(instance_mutex);
+        }
         if (should_uninit) {
             CoUninitialize();
         }
@@ -667,6 +705,10 @@ int wmain(int argc, wchar_t** argv) {
 
     HINSTANCE instance = GetModuleHandleW(nullptr);
     if (!RegisterWindowClasses(instance)) {
+        if (instance_mutex) {
+            ReleaseMutex(instance_mutex);
+            CloseHandle(instance_mutex);
+        }
         if (should_uninit) {
             CoUninitialize();
         }
@@ -680,6 +722,10 @@ int wmain(int argc, wchar_t** argv) {
                                 CW_USEDEFAULT, CW_USEDEFAULT, 720, 580, nullptr,
                                 nullptr, instance, nullptr);
     if (!hwnd) {
+        if (instance_mutex) {
+            ReleaseMutex(instance_mutex);
+            CloseHandle(instance_mutex);
+        }
         if (should_uninit) {
             CoUninitialize();
         }
@@ -692,6 +738,10 @@ int wmain(int argc, wchar_t** argv) {
     while (GetMessageW(&message, nullptr, 0, 0) > 0) {
         TranslateMessage(&message);
         DispatchMessageW(&message);
+    }
+    if (instance_mutex) {
+        ReleaseMutex(instance_mutex);
+        CloseHandle(instance_mutex);
     }
     if (should_uninit) {
         CoUninitialize();

@@ -29,6 +29,16 @@ What landed:
 - Kept the candidate window visually unchanged; M10 owns candidate-window
   skinning and skin breadth.
 
+Follow-up fixes:
+
+- Linked `YuneWindowsSettings.exe` as a Windows GUI subsystem executable while
+  preserving `--self-test` exit-code verification.
+- Added a settings-process named mutex so fast repeated launches focus the first
+  real settings window instead of racing two panel processes.
+- Tightened toolbar click semantics so a click dispatches the mouse-down segment
+  only when release stays on that segment and movement stays under the click
+  threshold.
+
 Verification run:
 
 - `git diff --check`

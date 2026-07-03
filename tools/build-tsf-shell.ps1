@@ -94,7 +94,7 @@ if ($LASTEXITCODE -ne 0) {
     throw "profile tool build failed with exit code $LASTEXITCODE"
 }
 
-$SettingsToolCompile = "call `"$VsDevCmd`" -arch=x64 -host_arch=x64 >nul && cl.exe /nologo /std:c++20 /EHsc /W4 /permissive- /utf-8 /DUNICODE /D_UNICODE /Fo`"$SettingsToolObj`" /Fe`"$SettingsToolExe`" `"$SettingsToolSource`" `"$CandidateWindowObj`" /link ole32.lib user32.lib gdi32.lib d2d1.lib dwrite.lib"
+$SettingsToolCompile = "call `"$VsDevCmd`" -arch=x64 -host_arch=x64 >nul && cl.exe /nologo /std:c++20 /EHsc /W4 /permissive- /utf-8 /DUNICODE /D_UNICODE /Fo`"$SettingsToolObj`" /Fe`"$SettingsToolExe`" `"$SettingsToolSource`" `"$CandidateWindowObj`" /link ole32.lib user32.lib gdi32.lib d2d1.lib dwrite.lib /SUBSYSTEM:WINDOWS /ENTRY:wmainCRTStartup"
 cmd.exe /d /s /c "$SettingsToolCompile"
 if ($LASTEXITCODE -ne 0) {
     throw "settings tool build failed with exit code $LASTEXITCODE"

@@ -64,6 +64,10 @@ foreach ($Required in @(
 
 foreach ($Required in @(
         'Native settings panel',
+        'CreateMutexW',
+        'ERROR_ALREADY_EXISTS',
+        'WaitForSettingsWindow',
+        'YuneWindowsSettingsInstance',
         'Input / session',
         'Appearance',
         'Engine',
@@ -84,6 +88,8 @@ foreach ($Required in @(
 foreach ($Required in @(
         'CandidateWindowObj',
         'YuneWindowsSettings.exe',
+        '/SUBSYSTEM:WINDOWS',
+        '/ENTRY:wmainCRTStartup',
         'd2d1\.lib',
         'dwrite\.lib'
     )) {

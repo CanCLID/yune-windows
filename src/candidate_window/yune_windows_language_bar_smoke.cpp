@@ -247,6 +247,19 @@ int SelfTest() {
 
     RECT client = {};
     GetClientRect(bar_hwnd, &client);
+    g_ascii_clicked = false;
+    g_settings_clicked = false;
+    const LPARAM same_segment_move =
+        MAKELPARAM(Scale(52, state.dpi), Scale(18, state.dpi));
+    SendMessageW(bar_hwnd, WM_LBUTTONDOWN, MK_LBUTTON, click_point);
+    SendMessageW(bar_hwnd, WM_MOUSEMOVE, MK_LBUTTON, same_segment_move);
+    SendMessageW(bar_hwnd, WM_LBUTTONUP, 0, same_segment_move);
+    if (g_ascii_clicked || g_settings_clicked) {
+        std::cerr << "language bar over-threshold movement still clicked\n";
+        DestroyWindow(owner);
+        return 1;
+    }
+
     g_settings_clicked = false;
     RECT before_settings_drag = {};
     GetWindowRect(bar_hwnd, &before_settings_drag);
@@ -254,6 +267,16 @@ int SelfTest() {
         MAKELPARAM(client.right - Scale(18, state.dpi), Scale(18, state.dpi));
     const LPARAM settings_drag_move =
         MAKELPARAM(client.right - Scale(74, state.dpi), Scale(44, state.dpi));
+    g_ascii_clicked = false;
+    g_settings_clicked = false;
+    SendMessageW(bar_hwnd, WM_LBUTTONDOWN, MK_LBUTTON, click_point);
+    SendMessageW(bar_hwnd, WM_LBUTTONUP, 0, settings_drag_start);
+    if (g_ascii_clicked || g_settings_clicked) {
+        std::cerr << "language bar cross-segment release still clicked\n";
+        DestroyWindow(owner);
+        return 1;
+    }
+
     SendMessageW(bar_hwnd, WM_LBUTTONDOWN, MK_LBUTTON, settings_drag_start);
     SendMessageW(bar_hwnd, WM_MOUSEMOVE, MK_LBUTTON, settings_drag_move);
     SendMessageW(bar_hwnd, WM_LBUTTONUP, 0, settings_drag_move);

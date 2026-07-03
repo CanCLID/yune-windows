@@ -65,7 +65,8 @@ struct ToolbarSkin {
     ToolbarSkinColor pressed = {0.74f, 0.84f, 0.96f, 0.90f};
     ToolbarSkinColor separator = {0.33f, 0.38f, 0.45f, 0.28f};
     ToolbarSkinColor shadow = {0.0f, 0.0f, 0.0f, 0.24f};
-    std::array<std::wstring, 4> segment_labels = {L"EN", L"Half", L"Std", L"Yue"};
+    std::array<std::wstring, 4> segment_labels = {
+        L"\x4e2d", L"\x534a", L"\x6e2f", L"\x7cb5"};
 };
 
 struct LanguageBarState {
@@ -91,6 +92,9 @@ int CandidatePageStartIndex(int page_index, int page_size);
 RECT ComputeCandidateWindowRect(const RECT& anchor, SIZE desired_size, UINT dpi);
 ToolbarSkin LoadToolbarSkin(const std::filesystem::path& install_root,
                             std::wstring_view skin_name);
+std::wstring ToolbarSegmentLabelForState(LanguageBarSegment segment,
+                                         const LanguageBarState& state,
+                                         const ToolbarSkin& skin);
 RECT ClampToolbarRectToVisibleMonitor(const RECT& desired_rect, UINT dpi);
 RECT ComputeToolbarWindowRect(const RECT& anchor, SIZE desired_size, UINT dpi,
                               const ToolbarPosition& saved_position);
@@ -168,6 +172,7 @@ private:
     LanguageBarSegment SegmentFromPoint(POINT point) const;
     void Render();
     bool IsPointInDragZone(POINT point) const;
+    void TrackMouseLeave();
     void BeginPointerInteraction(POINT client_point);
     void ContinuePointerInteraction(POINT client_point);
     void EndPointerInteraction(POINT client_point);
@@ -191,6 +196,7 @@ private:
     LanguageBarSegment pressed_segment_ = LanguageBarSegment::AsciiMode;
     bool has_hover_segment_ = false;
     bool has_pressed_segment_ = false;
+    bool tracking_mouse_leave_ = false;
 };
 
 }  // namespace yune_windows

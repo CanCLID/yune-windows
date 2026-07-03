@@ -74,7 +74,9 @@ bool RegisterOwnerClass() {
 }
 
 int SelfTest() {
-    (void)CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
+    const HRESULT co_init_result =
+        CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
+    const bool co_initialized = SUCCEEDED(co_init_result);
 
     const std::filesystem::path module_dir = ModuleDirectory();
     const yune_windows::ToolbarSkin default_skin =
@@ -87,6 +89,48 @@ int SelfTest() {
         yune_windows::LoadToolbarSkin(module_dir, L"missing-skin");
     if (fallback_skin.name != L"default") {
         std::cerr << "missing skin did not use compiled-in default fallback\n";
+        return 1;
+    }
+
+    yune_windows::ToolbarSkin custom_skin;
+    custom_skin.segment_labels = {L"AA", L"SS", L"OO", L"KK"};
+    yune_windows::LanguageBarState label_state;
+    label_state.ascii_mode = false;
+    label_state.full_shape = false;
+    label_state.output_standard = L"hong_kong_traditional";
+    label_state.schema_id = L"jyut6ping3";
+    if (yune_windows::ToolbarSegmentLabelForState(
+            yune_windows::LanguageBarSegment::AsciiMode, label_state,
+            custom_skin) != L"AA" ||
+        yune_windows::ToolbarSegmentLabelForState(
+            yune_windows::LanguageBarSegment::FullShape, label_state,
+            custom_skin) != L"SS" ||
+        yune_windows::ToolbarSegmentLabelForState(
+            yune_windows::LanguageBarSegment::OutputStandard, label_state,
+            custom_skin) != L"OO" ||
+        yune_windows::ToolbarSegmentLabelForState(
+            yune_windows::LanguageBarSegment::Schema, label_state,
+            custom_skin) != L"KK") {
+        std::cerr << "toolbar segment labels did not use the skin manifest\n";
+        return 1;
+    }
+    label_state.ascii_mode = true;
+    label_state.full_shape = true;
+    label_state.output_standard = L"mainland_simplified";
+    label_state.schema_id = L"luna_pinyin";
+    if (yune_windows::ToolbarSegmentLabelForState(
+            yune_windows::LanguageBarSegment::AsciiMode, label_state,
+            custom_skin) != L"EN" ||
+        yune_windows::ToolbarSegmentLabelForState(
+            yune_windows::LanguageBarSegment::FullShape, label_state,
+            custom_skin) != L"\x5168" ||
+        yune_windows::ToolbarSegmentLabelForState(
+            yune_windows::LanguageBarSegment::OutputStandard, label_state,
+            custom_skin) != L"\x7b80" ||
+        yune_windows::ToolbarSegmentLabelForState(
+            yune_windows::LanguageBarSegment::Schema, label_state,
+            custom_skin) != L"\x62fc") {
+        std::cerr << "toolbar state-specific labels were not preserved\n";
         return 1;
     }
 
@@ -193,6 +237,9 @@ int SelfTest() {
 
     toolbar.Hide();
     DestroyWindow(owner);
+    if (co_initialized) {
+        CoUninitialize();
+    }
     std::cout << "language bar smoke passed\n";
     return 0;
 }

@@ -1,7 +1,9 @@
 # M08 Modern Floating Toolbar Evidence
 
-Status: implemented and verified with non-elevated build, contract, server, and
-window-smoke evidence.
+Status: non-elevated implementation complete and verified with build, contract,
+server, and window-smoke evidence. Live dogfood visual/interactive proof in real
+TSF hosts is still pending and requires explicit approval for the live-machine
+path.
 
 What landed:
 
@@ -10,8 +12,10 @@ What landed:
   `UpdateLayeredWindow`.
 - Added shared `D2DSurface`, toolbar geometry/clamp helpers, and a conservative
   skin-manifest loader with compiled-in fallback.
-- Added repo-owned default skin assets under `skins/default/` and build/install/dev
-  deployment wiring.
+- Added the repo-owned default skin manifest under `skins/default/` and
+  build/install/dev deployment wiring.
+- SVG asset rendering is deferred to M09 or a later skin-renderer slice; M08
+  ships manifest segment glyph labels only and does not ship inert image assets.
 - Added manual grip drag with click-vs-drag threshold, monitor clamping, and no
   `HTCAPTION`.
 - Added server-owned `op=set-toolbar-position` and `op=set-skin` state persisted
@@ -45,3 +49,5 @@ Live-machine boundary:
   mutation, and full Notepad/Chromium live IME loops were not run. They require
   explicit current-session approval and are separate dogfood/live-readiness
   evidence.
+- Live dogfood visual/interactive inspection of the toolbar in real TSF hosts was
+  not run for the same approval boundary.

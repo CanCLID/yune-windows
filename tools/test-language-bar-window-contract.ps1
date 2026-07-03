@@ -38,6 +38,8 @@ foreach ($Required in @(
         'DWriteCreateFactory',
         'D2DERR_RECREATE_TARGET',
         'WM_DPICHANGED',
+        'TrackMouseEvent',
+        'TME_LEAVE',
         'SetCapture',
         'ReleaseCapture',
         'kLanguageBarDragThreshold',

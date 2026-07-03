@@ -53,15 +53,27 @@ foreach ($Required in @(
         'ID2D1DCRenderTarget',
         'D2D1CreateFactory',
         'DWriteCreateFactory',
-        'IWICImagingFactory',
         'D2DERR_RECREATE_TARGET',
         'WM_DPICHANGED',
+        'TrackMouseEvent',
+        'TME_LEAVE',
         'SetCapture',
         'ReleaseCapture',
         'kLanguageBarDragThreshold',
+        'ToolbarSegmentLabelForState',
+        'skin\.segment_labels',
+        'GdiFlush',
         'SWP_NOACTIVATE'
     )) {
     Require-Text $WindowSource $Required "language-bar source is missing M08 D2D/drag pattern: $Required"
+}
+
+if ($WindowSource -match 'LanguageBarLabel\(segments\[i\], state\)') {
+    throw "M08 toolbar render path parses manifest segment labels but still draws hardcoded state-only labels."
+}
+
+if ($WindowSource -match 'IWICImagingFactory' -or $WindowSource -match 'CLSID_WICImagingFactory') {
+    throw "M08 toolbar glyph render path must not require WIC; raster/vector image assets are deferred."
 }
 
 if ($WindowSource -match 'HTCAPTION') {
@@ -97,11 +109,14 @@ if ($TsfSource -match 'ime-state\.json') {
 foreach ($Required in @(
         'd2d1\.lib',
         'dwrite\.lib',
-        'windowscodecs\.lib',
         'YuneWindowsLanguageBarSmoke\.exe',
         'skins'
     )) {
     Require-Text $BuildScript $Required "build-tsf-shell.ps1 is missing M08 build/deploy pattern: $Required"
+}
+
+if ($BuildScript -match 'windowscodecs\.lib') {
+    throw "M08 toolbar build must not link WIC when the shipped default skin has no rendered image assets."
 }
 
 foreach ($Entry in @(
@@ -126,10 +141,27 @@ foreach ($RequiredProperty in @("name", "geometry", "colors", "font", "segments"
         throw "default skin manifest is missing property: $RequiredProperty"
     }
 }
+if ($Skin.PSObject.Properties.Name -contains "assets") {
+    throw "M08 default skin must not declare image assets until the renderer consumes them."
+}
+
+$SkinAssetsDir = Join-Path $RepoRoot "skins\default\assets"
+if (Test-Path -LiteralPath $SkinAssetsDir) {
+    $DeadAssets = Get-ChildItem -LiteralPath $SkinAssetsDir -Recurse -File -ErrorAction SilentlyContinue
+    if ($DeadAssets.Count -gt 0) {
+        throw "M08 must not ship inert skin image assets: $($DeadAssets[0].FullName)"
+    }
+}
 
 $Evidence = Join-Path $RepoRoot "docs\evidence\m08\summary.md"
 if (-not (Test-Path -LiteralPath $Evidence -PathType Leaf)) {
     throw "missing M08 evidence summary: docs\evidence\m08\summary.md"
 }
+$EvidenceText = Get-Content -Raw -LiteralPath $Evidence
+Require-Text $EvidenceText 'live dogfood visual' "M08 evidence must call out the pending live dogfood visual/interactive check."
+Require-Text $EvidenceText 'SVG asset rendering is deferred' "M08 evidence must not imply shipped SVG assets affect the toolbar."
+
+$RoadmapText = Read-RepoFile "docs\roadmap.md"
+Require-Text $RoadmapText 'live visual pending' "roadmap must keep M08 non-elevated status distinct from pending live visual proof."
 
 Write-Host "M08 modern toolbar static contract passed."

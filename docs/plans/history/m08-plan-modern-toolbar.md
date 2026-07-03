@@ -4,10 +4,12 @@
 > 2026-07-02 as the milestone after M06/M07 and implemented with local
 > build/contract/smoke evidence. Elevated install/register and full live host
 > loops were not run for this milestone because they require explicit
-> current-session approval. Fixes the
-> two problems with the M05 language bar: it sits in a fixed corner with no way to
-> reposition, and it looks flat/dated. Redesigns it as a draggable, position-
-> remembering, Direct2D-rendered bar with a skin-pack architecture.
+> current-session approval; live dogfood visual/interactive proof remains
+> pending. M08 renders manifest segment glyph labels and deliberately defers
+> SVG/image asset rendering until a renderer path consumes those assets. Fixes
+> the two problems with the M05 language bar: it sits in a fixed corner with no
+> way to reposition, and it looks flat/dated. Redesigns it as a draggable,
+> position-remembering, Direct2D-rendered bar with a skin-pack architecture.
 
 **Goal:** replace the flat GDI language bar with a modern, high-fidelity toolbar —
 a rounded, translucent, icon-based pill rendered with Direct2D/DirectWrite — that
@@ -27,8 +29,8 @@ adopt the same skin later** (M09/later). Direct2D is native, so a skinned
 candidate window stays compatible with D-04 ("candidate window stays native for
 latency"). Do not build a toolbar-only skin engine that must be rewritten.
 
-**Tech Stack:** Win32 layered/no-activate window (C++20), Direct2D + DirectWrite
-(+ WIC for raster assets, `ID2D1SvgDocument` for vector icons), the shared server
+**Tech Stack:** Win32 layered/no-activate window (C++20), Direct2D + DirectWrite,
+the shared server
 + `op=` pipe for persisted position/skin (server stays the sole state writer), and
 the M03 dev loop. Iterate via holder-free `dev-reload-tsf` / `dev-swap-tsf-dll`.
 
@@ -63,9 +65,9 @@ the M03 dev loop. Iterate via holder-free `dev-reload-tsf` / `dev-swap-tsf-dll`.
   (multiple in-proc DLLs would race).
 - **Build wiring:** `tools/build-tsf-shell.ps1` links the TSF DLL with
   `ole32.lib uuid.lib advapi32.lib user32.lib gdi32.lib`; the candidate-window
-  smoke exe is a separate target linking `user32.lib gdi32.lib`. Direct2D needs
-  `d2d1.lib dwrite.lib` (+ `windowscodecs.lib` for WIC raster assets); optional
-  `dcomp.lib` if DirectComposition is used for shadow/compositing.
+  smoke exe is a separate target linking `user32.lib gdi32.lib`. The landed M08
+  glyph-label renderer needs `d2d1.lib dwrite.lib`; richer image asset rendering is
+  deferred until a renderer path consumes those assets.
 - **`ID2D1SvgDocument` (Direct2D SVG) is available** on the Win11 target
   (Windows 10 1703+), so icons can be crisp vector at any DPI.
 
@@ -204,7 +206,7 @@ protocol + drag. C is the visual finish. D proves it.
 
 ### Task 1: Slice A — renderer + skin manifest
 - [ ] Shared `D2DSurface` (ULW presentation, device, DPI, device-loss recovery);
-  add `d2d1/dwrite`(+`windowscodecs`) to the DLL + smoke link.
+  add `d2d1/dwrite` to the DLL + smoke link.
 - [ ] Skin-manifest schema + loader with validation and default fallback; ship the
   default skin via the manifest.
 - [ ] **Skin-asset deployment:** repo `skins/default/`; copy `skins/` through

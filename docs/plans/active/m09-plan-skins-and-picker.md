@@ -1,14 +1,13 @@
-# M09 Settings Panel + Toolbar Skinning Finish Plan
+# M09 Settings Panel + Skin Picker Plan
 
-> **Status:** active (next after M08). Two threads: (1) finish the toolbar
-> skinning that M08 left partial (skin-driven icons/labels, not just
-> colors/geometry), and (2) give the toolbar a **settings button** that opens a
-> **full settings panel** with yune-web-parity structure — all toggles + skin
-> picker wired, and schema-import / userdb import-export scaffolded and ready for
-> future implementation.
+> **Status:** active (next after M08). Give the toolbar a **settings button** that
+> opens a **full settings panel** with yune-web-parity structure: all supported
+> toggles + skin picker wired, and schema-import / userdb import-export scaffolded
+> and ready for future implementation. Rich SVG/image asset rendering remains a
+> deliberate skin-renderer extension if M09 needs it.
 
-**Goal:** make the toolbar genuinely skinnable *and* the launch point for a
-complete config surface. A ⚙ button on the bar opens a settings panel modeled on
+**Goal:** make the toolbar the launch point for a complete config surface and a
+skin picker. A ⚙ button on the bar opens a settings panel modeled on
 https://yune-web.pages.dev/ where the user can toggle every setting, pick a skin,
 and (eventually) import schemas and import/export the user dictionary. Features
 that aren't supported yet (userdb, schema import, deploy-time engine prefs) are
@@ -23,16 +22,12 @@ skinning move to M10** so M09 stays focused on the panel + finishing M08.
 ## Current Facts (grounded, after M08)
 
 - M08 ships a Direct2D toolbar (ULW, no-activate drag, server-persisted
-  position/skin, reusable `D2DSurface`) driven by `skins/<name>/theme.json`, **but
-  the renderer only applies colors/geometry/font** — it hardcodes segment labels
-  via `LanguageBarLabel(...)` and does **not** render the declared SVG assets or
-  the parsed `segment_labels`
-  (`src/candidate_window/yune_windows_candidate_window.cpp` ~`:856`; assets in
-  `skins/default/theme.json`). So the skin is not yet content-complete.
-- `EnsureFactories()` hard-requires WIC even though nothing uses it yet, so the
-  render fails if `CoCreateInstance(WIC)` fails on a host thread
-  (`yune_windows_candidate_window.cpp` ~`:660`).
-- The toolbar hover state has no `TrackMouseEvent(TME_LEAVE)`, so hover can stick.
+  position/skin, reusable `D2DSurface`) driven by `skins/<name>/theme.json`.
+  The renderer consumes manifest geometry/colors/font and segment glyph labels.
+  It does not ship or render SVG/image assets; richer asset rendering is optional
+  M09/M10 scope and should only land with a renderer path that consumes it.
+- The toolbar hover state uses `TrackMouseEvent(TME_LEAVE)`, and the current
+  glyph render path does not require WIC.
 - `YuneWindowsSettings.exe` (M05) exists as a native Win32 config exe wired to the
   server `op=` verbs; it currently covers the core session toggles only.
 - The server owns state (`ime-state.json`, `op=` verbs, state block on every
@@ -56,30 +51,19 @@ skinning move to M10** so M09 stays focused on the panel + finishing M08.
 
 ## Slice Map (sequence)
 
-1. **Slice 0 — Finish M08 toolbar skinning** (skin-driven labels + SVG icons;
-   lazy/tolerant WIC; hover `TrackMouseEvent`).
-2. **Slice A — Toolbar settings button** (a ⚙ segment that opens the settings
+1. **Slice A — Toolbar settings button** (a ⚙ segment that opens the settings
    panel; routed like the other segments but launches or focuses the panel).
-3. **Slice B — Full settings panel** (yune-web-parity layout; wire the supported
+2. **Slice B — Full settings panel** (yune-web-parity layout; wire the supported
    settings, scaffold the rest as disabled + future-ready).
 
 ## Design Details
 
-### Slice 0 — Finish M08 toolbar skinning (GPT M08 review findings)
+### Optional skin asset renderer
 
-- **Skin drives content, not just chrome.** Render `skin.segment_labels` and the
-  declared per-segment **SVG icons** (`ID2D1SvgDocument`) instead of hardcoded
-  `LanguageBarLabel(...)`. Fall back to the built-in glyphs if a skin omits an
-  icon/label. This is what makes M08's "skin pack" and M10's "new skin via
-  manifest + assets only" actually work.
-- **WIC lazy + tolerant.** Don't fail the whole render if WIC is unavailable;
-  create the WIC factory only when raster/SVG asset loading needs it, and render
-  the text/vector path even if WIC init fails (so the bar never silently
-  disappears on a host thread with a different COM state).
-- **Hover fix.** Call `TrackMouseEvent(TME_LEAVE)` when hover begins so
-  `WM_MOUSELEAVE` reliably clears hover.
-- **Verify:** the default skin renders its icons; a skin that changes an icon/label
-  changes the bar; hover clears on leave; the bar still renders if WIC fails.
+M08 intentionally ships manifest glyph labels and no inert image assets. If M09
+needs richer skins, add SVG/raster asset loading together with the renderer and
+contracts that prove a changed asset changes the toolbar. Keep this independent
+from the settings button and panel work.
 
 ### Slice A — Toolbar settings button
 
@@ -120,14 +104,12 @@ skinning move to M10** so M09 stays focused on the panel + finishing M08.
   for the panel** (the toolbar stays native D2D). Confirm before building.
 
 ## Tasks
-- [ ] Slice 0: skin-driven labels + SVG icons; lazy/tolerant WIC; hover
-  `TrackMouseEvent`; extend the M08 contract for skin-driven content.
 - [ ] Slice A: toolbar ⚙ settings button that opens the settings panel.
 - [ ] Slice B: settings panel (WebView2 or native per the decision) with the parity
   layout; wire session toggles + schema switch + skin picker; scaffold engine /
   dictionary / schema-import as disabled + future-ready.
-- [ ] Evidence under `docs/evidence/m09/`; contracts (panel launch, skin-driven
-  content, scaffold-disabled invariants); roadmap/decisions. Commit to `main`.
+- [ ] Evidence under `docs/evidence/m09/`; contracts (panel launch, skin picker,
+  scaffold-disabled invariants); roadmap/decisions. Commit to `main`.
 
 ## Reviewer Questions
 - **Panel tech: WebView2 (reuse yune-web, recommended) vs. native Win32?** This is
@@ -139,8 +121,6 @@ skinning move to M10** so M09 stays focused on the panel + finishing M08.
   state to keep the bar compact?
 
 ## Completion Gates
-- The toolbar renders skin-driven icons/labels (not hardcoded), renders even if WIC
-  is unavailable, and hover clears on leave.
 - A ⚙ button on the toolbar opens the settings panel.
 - The settings panel presents the full yune-web-parity layout; the supported
   settings (session toggles, schema switch, skin pick) work; unsupported ones

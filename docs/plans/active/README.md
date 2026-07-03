@@ -1,11 +1,12 @@
 # Active Plans
 
-- `m09-plan-skins-and-picker.md` — **current focus.** Finish the toolbar skinning
-  M08 left partial (skin-driven icons/labels, lazy WIC, hover fix), add a toolbar
-  ⚙ button, and build a full **settings panel** with yune-web-parity structure —
+- `m09-plan-skins-and-picker.md` — **current focus.** Add a toolbar settings
+  button and build a full **settings panel** with yune-web-parity structure —
   session toggles + schema switch + skin picker wired, and engine prefs / userdb
-  import-export / schema import scaffolded (present-but-disabled, future-ready). Key
-  open decision: WebView2 (reuse yune-web, recommended) vs. native for the panel.
+  import-export / schema import scaffolded (present-but-disabled, future-ready).
+  Rich SVG/image asset rendering is optional follow-up only when the renderer
+  consumes those assets. Key open decision: WebView2 (reuse yune-web, recommended)
+  vs. native for the panel.
 - `m10-plan-skin-breadth-candidate-window.md` — **next.** More built-in skins,
   user-imported skins, and applying the shared Direct2D renderer + skin to the
   candidate window.

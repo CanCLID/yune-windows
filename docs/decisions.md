@@ -137,16 +137,19 @@ from `skins/<name>/theme.json` with a compiled-in default fallback, and toolbar
 position plus selected skin remain server-owned state via `op=set-toolbar-position`
 and `op=set-skin`; the TSF DLL does not read or write `state\ime-state.json`.
 The candidate window remains visually unchanged in M08, but the renderer/skin
-scaffolding is shared so M09 can adopt it deliberately.
+scaffolding is shared so M09 can adopt it deliberately. M08 renders manifest
+segment glyph labels; SVG/image asset rendering is deferred until a renderer path
+actually consumes those assets.
 
 ## Last Updated
 
 2026-07-02 - M08 Modern Floating Toolbar landed the native Direct2D/DirectWrite
-layered toolbar, default skin manifest/assets, no-activate grip drag, monitor
-clamp, and server-owned toolbar position/skin protocol. Evidence is non-elevated
-build/contract/server/window-smoke proof under `docs/evidence/m08/`; elevated
-install/register and full live IME loops were not run without current-session
-approval.
+layered toolbar, default skin manifest glyph labels, no-activate grip drag,
+monitor clamp, and server-owned toolbar position/skin protocol. SVG/image asset
+rendering is deferred, and no inert skin image assets ship in M08. Evidence is
+non-elevated build/contract/server/window-smoke proof under `docs/evidence/m08/`;
+elevated install/register, full live IME loops, and live dogfood visual proof
+were not run without current-session approval.
 
 2026-07-02 - M06 and M07 completed. The no-output failure in sandboxed hosts was
 root-caused to the shared server's default named-pipe security descriptor and

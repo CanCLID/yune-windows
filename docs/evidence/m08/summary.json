@@ -1,9 +1,11 @@
 {
   "milestone": "M08",
-  "status": "implemented_non_elevated_verified",
+  "status": "non_elevated_implementation_complete_live_visual_pending",
   "evidence_type": "build_contract_server_window_smoke",
   "live_machine_steps_skipped": true,
+  "live_visual_check_pending": true,
   "live_machine_skip_reason": "Elevated install/register/unregister/cleanup, registry mutation, verifier setup, and full live IME loops require explicit current-session approval.",
+  "skin_assets": "Manifest segment glyph labels ship in M08; SVG/image asset rendering is deferred and no inert skin image assets are shipped.",
   "checks": [
     "tools/test-m08-modern-toolbar-contract.ps1",
     "tools/test-language-bar-window-contract.ps1",

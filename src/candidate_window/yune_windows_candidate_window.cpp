@@ -3,7 +3,6 @@
 #include <d2d1.h>
 #include <d2d1helper.h>
 #include <dwrite.h>
-#include <wincodec.h>
 #include <wrl/client.h>
 #include <windowsx.h>
 
@@ -385,22 +384,44 @@ std::wstring SchemaLabel(std::wstring_view value) {
     return value.empty() ? L"\x6cd5" : std::wstring(value.substr(0, 1));
 }
 
-std::wstring LanguageBarLabel(LanguageBarSegment segment,
-                              const LanguageBarState& state) {
+std::wstring SkinSegmentLabelOr(const ToolbarSkin& skin, size_t index,
+                                std::wstring_view fallback) {
+    if (index < skin.segment_labels.size() &&
+        !skin.segment_labels[index].empty()) {
+        return skin.segment_labels[index];
+    }
+    return std::wstring(fallback);
+}
+
+}  // namespace
+
+std::wstring ToolbarSegmentLabelForState(LanguageBarSegment segment,
+                                         const LanguageBarState& state,
+                                         const ToolbarSkin& skin) {
     switch (segment) {
         case LanguageBarSegment::AsciiMode:
-            return state.ascii_mode ? L"EN" : L"\x4e2d";
+            return state.ascii_mode
+                       ? L"EN"
+                       : SkinSegmentLabelOr(skin, 0, L"\x4e2d");
         case LanguageBarSegment::FullShape:
-            return state.full_shape ? L"\x5168" : L"\x534a";
+            return state.full_shape
+                       ? L"\x5168"
+                       : SkinSegmentLabelOr(skin, 1, L"\x534a");
         case LanguageBarSegment::OutputStandard:
+            if (state.output_standard.empty() ||
+                state.output_standard == L"hong_kong_traditional") {
+                return SkinSegmentLabelOr(
+                    skin, 2, OutputStandardLabel(state.output_standard));
+            }
             return OutputStandardLabel(state.output_standard);
         case LanguageBarSegment::Schema:
+            if (state.schema_id.empty() || state.schema_id == L"jyut6ping3") {
+                return SkinSegmentLabelOr(skin, 3, SchemaLabel(state.schema_id));
+            }
             return SchemaLabel(state.schema_id);
     }
     return L"";
 }
-
-}  // namespace
 
 std::wstring SanitizeCandidateComment(std::wstring_view raw_comment) {
     std::wstring output;
@@ -628,7 +649,6 @@ RECT ComputeToolbarWindowRect(const RECT& anchor, SIZE desired_size, UINT dpi,
 struct D2DSurface::Impl {
     ComPtr<ID2D1Factory> d2d_factory;
     ComPtr<IDWriteFactory> dwrite_factory;
-    ComPtr<IWICImagingFactory> wic_factory;
 };
 
 D2DSurface::~D2DSurface() {
@@ -657,13 +677,6 @@ bool D2DSurface::EnsureFactories() {
             return false;
         }
     }
-    if (!impl_->wic_factory) {
-        if (FAILED(CoCreateInstance(CLSID_WICImagingFactory, nullptr,
-                                    CLSCTX_INPROC_SERVER,
-                                    IID_PPV_ARGS(&impl_->wic_factory)))) {
-            return false;
-        }
-    }
     return true;
 }
 
@@ -671,7 +684,6 @@ void D2DSurface::DiscardDeviceResources() {
     if (impl_) {
         impl_->d2d_factory.Reset();
         impl_->dwrite_factory.Reset();
-        impl_->wic_factory.Reset();
     }
 }
 
@@ -853,7 +865,8 @@ bool D2DSurface::PresentLanguageBar(HWND hwnd, const LanguageBarState& state,
                 }
                 if (SUCCEEDED(target->CreateSolidColorBrush(ToD2DColor(text_color),
                                                             &brush))) {
-                    const std::wstring label = LanguageBarLabel(segments[i], state);
+                    const std::wstring label =
+                        ToolbarSegmentLabelForState(segments[i], state, skin);
                     target->DrawTextW(label.c_str(),
                                       static_cast<UINT32>(label.size()),
                                       text_format.Get(), segment_rect, brush.Get(),
@@ -870,6 +883,7 @@ bool D2DSurface::PresentLanguageBar(HWND hwnd, const LanguageBarState& state,
     if (hr == D2DERR_RECREATE_TARGET) {
         DiscardDeviceResources();
     } else if (SUCCEEDED(hr)) {
+        GdiFlush();
         POINT destination = {window_rect.left, window_rect.top};
         POINT source = {0, 0};
         SIZE size = {width, height};
@@ -1162,6 +1176,8 @@ void LanguageBarWindow::Hide() {
             ReleaseCapture();
             pointer_captured_ = false;
         }
+        tracking_mouse_leave_ = false;
+        has_hover_segment_ = false;
         ShowWindow(hwnd_, SW_HIDE);
     }
 }
@@ -1236,6 +1252,7 @@ LRESULT LanguageBarWindow::HandleMessage(UINT message, WPARAM wparam,
             if (pointer_captured_) {
                 ContinuePointerInteraction(point);
             } else {
+                TrackMouseLeave();
                 const LanguageBarSegment segment = SegmentFromPoint(point);
                 if (!has_hover_segment_ || hover_segment_ != segment) {
                     hover_segment_ = segment;
@@ -1249,6 +1266,7 @@ LRESULT LanguageBarWindow::HandleMessage(UINT message, WPARAM wparam,
             EndPointerInteraction({GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)});
             return 0;
         case WM_MOUSELEAVE:
+            tracking_mouse_leave_ = false;
             has_hover_segment_ = false;
             Render();
             return 0;
@@ -1301,6 +1319,19 @@ bool LanguageBarWindow::IsPointInDragZone(POINT point) const {
     const int grip_width = Scale(24, state_.dpi);
     return point.x >= client.left && point.x <= client.left + grip_width &&
            point.y >= client.top && point.y <= client.bottom;
+}
+
+void LanguageBarWindow::TrackMouseLeave() {
+    if (tracking_mouse_leave_) {
+        return;
+    }
+    TRACKMOUSEEVENT event = {};
+    event.cbSize = sizeof(event);
+    event.dwFlags = TME_LEAVE;
+    event.hwndTrack = hwnd_;
+    if (TrackMouseEvent(&event)) {
+        tracking_mouse_leave_ = true;
+    }
 }
 
 void LanguageBarWindow::BeginPointerInteraction(POINT client_point) {

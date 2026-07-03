@@ -8,14 +8,15 @@
 **Goal:** prove the skin system with more than one skin, let users bring their own
 skins safely, and restyle the candidate window with the same shared renderer/skin.
 
-**Depends on M09:** skin-driven toolbar rendering (icons/labels), the skin picker
-in the settings panel, and the shared `D2DSurface`.
+**Depends on M09:** the skin picker in the settings panel, M08's skin-driven
+toolbar glyph labels, and the shared `D2DSurface`. Rich icon/image asset
+rendering can be added here only with a renderer path that consumes those assets.
 
 ---
 
 ## Current Facts (grounded, after M09)
 
-- After M09 the toolbar renders skin-driven icons/labels via the shared
+- After M09 the toolbar renders skin-driven glyph labels via the shared
   `D2DSurface`, and the settings panel has a working skin picker (`op=set-skin`).
 - The candidate window is still GDI (`NativeCandidateWindow::Paint`); it has
   monitor-clamped positioning + owner/foreground guard from M04.
@@ -28,8 +29,9 @@ in the settings panel, and the shared `D2DSurface`.
 - No Yune ABI change; `disable_learning` forced.
 
 ## Slice Map (sequence)
-1. **Slice A — Second built-in skin** (e.g. light + dark/glass), authored as
-   manifest + assets only, to prove the schema generalizes; fix any schema gaps.
+1. **Slice A — Second built-in skin** (e.g. light + dark/glass), authored as a
+   manifest first and with assets only after the renderer consumes them, to prove
+   the schema generalizes; fix any schema gaps.
 2. **Slice B — User-imported skins** (`%LOCALAPPDATA%\Yune\WindowsIme\skins-user\`;
    strict validation, safe fallback, nothing executed from a skin).
 3. **Slice C — Candidate window on the shared renderer** (apply the D2D renderer +
@@ -38,8 +40,9 @@ in the settings panel, and the shared `D2DSurface`.
 
 ## Design Details
 - **Second skin (A):** a contrasting skin proves the manifest covers real variation
-  (colors, geometry, icons, labels). Any field the toolbar needs but the schema
-  can't express is a schema gap to close here.
+  (colors, geometry, glyph labels, and icons/images only if an asset renderer
+  lands). Any field the toolbar needs but the schema can't express is a schema gap
+  to close here.
 - **User-imported skins (B):** import = drop a folder with `theme.json` + assets;
   validate strictly (reject/fall back on malformed manifests or unexpected asset
   paths; load only declared colors/geometry/images/SVG — never execute anything).
@@ -52,7 +55,8 @@ in the settings panel, and the shared `D2DSurface`.
   approach.
 
 ## Tasks
-- [ ] Second built-in skin (manifest + assets only); close schema gaps.
+- [ ] Second built-in skin (manifest first; rendered assets only after the
+  renderer consumes them); close schema gaps.
 - [ ] User skins folder + strict validation + fallback; malformed-skin contract.
 - [ ] Candidate window on the shared D2D renderer + skin; latency check vs M04.
 - [ ] Evidence under `docs/evidence/m10/`; contracts; roadmap/decisions. Commit to

@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "name": "default",
+  "geometry": {
+    "height": 42,
+    "min_width": 268,
+    "padding_x": 12,
+    "padding_y": 8,
+    "segment_gap": 6,
+    "corner_radius": 18,
+    "shadow_radius": 8
+  },
+  "colors": {
+    "background": "#EAF8FAFC",
+    "text": "#FF171A21",
+    "accent": "#FF0875BE",
+    "hover": "#BFE8F2FF",
+    "pressed": "#D6C4DEF6",
+    "separator": "#52647480",
+    "shadow": "#3C000000"
+  },
+  "font": {
+    "family": "Segoe UI",
+    "size": 14
+  },
+  "segments": {
+    "ascii": "\u4e2d",
+    "shape": "\u534a",
+    "standard": "\u6e2f",
+    "schema": "\u7cb5"
+  },
+  "assets": {
+    "ascii": "assets/ascii.svg",
+    "shape": "assets/shape.svg",
+    "standard": "assets/standard.svg",
+    "schema": "assets/schema.svg"
+  }
+}

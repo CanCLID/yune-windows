@@ -212,6 +212,16 @@ try {
     Copy-Item -LiteralPath $ScratchTsfDll -Destination $Paths.tsf_dll -Force
     Write-Host "Copied YuneWindowsTSF.dll into $($Paths.install_dir)"
 
+    $ScratchSkins = Join-Path $BuildDir "skins"
+    if (Test-Path -LiteralPath (Join-Path $ScratchSkins "default\theme.json") -PathType Leaf) {
+        $InstalledSkins = Join-Path $Paths.install_dir "skins"
+        if (Test-Path -LiteralPath $InstalledSkins) {
+            Remove-Item -LiteralPath $InstalledSkins -Recurse -Force
+        }
+        Copy-Item -LiteralPath $ScratchSkins -Destination $InstalledSkins -Recurse -Force
+        Write-Host "Copied toolbar skins into $InstalledSkins"
+    }
+
     $ScratchHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $ScratchTsfDll).Hash
     $InstalledHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $Paths.tsf_dll).Hash
     if ($ScratchHash -ne $InstalledHash) {

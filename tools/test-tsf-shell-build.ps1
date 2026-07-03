@@ -45,4 +45,14 @@ if (-not (Test-Path -LiteralPath $CandidateSmoke)) {
     throw "missing built candidate-window smoke executable: $CandidateSmoke"
 }
 
-Write-Host "TSF shell build produced $Dll, $Server, $ProfileTool, $SettingsTool, and $CandidateSmoke"
+$LanguageBarSmoke = Join-Path $OutputDir "YuneWindowsLanguageBarSmoke.exe"
+if (-not (Test-Path -LiteralPath $LanguageBarSmoke)) {
+    throw "missing built language-bar smoke executable: $LanguageBarSmoke"
+}
+
+$DefaultSkin = Join-Path $OutputDir "skins\default\theme.json"
+if (-not (Test-Path -LiteralPath $DefaultSkin)) {
+    throw "missing deployed default skin manifest: $DefaultSkin"
+}
+
+Write-Host "TSF shell build produced $Dll, $Server, $ProfileTool, $SettingsTool, $CandidateSmoke, $LanguageBarSmoke, and skins\default\theme.json"

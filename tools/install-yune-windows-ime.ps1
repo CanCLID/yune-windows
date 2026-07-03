@@ -175,6 +175,15 @@ try {
     Copy-Item -LiteralPath (Join-Path $BuildDir "YuneWindowsProfileTool.exe") -Destination $InstallRoot -Force
     Copy-Item -LiteralPath (Join-Path $BuildDir "YuneWindowsSettings.exe") -Destination $SettingsTool -Force
     Copy-Item -LiteralPath $RimeDll -Destination $InstallRoot -Force
+    $BuiltSkins = Join-Path $BuildDir "skins"
+    if (-not (Test-Path -LiteralPath (Join-Path $BuiltSkins "default\theme.json") -PathType Leaf)) {
+        throw "built default toolbar skin is missing: $BuiltSkins\default\theme.json"
+    }
+    $SkinDest = Join-Path $InstallRoot "skins"
+    if (Test-Path -LiteralPath $SkinDest) {
+        Remove-Item -LiteralPath $SkinDest -Recurse -Force
+    }
+    Copy-Item -LiteralPath $BuiltSkins -Destination $SkinDest -Recurse -Force
 
     $SchemaDest = Join-Path $InstallRoot "schema"
     $UserDataDest = Join-Path $InstallRoot "user-data"

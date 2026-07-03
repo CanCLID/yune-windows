@@ -32,6 +32,16 @@ foreach ($Required in @(
 foreach ($Required in @(
         'YuneWindowsLanguageBar',
         'WS_EX_NOACTIVATE',
+        'WS_EX_LAYERED',
+        'UpdateLayeredWindow',
+        'D2D1CreateFactory',
+        'DWriteCreateFactory',
+        'D2DERR_RECREATE_TARGET',
+        'WM_DPICHANGED',
+        'SetCapture',
+        'ReleaseCapture',
+        'kLanguageBarDragThreshold',
+        'SWP_NOACTIVATE',
         'WM_LBUTTONUP',
         'WM_NCHITTEST',
         'HTCLIENT',
@@ -43,10 +53,17 @@ foreach ($Required in @(
     }
 }
 
+if ($WindowSource -match 'HTCAPTION') {
+    throw "language bar drag must not use HTCAPTION because it can activate the host window."
+}
+
 foreach ($Required in @(
         'language_bar_',
+        'SetPositionChangedHandler',
         'UpdateLanguageBar',
         'HandleLanguageBarClick',
+        'HandleLanguageBarPositionChanged',
+        'op=set-toolbar-position',
         'LanguageBarSegment::AsciiMode',
         'LanguageBarSegment::FullShape',
         'LanguageBarSegment::OutputStandard',
@@ -58,4 +75,4 @@ foreach ($Required in @(
     }
 }
 
-Write-Host "Language bar window is focus-scoped, native, and clickable."
+Write-Host "Language bar window is focus-scoped, native, D2D-rendered, draggable, and clickable."

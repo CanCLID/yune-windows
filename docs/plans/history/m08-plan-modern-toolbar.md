@@ -1,6 +1,10 @@
 # M08 Modern Floating Toolbar (Direct2D + Skins) Implementation Plan
 
-> **Status:** active. Planned 2026-07-02 as the milestone after M06/M07. Fixes the
+> **Status:** complete for the non-elevated M08 implementation slice. Planned
+> 2026-07-02 as the milestone after M06/M07 and implemented with local
+> build/contract/smoke evidence. Elevated install/register and full live host
+> loops were not run for this milestone because they require explicit
+> current-session approval. Fixes the
 > two problems with the M05 language bar: it sits in a fixed corner with no way to
 > reposition, and it looks flat/dated. Redesigns it as a draggable, position-
 > remembering, Direct2D-rendered bar with a skin-pack architecture.

@@ -18,6 +18,7 @@ $BuildDir = Join-Path $env:TEMP ("yune-windows\swap-tsf-" + [guid]::NewGuid().To
 & (Join-Path $RepoRoot "tools\build-tsf-shell.ps1") -OutputDir $BuildDir -YuneRoot $YuneRoot
 if ($LASTEXITCODE -ne 0) { throw "build failed with exit code $LASTEXITCODE" }
 $NewDll = Join-Path $BuildDir "YuneWindowsTSF.dll"
+$NewSkins = Join-Path $BuildDir "skins"
 $Dest = Join-Path $InstallDir "YuneWindowsTSF.dll"
 
 if (-not (Test-Path -LiteralPath $Dest -PathType Leaf)) {
@@ -46,6 +47,15 @@ catch {
 $InstalledHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $Dest).Hash
 if ($InstalledHash -ne $NewHash) {
     throw "DLL swap did not take: installed SHA $InstalledHash != built SHA $NewHash"
+}
+
+if (Test-Path -LiteralPath (Join-Path $NewSkins "default\theme.json") -PathType Leaf) {
+    $SkinDest = Join-Path $InstallDir "skins"
+    if (Test-Path -LiteralPath $SkinDest) {
+        Remove-Item -LiteralPath $SkinDest -Recurse -Force
+    }
+    Copy-Item -LiteralPath $NewSkins -Destination $SkinDest -Recurse -Force
+    Write-Host "Copied toolbar skins into $SkinDest"
 }
 
 # Best-effort cleanup of previously renamed-aside DLLs (locked ones stay until

@@ -127,7 +127,26 @@ TSF-only fake-selection path is removed. Learning/userdb stays disabled and
 deferred; persistent sessions are the prerequisite architecture, not a decision
 to enable learning.
 
+### D-15 - Modern toolbar stays native and server-owned
+
+M08 keeps the focus-scoped language bar native inside the TSF DLL: a
+`WS_EX_NOACTIVATE | WS_EX_LAYERED` Win32 popup rendered with Direct2D/DirectWrite
+and presented through `UpdateLayeredWindow`. WebView2, Electron, HTML, and a
+session-wide always-on UI host stay out of this milestone. The toolbar skin loads
+from `skins/<name>/theme.json` with a compiled-in default fallback, and toolbar
+position plus selected skin remain server-owned state via `op=set-toolbar-position`
+and `op=set-skin`; the TSF DLL does not read or write `state\ime-state.json`.
+The candidate window remains visually unchanged in M08, but the renderer/skin
+scaffolding is shared so M09 can adopt it deliberately.
+
 ## Last Updated
+
+2026-07-02 - M08 Modern Floating Toolbar landed the native Direct2D/DirectWrite
+layered toolbar, default skin manifest/assets, no-activate grip drag, monitor
+clamp, and server-owned toolbar position/skin protocol. Evidence is non-elevated
+build/contract/server/window-smoke proof under `docs/evidence/m08/`; elevated
+install/register and full live IME loops were not run without current-session
+approval.
 
 2026-07-02 - M06 and M07 completed. The no-output failure in sandboxed hosts was
 root-caused to the shared server's default named-pipe security descriptor and

@@ -90,7 +90,11 @@ function Assert-State {
         [Parameter(Mandatory = $true)][string]$SchemaId,
         [Parameter(Mandatory = $true)][bool]$AsciiMode,
         [Parameter(Mandatory = $true)][bool]$FullShape,
-        [Parameter(Mandatory = $true)][string]$OutputStandard
+        [Parameter(Mandatory = $true)][string]$OutputStandard,
+        [bool]$ToolbarPositionSet = $false,
+        [int]$ToolbarX = 0,
+        [int]$ToolbarY = 0,
+        [string]$ToolbarSkin = "default"
     )
 
     if ($null -eq $Response.state) {
@@ -101,6 +105,13 @@ function Assert-State {
     Assert-Equal ([bool]$Response.state.ascii_mode) $AsciiMode "state.ascii_mode mismatch."
     Assert-Equal ([bool]$Response.state.full_shape) $FullShape "state.full_shape mismatch."
     Assert-Equal ([string]$Response.state.output_standard) $OutputStandard "state.output_standard mismatch."
+    if ($null -eq $Response.state.toolbar) {
+        throw "server response state is missing toolbar block"
+    }
+    Assert-Equal ([bool]$Response.state.toolbar.position_set) $ToolbarPositionSet "state.toolbar.position_set mismatch."
+    Assert-Equal ([int]$Response.state.toolbar.x) $ToolbarX "state.toolbar.x mismatch."
+    Assert-Equal ([int]$Response.state.toolbar.y) $ToolbarY "state.toolbar.y mismatch."
+    Assert-Equal ([string]$Response.state.toolbar.skin) $ToolbarSkin "state.toolbar.skin mismatch."
 }
 
 function Assert-ServerAlive {
@@ -206,6 +217,20 @@ try {
     Assert-State $AsciiInput "jyut6ping3" $true $false "hong_kong_traditional"
     Assert-ServerAlive $Process "ascii_mode=true non-empty input"
 
+    $ToolbarPosition = Invoke-RawYuneWindowsServerRequest `
+        -PipeLeaf $PipeLeaf `
+        -Payload "op=set-toolbar-position`nx=-120`ny=240`n.`n" `
+        -Process $Process `
+        -TimeoutMs $TimeoutMs
+    Assert-State $ToolbarPosition "jyut6ping3" $true $false "hong_kong_traditional" $true -120 240 "default"
+
+    $ToolbarSkin = Invoke-RawYuneWindowsServerRequest `
+        -PipeLeaf $PipeLeaf `
+        -Payload "op=set-skin`nname=default`n.`n" `
+        -Process $Process `
+        -TimeoutMs $TimeoutMs
+    Assert-State $ToolbarSkin "jyut6ping3" $true $false "hong_kong_traditional" $true -120 240 "default"
+
     Stop-Process -Id $Process.Id -Force
     $Process.WaitForExit(10000) | Out-Null
     $Process = Start-TestServer
@@ -216,7 +241,7 @@ try {
         -Process $Process `
         -TimeoutMs $TimeoutMs
     Assert-Equal ([bool]$PersistedAsciiInput.ready) $true "persisted ascii-on non-empty input readiness mismatch."
-    Assert-State $PersistedAsciiInput "jyut6ping3" $true $false "hong_kong_traditional"
+    Assert-State $PersistedAsciiInput "jyut6ping3" $true $false "hong_kong_traditional" $true -120 240 "default"
     Assert-ServerAlive $Process "persisted ascii_mode=true non-empty input"
 
     foreach ($InvalidCase in @(
@@ -266,21 +291,21 @@ try {
         -Payload "op=set-option`nname=full_shape`nvalue=1`n.`n" `
         -Process $Process `
         -TimeoutMs $TimeoutMs
-    Assert-State $FullShape "jyut6ping3" $true $true "hong_kong_traditional"
+    Assert-State $FullShape "jyut6ping3" $true $true "hong_kong_traditional" $true -120 240 "default"
 
     $Standard = Invoke-RawYuneWindowsServerRequest `
         -PipeLeaf $PipeLeaf `
         -Payload "op=set-option`nname=output_standard`nvalue=mainland_simplified`n.`n" `
         -Process $Process `
         -TimeoutMs $TimeoutMs
-    Assert-State $Standard "jyut6ping3" $true $true "mainland_simplified"
+    Assert-State $Standard "jyut6ping3" $true $true "mainland_simplified" $true -120 240 "default"
 
     $Schema = Invoke-RawYuneWindowsServerRequest `
         -PipeLeaf $PipeLeaf `
         -Payload "op=select-schema`nschema=luna_pinyin`n.`n" `
         -Process $Process `
         -TimeoutMs $TimeoutMs
-    Assert-State $Schema "luna_pinyin" $true $true "mainland_simplified"
+    Assert-State $Schema "luna_pinyin" $true $true "mainland_simplified" $true -120 240 "default"
 
     $Input = Invoke-RawYuneWindowsServerRequest `
         -PipeLeaf $PipeLeaf `
@@ -288,7 +313,7 @@ try {
         -Process $Process `
         -TimeoutMs $TimeoutMs
     Assert-Equal ([bool]$Input.ready) $true "input response readiness mismatch."
-    Assert-State $Input "luna_pinyin" $true $true "mainland_simplified"
+    Assert-State $Input "luna_pinyin" $true $true "mainland_simplified" $true -120 240 "default"
 
     if (-not (Test-Path -LiteralPath $StateFile -PathType Leaf)) {
         throw "server did not persist state file at $StateFile"
@@ -298,8 +323,15 @@ try {
     Assert-Equal ([bool]$Persisted.ascii_mode) $true "persisted ascii_mode mismatch."
     Assert-Equal ([bool]$Persisted.full_shape) $true "persisted full_shape mismatch."
     Assert-Equal ([string]$Persisted.output_standard) "mainland_simplified" "persisted output_standard mismatch."
+    if ($null -eq $Persisted.toolbar) {
+        throw "persisted state is missing toolbar block."
+    }
+    Assert-Equal ([bool]$Persisted.toolbar.position_set) $true "persisted toolbar.position_set mismatch."
+    Assert-Equal ([int]$Persisted.toolbar.x) -120 "persisted toolbar.x mismatch."
+    Assert-Equal ([int]$Persisted.toolbar.y) 240 "persisted toolbar.y mismatch."
+    Assert-Equal ([string]$Persisted.toolbar.skin) "default" "persisted toolbar.skin mismatch."
 
-    Write-Host "Server IME state protocol persists state and returns it on op and input responses."
+    Write-Host "Server IME state protocol persists IME and toolbar state and returns it on op and input responses."
 }
 finally {
     if ($Process -and -not $Process.HasExited) {

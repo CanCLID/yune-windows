@@ -548,6 +548,41 @@ bool JsonBoolValue(std::string_view json, std::string_view key, bool* value) {
     return false;
 }
 
+bool JsonIntValue(std::string_view json, std::string_view key, int* value) {
+    const std::string needle = "\"" + std::string(key) + "\":";
+    const size_t start = json.find(needle);
+    if (start == std::string::npos) {
+        return false;
+    }
+    size_t pos = start + needle.size();
+    while (pos < json.size() &&
+           static_cast<unsigned char>(json[pos]) <= 0x20) {
+        ++pos;
+    }
+    size_t end = pos;
+    if (end < json.size() && (json[end] == '-' || json[end] == '+')) {
+        ++end;
+    }
+    while (end < json.size() && json[end] >= '0' && json[end] <= '9') {
+        ++end;
+    }
+    if (end == pos) {
+        return false;
+    }
+    try {
+        size_t parsed = 0;
+        const int parsed_value = std::stoi(std::string(json.substr(pos, end - pos)),
+                                           &parsed, 10);
+        if (parsed != end - pos) {
+            return false;
+        }
+        *value = parsed_value;
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
 bool JsonHasArrayValue(std::string_view json, std::string_view key) {
     const std::string needle = "\"" + std::string(key) + "\":[";
     return json.find(needle) != std::string::npos;
@@ -559,6 +594,8 @@ struct ImeState {
     bool ascii_mode = false;
     bool full_shape = false;
     std::wstring output_standard = L"hong_kong_traditional";
+    yune_windows::ToolbarPosition toolbar_position;
+    std::wstring toolbar_skin = L"default";
 };
 
 struct ServerResponse {
@@ -623,6 +660,22 @@ ImeState JsonImeState(std::string_view json) {
     state.ascii_mode = ascii_mode;
     state.full_shape = full_shape;
     state.output_standard = Widen(output_standard);
+    bool toolbar_position_set = false;
+    int toolbar_position_x = 0;
+    int toolbar_position_y = 0;
+    if (JsonBoolValue(json, "position_set", &toolbar_position_set)) {
+        state.toolbar_position.present = toolbar_position_set;
+    }
+    if (JsonIntValue(json, "x", &toolbar_position_x)) {
+        state.toolbar_position.x = toolbar_position_x;
+    }
+    if (JsonIntValue(json, "y", &toolbar_position_y)) {
+        state.toolbar_position.y = toolbar_position_y;
+    }
+    const std::string toolbar_skin = JsonStringValue(json, "skin");
+    if (!toolbar_skin.empty()) {
+        state.toolbar_skin = Widen(toolbar_skin);
+    }
     return state;
 }
 
@@ -1280,6 +1333,8 @@ class TextService final : public ITfTextInputProcessorEx,
 public:
     TextService() : ref_(1) {
         language_bar_.SetClickHandler(&TextService::LanguageBarClickThunk, this);
+        language_bar_.SetPositionChangedHandler(
+            &TextService::LanguageBarPositionChangedThunk, this);
         DllAddRef();
     }
 
@@ -1657,6 +1712,13 @@ private:
         }
     }
 
+    static void LanguageBarPositionChangedThunk(int x, int y, void* context) {
+        auto* service = static_cast<TextService*>(context);
+        if (service) {
+            service->HandleLanguageBarPositionChanged(x, y);
+        }
+    }
+
     ServerResponse QueryInput(const std::wstring& input, bool commit) {
         ServerResponse response = QueryServer(
             input, commit, RefreshStateMode::ExistingServerOnly,
@@ -1844,6 +1906,8 @@ private:
         bar_state.schema_id = state_.schema_id;
         bar_state.owner = anchor_result.owner;
         bar_state.dpi = anchor_result.dpi;
+        bar_state.toolbar_position = state_.toolbar_position;
+        bar_state.skin_name = state_.toolbar_skin;
         if (anchor_result.has_anchor) {
             bar_state.anchor = anchor_result.anchor;
             bar_state.anchor.top =
@@ -2089,6 +2153,20 @@ private:
             case yune_windows::LanguageBarSegment::Schema:
                 CycleSchema(nullptr);
                 break;
+        }
+    }
+
+    void HandleLanguageBarPositionChanged(int x, int y) {
+        std::string payload = "op=set-toolbar-position\nx=";
+        payload += std::to_string(x);
+        payload += "\ny=";
+        payload += std::to_string(y);
+        payload += "\n.\n";
+        ServerResponse response =
+            QueryOperation(payload, nullptr, RefreshStateMode::ExistingServerOnly,
+                           kServerKeyPathQueryTimeoutMs);
+        if (!response.ok) {
+            RequestSharedServerWarmupAsync();
         }
     }
 

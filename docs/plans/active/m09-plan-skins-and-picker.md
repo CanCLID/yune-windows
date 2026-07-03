@@ -1,6 +1,6 @@
 # M09 Skin Picker, More Skins, and Candidate-Window Skinning Plan
 
-> **Status:** active (next after M08). Depends on M08's shared Direct2D renderer +
+> **Status:** active. Depends on M08's shared Direct2D renderer +
 > skin-manifest architecture. Turns the single-default-skin toolbar into a
 > user-choosable, extensible skin system and extends the same look to the
 > candidate window.

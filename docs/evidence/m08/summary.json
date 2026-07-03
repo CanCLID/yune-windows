@@ -1,0 +1,26 @@
+{
+  "milestone": "M08",
+  "status": "implemented_non_elevated_verified",
+  "evidence_type": "build_contract_server_window_smoke",
+  "live_machine_steps_skipped": true,
+  "live_machine_skip_reason": "Elevated install/register/unregister/cleanup, registry mutation, verifier setup, and full live IME loops require explicit current-session approval.",
+  "checks": [
+    "tools/test-m08-modern-toolbar-contract.ps1",
+    "tools/test-language-bar-window-contract.ps1",
+    "tools/test-tsf-shell-build.ps1",
+    "tools/test-language-bar-smoke.ps1",
+    "tools/test-server-ime-state-protocol-contract.ps1",
+    "tools/test-candidate-window-smoke.ps1",
+    "tools/test-tsf-ime-state-hotkey-contract.ps1",
+    "tools/test-settings-ime-state-contract.ps1",
+    "tools/test-dev-repl-ime-state-contract.ps1",
+    "tools/test-tsf-server-response-validation-contract.ps1",
+    "tools/test-build-output-isolation-contract.ps1",
+    "tools/test-dev-reload-no-reregister-contract.ps1",
+    "tools/test-dev-tooling-safety-contract.ps1",
+    "tools/test-dev-test-window-state-contract.ps1",
+    "tools/test-install-fresh-target-contract.ps1",
+    "tools/test-install-rollback-contract.ps1",
+    "git diff --check"
+  ]
+}

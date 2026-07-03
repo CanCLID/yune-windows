@@ -42,6 +42,8 @@ struct Request {
     std::string mask;
     std::string index;
     std::string direction;
+    std::string x;
+    std::string y;
     std::vector<std::string> unknown_fields;
     bool commit = false;
 };
@@ -51,6 +53,10 @@ struct YuneState {
     bool ascii_mode = false;
     bool full_shape = false;
     std::string output_standard = "hong_kong_traditional";
+    bool toolbar_position_set = false;
+    int toolbar_position_x = 0;
+    int toolbar_position_y = 0;
+    std::string toolbar_skin = "default";
 };
 
 struct SchemaInfo {
@@ -416,6 +422,7 @@ std::filesystem::path StateFilePathForArgs(const Args& args) {
     } else {
         install_root = std::filesystem::current_path();
     }
+    // Persisted under state\ime-state.json; the shared server is the sole writer.
     return install_root / L"state" / L"ime-state.json";
 }
 
@@ -477,6 +484,62 @@ bool ExtractJsonBool(const std::string& json, std::string_view key, bool* value)
     return false;
 }
 
+bool ExtractJsonInt(const std::string& json, std::string_view key, int* value) {
+    const std::string needle = "\"" + std::string(key) + "\"";
+    const size_t key_pos = json.find(needle);
+    if (key_pos == std::string::npos) {
+        return false;
+    }
+    const size_t colon_pos = json.find(':', key_pos + needle.size());
+    if (colon_pos == std::string::npos) {
+        return false;
+    }
+    size_t value_pos = colon_pos + 1;
+    while (value_pos < json.size() &&
+           static_cast<unsigned char>(json[value_pos]) <= 0x20) {
+        ++value_pos;
+    }
+    size_t end_pos = value_pos;
+    if (end_pos < json.size() &&
+        (json[end_pos] == '-' || json[end_pos] == '+')) {
+        ++end_pos;
+    }
+    while (end_pos < json.size() && json[end_pos] >= '0' &&
+           json[end_pos] <= '9') {
+        ++end_pos;
+    }
+    if (end_pos == value_pos) {
+        return false;
+    }
+    try {
+        size_t parsed = 0;
+        const int parsed_value =
+            std::stoi(std::string(json.substr(value_pos, end_pos - value_pos)),
+                      &parsed, 10);
+        if (parsed != end_pos - value_pos) {
+            return false;
+        }
+        *value = parsed_value;
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+bool IsSafeSkinName(std::string_view value) {
+    if (value.empty() || value.size() > 64) {
+        return false;
+    }
+    for (const unsigned char ch : value) {
+        if ((ch >= '0' && ch <= '9') || (ch >= 'A' && ch <= 'Z') ||
+            (ch >= 'a' && ch <= 'z') || ch == '_' || ch == '-') {
+            continue;
+        }
+        return false;
+    }
+    return true;
+}
+
 Request ParseRequest(const std::string& payload) {
     Request request;
     std::istringstream in(payload);
@@ -508,6 +571,10 @@ Request ParseRequest(const std::string& payload) {
             request.index = line.substr(6);
         } else if (line.rfind("direction=", 0) == 0) {
             request.direction = line.substr(10);
+        } else if (line.rfind("x=", 0) == 0) {
+            request.x = line.substr(2);
+        } else if (line.rfind("y=", 0) == 0) {
+            request.y = line.substr(2);
         } else if (line == "commit=1") {
             request.commit = true;
         } else if (line == "commit=0") {
@@ -694,6 +761,20 @@ private:
             IsKnownOutputStandard(text_value)) {
             state_.output_standard = text_value;
         }
+        if (ExtractJsonBool(json, "position_set", &bool_value)) {
+            state_.toolbar_position_set = bool_value;
+        }
+        int int_value = 0;
+        if (ExtractJsonInt(json, "x", &int_value)) {
+            state_.toolbar_position_x = int_value;
+        }
+        if (ExtractJsonInt(json, "y", &int_value)) {
+            state_.toolbar_position_y = int_value;
+        }
+        if (ExtractJsonString(json, "skin", &text_value) &&
+            IsSafeSkinName(text_value)) {
+            state_.toolbar_skin = text_value;
+        }
     }
 
     void PersistState() const {
@@ -707,7 +788,14 @@ private:
             << "  \"full_shape\": " << (state_.full_shape ? "true" : "false")
             << ",\n"
             << "  \"output_standard\": \"" << JsonEscape(state_.output_standard)
-            << "\"\n"
+            << "\",\n"
+            << "  \"toolbar\": {\n"
+            << "    \"position_set\": "
+            << (state_.toolbar_position_set ? "true" : "false") << ",\n"
+            << "    \"x\": " << state_.toolbar_position_x << ",\n"
+            << "    \"y\": " << state_.toolbar_position_y << ",\n"
+            << "    \"skin\": \"" << JsonEscape(state_.toolbar_skin) << "\"\n"
+            << "  }\n"
             << "}\n";
         Require(static_cast<bool>(out), "failed to write IME state file");
     }
@@ -718,7 +806,11 @@ private:
             << "\",\"ascii_mode\":" << (state_.ascii_mode ? "true" : "false")
             << ",\"full_shape\":" << (state_.full_shape ? "true" : "false")
             << ",\"output_standard\":\"" << JsonEscape(state_.output_standard)
-            << "\"}";
+            << "\",\"toolbar\":{\"position_set\":"
+            << (state_.toolbar_position_set ? "true" : "false")
+            << ",\"x\":" << state_.toolbar_position_x
+            << ",\"y\":" << state_.toolbar_position_y
+            << ",\"skin\":\"" << JsonEscape(state_.toolbar_skin) << "\"}}";
         return out.str();
     }
 
@@ -1149,6 +1241,21 @@ private:
             Require(SchemaExists(request.schema), "unknown schema id");
             state_.schema_id = request.schema;
             ApplyStateToComposeSessions();
+            PersistState();
+            return StateResponseJson();
+        }
+        if (request.op == "set-toolbar-position") {
+            state_.toolbar_position_x =
+                ParseProtocolInt(request.x, "invalid toolbar x");
+            state_.toolbar_position_y =
+                ParseProtocolInt(request.y, "invalid toolbar y");
+            state_.toolbar_position_set = true;
+            PersistState();
+            return StateResponseJson();
+        }
+        if (request.op == "set-skin") {
+            Require(IsSafeSkinName(request.name), "invalid skin name");
+            state_.toolbar_skin = request.name;
             PersistState();
             return StateResponseJson();
         }

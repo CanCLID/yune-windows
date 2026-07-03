@@ -36,9 +36,9 @@ skinning move to M10** so M09 stays focused on the panel + finishing M08.
 - The server owns state (`ime-state.json`, `op=` verbs, state block on every
   response) and is the sole writer; skin selection is already an `op=set-skin`
   value.
-- yune-web already has the parity UI (`apps/yune-web/src/Preferences.tsx`,
-  `DictionaryPanel.tsx`, schema selection) driving a wasm Rime — reusable via
-  WebView2 if we point its engine adapter at the Windows named-pipe server.
+- (Historical, not the chosen path: yune-web's `Preferences.tsx`/`DictionaryPanel.tsx`
+  could have been reused via WebView2, but D-16 chose **native Win32** — no
+  WebView2 — so the panel is hand-built with only the controls the IME needs.)
 - Deploy-time engine prefs (completion/correction/sentence/prediction), schema
   import, and userdb import/export have **no server support yet** (they need a
   `customize`+`deploy` path and/or the deferred learning milestone).
@@ -72,10 +72,13 @@ from the settings button and panel work.
 
 ### Slice A — Toolbar settings button
 
-- Add a **⚙ settings segment** to the toolbar (a new `LanguageBarSegment::Settings`
-  or a dedicated affordance). Clicking it launches `YuneWindowsSettings.exe`
-  (or focuses it if already open) — a normal on-demand window, not a floating
-  surface. Keep the click/drag threshold behavior from M08.
+- **Decided:** add a persistent **`LanguageBarSegment::Settings` (⚙) segment** at
+  the end of the toolbar (always visible, not an overflow). It participates in the
+  existing segment layout, hit-testing, skin labels, and click handling exactly
+  like the other segments. Clicking it launches `YuneWindowsSettings.exe` (or
+  focuses it if already open) — a normal on-demand window, not a floating surface.
+  Keep the M08 click/drag threshold so dragging the bar via the ⚙ area still moves
+  the bar rather than opening the panel.
 
 ### Slice B — Native settings panel
 
@@ -113,15 +116,19 @@ from the settings button and panel work.
 - [ ] Evidence under `docs/evidence/m09/`; contracts (panel launch, skin picker,
   scaffold-disabled invariants); roadmap/decisions. Commit to `main`.
 
-## Reviewer Questions
-- Panel tech is decided: **native Win32** (no WebView2).
-- Scaffolded sections: disabled controls with "coming soon", or hide them until
-  their backing milestone lands? (Recommend: show disabled, so the shape is
-  visible and future-ready.)
-- Should the ⚙ button live on the bar always, or only in an overflow/expanded
-  state to keep the bar compact?
+## Decisions (locked — no open questions for handoff)
+- **Panel tech:** native Win32, extend `YuneWindowsSettings.exe` (no WebView2; D-16).
+- **⚙ button:** a persistent `LanguageBarSegment::Settings` at the end of the bar
+  (always visible, not overflow).
+- **Scaffolded sections:** shown as **disabled controls with a "coming soon"
+  note** (not hidden), so the surface shape is visible and future-ready.
 
 ## Completion Gates
+- Live toolbar check (M09 modifies the bar, so its live pass re-confirms it):
+  after a clean DLL load, exactly **one** toolbar renders (the glass bar with the
+  ⚙ segment), it drags and remembers its position, and it never steals focus. (This
+  also stands in for M08's still-pending live visual, which is otherwise a
+  standalone user check.)
 - A ⚙ button on the toolbar opens the settings panel.
 - The native settings panel presents the settings sections; the supported
   settings (session toggles, schema switch, skin pick) work; unsupported ones

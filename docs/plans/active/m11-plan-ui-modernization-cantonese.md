@@ -26,18 +26,17 @@ M10 (skin breadth + candidate-window skinning) is active and plans to migrate
 (Slice C) upgrades that *same* renderer to a DirectComposition surface. Building
 the composition renderer twice is waste.
 
-**Recommendation (reviewer to confirm, then annotate M10):** M11 Slice C builds
-the shared composition renderer **once** and applies it to the toolbar; the
-candidate-window migration (M10 Slice C) rides the same renderer instead of doing
-a separate GDI→D2D pass. **Hard dependency:** candidate-window skinning therefore
-*waits on* M11 Slice C — only M10 Slices A/B (second skin, user-imported skins,
-candidate skin-schema fields) are independent and can land first. Until the
-reviewer confirms, **M10 Slice C step 2 still says "move onto D2DSurface" and
-literally contradicts this plan** — on confirmation, annotate/strike it to defer
-to the M11 renderer. Also see Known Risk R3: the candidate window sits over app
-*content* (not the wallpaper), so whatever backdrop the toolbar uses may give an
-even weaker effect there — do not lock the fold-in until the Slice C spike
-resolves what the backdrop actually samples.
+**Locked reconciliation (M10 already annotated):** M11 Slice C builds the shared
+composition renderer **once** and applies it to the toolbar; the candidate-window
+render migration (M10 Slice C) rides the same renderer instead of a separate
+GDI→D2D pass. **Hard dependency (locked):** candidate-window skinning *waits on*
+M11 Slice C — only M10 Slices A/B (second skin, user-imported skins, candidate
+skin-schema fields) are independent and can land first. M10's Slice C map entry,
+Design step 2, and task are annotated "deferred to M11 Slice C". The one part that
+stays spike-dependent (Known Risk R3): the candidate window sits over app
+*content* (not the wallpaper), so it may land on a simpler tinted surface rather
+than the full `GlassSurface` — the Slice C spike decides *that*, not whether the
+migration defers to M11 (it does).
 
 ---
 
@@ -81,21 +80,24 @@ resolves what the backdrop actually samples.
 
 ## Known Risks (must read before implementing)
 
-- **R1 — "Glass" cannot blur the live app behind a separate window with supported
-  APIs.** A plain `CompositionBackdropBrush` samples only the *same* window's
-  visual tree, not the desktop/app behind a separate HWND (`CreateHostBackdropBrush`
-  reaches behind, but is UWP-only and does **not** work in plain Win32 DComp). The
-  *supported* DWM backdrops (`DWMSBT_MAINWINDOW` Mica, `DWMSBT_TRANSIENTWINDOW`
-  Desktop Acrylic) blur the **desktop wallpaper**, not the live app window under
-  the bar. The only ways to blur the *live content behind* a floating window are
-  **undocumented**: `SetWindowCompositionAttribute` with
-  `ACCENT_ENABLE_ACRYLICBLURBEHIND` (user32; what TranslucentTB and most Win32
-  glass apps use — works on Win10/11 but unofficial and build-fragile) or
-  `DwmpCreateSharedThumbnailVisual` (private). **Decision (locked, Decision 4):**
-  use `ACCENT_ENABLE_ACRYLICBLURBEHIND` for live blur with a **mandatory graceful
-  fallback** (DWM wallpaper acrylic → static tint) so a broken build never yields
-  a hollow bar. The spike validates the path + fallbacks; the plan does not assume
-  any `CompositionBackdropBrush` blurs the app behind the bar.
+- **R1 — Blurring the live app behind the bar needs a specific path; the obvious
+  one is wrong.** A *plain* `CompositionBackdropBrush` samples only the **same**
+  window's visual tree — not the app behind a separate HWND — so it renders a
+  hollow/transparent bar. The **supported** way to blur live content behind a Win32
+  window is the **host backdrop brush**: `DwmSetWindowAttribute(hwnd,
+  DWMWA_USE_HOSTBACKDROPBRUSH, TRUE)` (documented for **non-UWP** windows, Win11
+  build **22000+**) filled by `Compositor.CreateHostBackdropBrush` (WinRT
+  `Windows.UI.Composition`, which "samples the area behind the window"), with the
+  window styled `WS_EX_NOREDIRECTIONBITMAP` so the composition shows through. This
+  path has real setup friction and historically-reported flakiness — hence the
+  community `SetWindowCompositionAttribute` `ACCENT_ENABLE_ACRYLICBLURBEHIND`
+  workaround (undocumented but battle-tested; TranslucentTB et al.). The *supported
+  DWM system backdrops* (`DWMSBT_MAINWINDOW` Mica, `DWMSBT_TRANSIENTWINDOW` Desktop
+  Acrylic) blur the **desktop wallpaper**, not the live app — a weaker but fully
+  stable look. **Decision (locked, Decision 4):** spike the **documented host
+  backdrop brush first**, then the undocumented accent acrylic, then DWM wallpaper
+  acrylic, then a static tint — never a hollow bar. Do **not** use a plain
+  `CompositionBackdropBrush` for behind-window blur.
 - **R2 — Combo display text == server value.** The output/schema/skin combos put
   raw IDs as visible text and `SelectedComboText()` round-trips that visible text
   to the server as the ID. Localizing the visible text **will break** `op=`
@@ -118,18 +120,21 @@ resolves what the backdrop actually samples.
    which is a Mainland-software convention); `coming soon` → **（即將推出）**;
    `connected`/`offline` → **已連線 / 離線**; `default` (skin name) → **預設**;
    `Unknown` → **未知**. (Reviewer confirm wording.)
-4. **Glass backdrop mechanism — LOCKED: live acrylic blur.** Primary path is
-   `SetWindowCompositionAttribute` with `ACCENT_ENABLE_ACRYLICBLURBEHIND` (blurs
-   the *live* content behind the bar; undocumented but the de-facto Win32 glass
-   API — TranslucentTB et al.). **Graceful fallback is mandatory:** if the acrylic
-   attribute fails / is broken on a given build, degrade to DWM Desktop Acrylic
-   (wallpaper blur) and then to a static translucent tint — never a hollow bar.
-   Do **not** use `CompositionBackdropBrush` for behind-window blur (it can't).
-   The Slice C spike *validates* this path + fallbacks; it no longer chooses
-   between approaches.
-5. **M10 reconciliation:** build the composition renderer once; candidate window
-   rides it, **conditional on the spike** (R3, and the candidate-over-content
-   caveat). *(Reviewer confirm the fold-in + M10 annotation.)*
+4. **Glass backdrop mechanism — LOCKED: live blur, supported path first.** The
+   user chose live-content blur (not wallpaper-only). Implement via a **priority
+   chain**: (1) **documented host backdrop brush** — `DWMWA_USE_HOSTBACKDROPBRUSH`
+   + `Compositor.CreateHostBackdropBrush` (WinRT `Windows.UI.Composition`, Win11
+   22000+, `WS_EX_NOREDIRECTIONBITMAP`); (2) undocumented
+   `SetWindowCompositionAttribute` `ACCENT_ENABLE_ACRYLICBLURBEHIND` (battle-tested
+   fallback); (3) DWM Desktop Acrylic (wallpaper blur, fully supported); (4) static
+   translucent tint. **Never a hollow bar.** The Slice C spike measures which of
+   (1)/(2) actually delivers on the target builds and locks the primary; it no
+   longer chooses *whether* to have live blur. Do **not** use a plain
+   `CompositionBackdropBrush` for behind-window blur (it can't reach behind).
+5. **M10 reconciliation — LOCKED (M10 annotated):** build the composition renderer
+   once; the candidate-window render migration defers to M11 Slice C. Only *whether*
+   the candidate lands on the full `GlassSurface` vs a simpler tinted surface stays
+   spike-dependent (R3 + candidate-over-content caveat).
 6. **Output-standard glyphs:** `uiText.yue` is authoritative — change the C++
    literals (`繁→傳`, `臺→台`, `拼→朙`) and `L"EN"→英` to match the appendix.
 7. **Windows 10 — LOCKED: flat-native fallback.** Glass/Mica/rounded are
@@ -180,19 +185,21 @@ On the now-themed window, **gated by build number**:
 
 ### Slice C — Glass toolbar (shared composition renderer; reconciled with M10)
 1. **Spike first (de-risk R1/R3):** a throwaway proof, over a real editor window,
-   testing which backdrop actually produces the wanted look on a
-   `WS_POPUP | WS_EX_NOACTIVATE | WS_EX_TOPMOST` window **without `WS_EX_LAYERED`**:
-   (a) `SetWindowCompositionAttribute` `ACCENT_ENABLE_ACRYLICBLURBEHIND` (live
-   blur), (b) DWM `DWMSBT_TRANSIENTWINDOW` acrylic (wallpaper blur), (c) static
-   translucent tint. Confirm no focus-steal, no clone-trail, correct rounded
-   click-through. Record findings + screenshots under `docs/evidence/m11/`. The
-   spike output picks the mechanism before any migration.
-2. Build a shared **`GlassSurface`** on **DirectComposition** (`DCompositionCreateDevice`
-   + `CreateTargetForHwnd` + visual tree): content layer (existing
-   `DrawLanguageBarContent` via a D2D/composition surface) → tint layer →
-   rounded-rect composition clip → drop shadow → optional animated specular. The
-   *backdrop blur* comes from the window attribute chosen in the spike, **not**
-   from a `CompositionBackdropBrush`.
+   on a `WS_POPUP | WS_EX_NOACTIVATE | WS_EX_TOPMOST | WS_EX_NOREDIRECTIONBITMAP`
+   window (**not** `WS_EX_LAYERED`), testing the R1 priority chain in order:
+   (a) **documented** `DWMWA_USE_HOSTBACKDROPBRUSH` + `CreateHostBackdropBrush`
+   (WinRT `Windows.UI.Composition`); (b) undocumented `SetWindowCompositionAttribute`
+   `ACCENT_ENABLE_ACRYLICBLURBEHIND`; (c) DWM `DWMSBT_TRANSIENTWINDOW` acrylic
+   (wallpaper); (d) static tint. Lock the first that blurs live content without
+   artifacts. Confirm no focus-steal, no clone-trail, correct rounded click-through.
+   Record findings + screenshots under `docs/evidence/m11/`.
+2. Build a shared **`GlassSurface`** on the **WinRT `Windows.UI.Composition`
+   compositor** interop'd to the HWND (`ICompositorDesktopInterop::CreateDesktopWindowTarget`)
+   — this is the layer that exposes `CreateHostBackdropBrush`; raw
+   `IDCompositionDevice` does not. Visual tree: backdrop-brush visual (host backdrop
+   / accent per the spike) → content layer (existing `DrawLanguageBarContent` via a
+   D2D/composition surface) → tint → rounded-rect composition clip → drop shadow →
+   optional animated specular.
 3. **Window model for the migration (R3):** create the popup
    `WS_POPUP | WS_EX_NOACTIVATE | WS_EX_TOPMOST | WS_EX_NOREDIRECTIONBITMAP`
    (NOREDIRECTIONBITMAP is required or the DComp content shows a black rectangle;
@@ -230,10 +237,12 @@ On the now-themed window, **gated by build number**:
   plus `<dependency>` on `Microsoft.Windows.Common-Controls` `6.0.0.0`. Use
   `<dpiAwareness>PerMonitorV2</dpiAwareness>` (2016 namespace) — **not** the older
   `<dpiAware>` element. A contract should assert the manifest is embedded.
-- **Glass honesty (corrected):** the supported DWM backdrops sample the desktop
-  **wallpaper**, not the live app window under the toolbar; only the undocumented
-  acrylic-blur-behind path blurs live content. Refraction/lensing is faked with
-  edge gradients + specular. Set expectations accordingly in copy and gates.
+- **Glass honesty (corrected):** the *documented host backdrop brush*
+  (`DWMWA_USE_HOSTBACKDROPBRUSH` + `CreateHostBackdropBrush`) and the undocumented
+  accent-acrylic path both blur the **live** content behind the bar; the DWM
+  *system backdrops* (Mica/Acrylic) blur only the **desktop wallpaper**. A plain
+  `CompositionBackdropBrush` reaches neither. Refraction/lensing is faked with edge
+  gradients + specular. Set expectations by the path the spike locks.
 - **DPI:** PerMonitorV2 + re-layout + font recreation on `WM_DPICHANGED`; the
   toolbar already handles DPI and must keep doing so through the renderer swap.
 - **Fallback:** Slice B/C attributes are Win11-era; guard by build number and
@@ -393,24 +402,23 @@ false-positive on legitimate ASCII (`op=` verbs, `schema_id`s like `jyut6ping3`,
 - **No English remains** on any user-facing surface (panel, title, dialog
   captions + bodies, toolbar labels incl. ascii-active and octagram); terminology
   matches `uiText.yue`; server `op=` calls still work (label/value split verified).
-- Toolbar shows a frosted-glass look — **live acrylic blur of the content behind
-  the bar (via `ACCENT_ENABLE_ACRYLICBLURBEHIND`) + tint + rounded + shadow +
-  specular**, with graceful fallback to wallpaper acrylic / static tint if a build
-  breaks it — still no-activate, drags as a single bar with no clone trail,
-  persists position.
+- Toolbar shows a frosted-glass look — **live blur of the content behind the bar
+  (host backdrop brush `DWMWA_USE_HOSTBACKDROPBRUSH`/`CreateHostBackdropBrush`, or
+  the accent-acrylic fallback) + tint + rounded + shadow + specular**, with
+  graceful fallback to wallpaper acrylic / static tint if a build breaks it — still
+  no-activate, drags as a single bar with no clone trail, persists position.
 - Candidate window (if folded in) matches the active skin with no latency
   regression vs M04.
 - No WebView2/Electron/HTML; no engine/ABI change; `disable_learning` forced.
 - Tier 3 remains a clean future option that Slices A/B set up.
 
 ## Reviewer Questions
-Three big forks are **already decided** (see Decisions 1/4/7): glass = **live
-acrylic blur with mandatory fallback**; language = **Cantonese-only now**; Win10
-= **flat-native fallback, no glass**. Remaining open items:
+**Decided/locked:** glass = **live blur, documented host backdrop brush first**
+(Decision 4); language = **Cantonese-only now** (Decision 1); Win10 =
+**flat-native fallback, no glass** (Decision 7); M10 render-migration **defers to
+M11 Slice C** (Decision 5, M10 annotated). Remaining open items:
 - Confirm new terms: 主題 (skin), 即將推出, 已連線/離線, 預設, 未知, and the
   derived strings (window title, status-line template, "已安裝方案可喺上面切換。",
   error bodies/caption, 工具列預覽無法顯示).
 - Confirm output-standard glyph change 繁→傳 (mirror `uiText.yue`) and the
   toolbar literal edits (EN→英, 臺→台, 拼→朙, add octagram 朙).
-- M10 reconciliation: fold candidate-window migration into M11 Slice C
-  (recommended) and annotate M10 Slice C? Confirm the hard dependency ordering.

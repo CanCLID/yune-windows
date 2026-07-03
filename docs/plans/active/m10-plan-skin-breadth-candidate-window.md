@@ -44,9 +44,12 @@ rendering can be added here only with a renderer path that consumes those assets
    the schema generalizes; fix any schema gaps.
 2. **Slice B — User-imported skins** (`%LOCALAPPDATA%\Yune\WindowsIme\skins-user\`;
    strict validation, safe fallback, nothing executed from a skin).
-3. **Slice C — Candidate window skinning** (first extend the skin schema with
-   candidate-window fields + back-compat, then move the panel onto the shared
-   renderer; keep caret anchoring/paging/guards; verify no latency regression).
+3. **Slice C — Candidate window skinning.** Extend the skin schema with
+   candidate-window fields + back-compat (independent — can land now). The
+   **render migration is deferred to M11 Slice C** (locked): the candidate panel
+   rides M11's shared composition renderer (`GlassSurface`), not a separate
+   GDI→D2D pass. Keep caret anchoring/paging/guards; verify no latency regression
+   when it lands.
 
 ## Design Details
 - **Second skin (A):** a contrasting skin proves the manifest covers real variation
@@ -67,11 +70,14 @@ rendering can be added here only with a renderer path that consumes those assets
   to sane derived values, e.g. from the toolbar palette). Add a contract that a
   toolbar-only skin still loads and that a skin with candidate fields drives the
   panel.
-  Step 2: move `NativeCandidateWindow` onto the shared `D2DSurface` + active skin,
-  rendering the rows from those fields. Preserve M04 caret anchoring, paging, and
-  the owner/foreground guard exactly — render-only. Measure that candidates appear
-  as fast as the GDI version (no latency regression), reusing the M04 evidence
-  approach.
+  Step 2 (**deferred to M11 Slice C** — locked): the candidate panel rides M11's
+  shared composition renderer (`GlassSurface`) + active skin, rendering the rows
+  from those fields — built once with the toolbar, not a separate GDI→D2D pass
+  here. Preserve M04 caret anchoring, paging, and the owner/foreground guard
+  exactly — render-only. Measure that candidates appear as fast as the GDI version
+  (no latency regression), reusing the M04 evidence approach. (Whether it lands on
+  the full `GlassSurface` or a simpler tinted D2D surface depends on the M11 Slice
+  C spike, since candidates sit over app content, not the wallpaper.)
 
 ## Tasks
 - [ ] Second built-in skin (manifest first; rendered assets only after the
@@ -80,8 +86,8 @@ rendering can be added here only with a renderer path that consumes those assets
 - [ ] Extend the skin schema with candidate-window fields (panel bg, radius,
   padding, row bg, highlight bg/text, candidate text, comment text, romanization
   text, page indicator) + back-compat defaults; contract for toolbar-only skins.
-- [ ] Move the candidate window onto the shared D2D renderer + skin; latency check
-  vs M04.
+- [ ] (Deferred to M11 Slice C) Candidate window rides M11's shared composition
+  renderer + skin; latency check vs M04.
 - [ ] Evidence under `docs/evidence/m10/`; contracts; roadmap/decisions. Commit to
   `main`.
 

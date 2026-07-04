@@ -4,6 +4,16 @@
 > user-imported skins) and extends the shared Direct2D renderer + active skin to
 > the candidate window, so the whole IME surface — toolbar *and* candidate panel —
 > looks consistent (the larger part of the "Sogou fancy" impression).
+>
+> **⚠ Reconciliation with M11 (read before implementing Slice C):** M11 upgrades
+> the shared renderer to a DirectComposition frosted-glass surface (`GlassSurface`).
+> To avoid building the renderer twice, **Slice C's "move the candidate window onto
+> the shared renderer" is superseded by M11 Slice C** — the candidate window should
+> ride M11's `GlassSurface`, not a separate GDI→D2D pass. **Hard dependency:**
+> candidate-window skinning therefore *waits on* M11 Slice C. Only Slices A and B
+> here (second built-in skin, user-imported skins, candidate skin-schema fields +
+> back-compat) are independent and can land first. See
+> `m11-plan-ui-modernization-cantonese.md` → "Relationship to M10".
 
 **Goal:** prove the skin system with more than one skin, let users bring their own
 skins safely, and restyle the candidate window with the same shared renderer/skin.

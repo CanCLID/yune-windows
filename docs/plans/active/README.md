@@ -1,8 +1,15 @@
 # Active Plans
 
 - `m10-plan-skin-breadth-candidate-window.md` - **current focus.** More built-in skins,
-  user-imported skins, and applying the shared Direct2D renderer + skin to the
-  candidate window.
+  user-imported skins, and applying the shared renderer + skin to the candidate
+  window. **Reconciled with M11:** the candidate-window migration rides M11's
+  composition renderer (built once); only the second-skin / user-skin / candidate
+  schema-field slices are independent — candidate skinning waits on M11 Slice C.
+- `m11-plan-ui-modernization-cantonese.md` - **planned.** Win11-native settings
+  panel (v6 manifest + JhengHei font + DWM Mica/rounded/dark), DirectComposition
+  frosted-glass toolbar, and full English→Cantonese localization mirroring
+  `yune-web`. Native, no WebView2. Carries locked risks (wallpaper-vs-live blur,
+  combo label/value split, ULW→DComp click-through).
 
 Later / unplanned, noted so the settings panel is designed for them:
 - Server `customize`+`deploy` path to actually apply the deploy-time **engine

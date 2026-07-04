@@ -39,6 +39,29 @@ Follow-up fixes:
   only when release stays on that segment and movement stays under the click
   threshold.
 
+Follow-up fixes (round 2, from live testing):
+
+- Toolbar "clone trail" on drag: `D2DSurface::PresentLanguageBar` passed a
+  per-frame `pptDst` to `UpdateLayeredWindow` while `SetWindowPos` also moved the
+  window, so two position authorities disagreed mid-move and the DWM left stale
+  layered frames behind. Fixed by making `SetWindowPos` the single position
+  authority and passing `nullptr` for `pptDst` (content-only refresh in place).
+  Also added a drag-active guard: `LanguageBarWindow::Update` no longer
+  repositions or hides the bar while the pointer is captured, so a caret-follow
+  or state refresh mid-drag cannot fight the drag.
+- Gear opened a stray terminal window: the installed `YuneWindowsSettings.exe`
+  was still the pre-fix CONSOLE-subsystem build. The GUI-subsystem fix was in the
+  repo, but `dev-swap-tsf-dll.ps1` only deployed the DLL + skins, so the rebuilt
+  settings exe never reached the install root. Fixed the swap script to deploy the
+  on-demand client exes (`YuneWindowsSettings.exe`, `YuneWindowsProfileTool.exe`)
+  and to keep deploying skins/exes even when the DLL is unchanged (the previous
+  early-return skipped them).
+- Verified the installed settings exe was CONSOLE (subsystem 3, built before the
+  fix); the redeploy replaces it with the GUI-subsystem build (subsystem 2).
+- `test-m08-modern-toolbar-contract.ps1` extended with three regression guards:
+  NULL `pptDst`, the drag-active `Update` guard, and settings-exe deploy in the
+  dev swap script.
+
 Verification run:
 
 - `git diff --check`

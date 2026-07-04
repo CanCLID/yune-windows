@@ -925,7 +925,12 @@ bool D2DSurface::PresentLanguageBar(HWND hwnd, const LanguageBarState& state,
         DiscardDeviceResources();
     } else if (SUCCEEDED(hr)) {
         GdiFlush();
-        POINT destination = {window_rect.left, window_rect.top};
+        // Position is owned solely by SetWindowPos (both the drag and the
+        // caret-follow paths move the window before calling Render). Passing a
+        // non-null pptDst here would make UpdateLayeredWindow a second position
+        // authority; when the two disagree mid-move the DWM leaves stale layered
+        // frames behind -- the reported "toolbar clones" trail. A NULL pptDst
+        // refreshes content in place at the window's current SetWindowPos rect.
         POINT source = {0, 0};
         SIZE size = {width, height};
         BLENDFUNCTION blend = {};
@@ -933,7 +938,7 @@ bool D2DSurface::PresentLanguageBar(HWND hwnd, const LanguageBarState& state,
         blend.SourceConstantAlpha = 255;
         blend.AlphaFormat = AC_SRC_ALPHA;
         presented =
-            UpdateLayeredWindow(hwnd, screen_dc, &destination, &size, memory_dc,
+            UpdateLayeredWindow(hwnd, screen_dc, nullptr, &size, memory_dc,
                                 &source, 0, &blend, ULW_ALPHA) == TRUE;
     }
 
@@ -1238,6 +1243,17 @@ bool LanguageBarWindow::Update(const LanguageBarState& state, bool show) {
     }
     state_ = state;
     skin_ = LoadToolbarSkin(ModuleDirectoryFromAddress(), state_.skin_name);
+
+    // drag-active guard: keep position during pointer capture. While the user is
+    // actively dragging the bar (mouse captured), a caret-follow/state refresh
+    // must not reposition or hide it -- doing so fights the drag's SetWindowPos
+    // and leaves stale layered frames behind (the "toolbar clones" trail). Just
+    // refresh the cached state/skin and repaint in place under the cursor.
+    if (pointer_captured_) {
+        Render();
+        return true;
+    }
+
     if (show && !ForegroundMatchesOwner()) {
         Hide();
         return true;

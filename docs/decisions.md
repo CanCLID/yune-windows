@@ -157,6 +157,14 @@ panel is native"; WebView2 is not adopted for any Yune Windows surface.
 
 ## Last Updated
 
+2026-07-03 - M08/M09 live-test follow-up: fixed the toolbar "clone trail" on drag
+(made `SetWindowPos` the single position authority with a NULL `UpdateLayeredWindow`
+`pptDst`, plus a drag-active guard in `LanguageBarWindow::Update`) and the stray
+terminal on the gear button (the swap tooling now redeploys the GUI-subsystem
+`YuneWindowsSettings.exe`, which had been left as a stale console build). No
+decision change; consistent with D-15 (native server-owned toolbar) and D-16
+(native Win32 settings panel). Regression guards added to the M08 contract.
+
 2026-07-03 - M09 Settings Panel + Skin Picker landed a persistent toolbar
 settings segment, native Win32 settings panel sections, server-routed session /
 schema / skin changes, a shared `D2DSurface` toolbar preview, and disabled

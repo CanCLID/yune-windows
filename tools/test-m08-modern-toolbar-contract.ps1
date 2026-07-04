@@ -80,6 +80,17 @@ if ($WindowSource -match 'HTCAPTION') {
     throw "M08 no-activate drag must not use HTCAPTION."
 }
 
+# Ghost-trail fix: SetWindowPos is the single position authority. UpdateLayeredWindow
+# must not also move the window (non-null pptDst) or the two disagree mid-move and
+# the DWM leaves stale layered frames ("toolbar clones").
+Require-Text $WindowSource 'UpdateLayeredWindow\(hwnd, screen_dc, nullptr,' `
+    "language-bar present must pass a NULL pptDst so UpdateLayeredWindow does not become a second position authority (ghost-trail fix)."
+if ($WindowSource -match 'POINT destination = \{window_rect\.left') {
+    throw "language-bar present must not compute a per-frame pptDst for UpdateLayeredWindow (ghost-trail regression)."
+}
+Require-Text $WindowSource 'drag-active guard: keep position during pointer capture' `
+    "language-bar Update must skip caret-follow reposition while the pointer is captured (drag-fight/ghost-trail fix)."
+
 foreach ($Required in @(
         'set-toolbar-position',
         'set-skin',
@@ -126,6 +137,12 @@ foreach ($Entry in @(
     )) {
     Require-Text ([string]$Entry.text) 'skins' "$($Entry.name) must copy skins/default into the runtime root."
 }
+
+# Deploy-gap fix: the dev swap must also redeploy the on-demand client exe the
+# toolbar gear launches, or a stale console-subsystem YuneWindowsSettings.exe
+# keeps opening a terminal window even after a swap.
+Require-Text $DevSwapTsf 'YuneWindowsSettings\.exe' `
+    "dev swap TSF must redeploy YuneWindowsSettings.exe (settings-exe deploy gap left the stale console build installed)."
 
 Require-Text $TsfBuildTest 'YuneWindowsLanguageBarSmoke\.exe' "TSF build contract must require the language-bar smoke executable."
 Require-Text $TsfBuildTest 'skins\\default\\theme\.json' "TSF build contract must require the default skin manifest."

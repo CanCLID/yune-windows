@@ -50,7 +50,7 @@ const wchar_t* kOutputMainlandSimplified = L"大陆简化字";
 const wchar_t* kSchemaJyutping = L"粵語拼音";
 const wchar_t* kSchemaCangjie = L"倉頡五代";
 const wchar_t* kSchemaLunaPinyin = L"朙月拼音";
-const wchar_t* kSchemaLunaPinyinOctagram = L"朙月拼音（八卦）";
+const wchar_t* kSchemaLunaPinyinOctagram = L"朙月拼音（八股文）";
 const wchar_t* kSchemaUnknown = L"未知方案";
 
 const wchar_t* kServerUnavailable = L"新韻輸入法伺服器未啟用。";

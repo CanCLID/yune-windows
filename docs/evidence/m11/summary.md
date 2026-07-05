@@ -48,9 +48,9 @@ Status: Slices A (native theming + Cantonese) and B (Win11 DWM polish) are imple
     remains the guaranteed non-hollow, no-activate, draggable fallback, preserving
     the M08/M09 clone-trail + no-activate + drag invariants.
 - Localization note: `luna_pinyin_octagram` intentionally renders as
-  `朙月拼音（八卦）` (fully Cantonese) rather than mirroring yune-web's Latin
-  `朙月拼音 + Octagram`, to keep the panel free of Latin text per the
-  all-Cantonese goal (see M11 plan appendix).
+  `朙月拼音（八股文）` (fully Cantonese, user-confirmed — a pun on
+  "Octagram" ≈ "8-gram" ≈ 八股) rather than yune-web's Latin
+  `朙月拼音 + Octagram` (see M11 plan appendix).
 
 ## Verification Results
 

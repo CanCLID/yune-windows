@@ -25,7 +25,7 @@ function Find-VsDevCmd {
 }
 
 $VsDevCmd = Find-VsDevCmd
-$Compile = "call `"$VsDevCmd`" -arch=x64 -host_arch=x64 >nul && cl.exe /nologo /std:c++20 /EHsc /W4 /permissive- /utf-8 /DUNICODE /D_UNICODE /Fo`"$Obj`" /Fe`"$Exe`" `"$Source`" /link user32.lib gdi32.lib dwmapi.lib /SUBSYSTEM:WINDOWS /ENTRY:wWinMainCRTStartup"
+$Compile = "call `"$VsDevCmd`" -arch=x64 -host_arch=x64 >nul && cl.exe /nologo /std:c++20 /EHsc /W4 /permissive- /utf-8 /DUNICODE /D_UNICODE /Fo`"$Obj`" /Fe`"$Exe`" `"$Source`" /link user32.lib gdi32.lib dwmapi.lib d3d11.lib dxgi.lib d2d1.lib dwrite.lib dcomp.lib /SUBSYSTEM:WINDOWS /ENTRY:wWinMainCRTStartup"
 cmd.exe /d /s /c "$Compile"
 if ($LASTEXITCODE -ne 0) { throw "glass spike build failed with exit code $LASTEXITCODE" }
 

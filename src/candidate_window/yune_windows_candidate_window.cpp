@@ -4,6 +4,7 @@
 #include <d2d1helper.h>
 #include <dwrite.h>
 #include <dwmapi.h>
+#include <uxtheme.h>
 #include <wrl/client.h>
 #include <windowsx.h>
 
@@ -333,6 +334,9 @@ ToolbarGlassMechanism ParseGlassMechanism(std::string_view value) {
     if (value == "accent_acrylic") {
         return ToolbarGlassMechanism::AccentAcrylic;
     }
+    if (value == "accent_blur") {
+        return ToolbarGlassMechanism::AccentBlur;
+    }
     if (value == "dwm_acrylic") {
         return ToolbarGlassMechanism::DwmAcrylic;
     }
@@ -635,6 +639,10 @@ ToolbarSkin LoadToolbarSkin(const std::filesystem::path& install_root,
     LoadSkinColor(json, "glass_tint", &skin.glass_tint);
     const std::string glass_mechanism = JsonStringValue(json, "glass_mechanism");
     skin.glass_mechanism = ParseGlassMechanism(glass_mechanism);
+    const std::string glass_fallback = JsonStringValue(json, "glass_fallback");
+    if (!glass_fallback.empty()) {
+        skin.glass_fallback = ParseGlassMechanism(glass_fallback);
+    }
     skin.glass_tint_opacity = std::max(
         0.0f, std::min(1.0f, JsonFloatValueOr(json, "glass_tint_opacity",
                                               skin.glass_tint_opacity)));
@@ -756,17 +764,18 @@ DWORD AccentColorFromSkin(const ToolbarSkin& skin) {
     return (alpha << 24) | (blue << 16) | (green << 8) | red;
 }
 
-void ApplyHostBackdropBrush(HWND hwnd) {
-    // Documented live-content path for a future full DirectComposition backend:
-    // Windows.UI.Composition Compositor.CreateHostBackdropBrush paired with
-    // DWMWA_USE_HOSTBACKDROPBRUSH and WS_EX_NOREDIRECTIONBITMAP.
+bool ApplyHostBackdropBrush(HWND hwnd) {
+    // Stub for a future full DirectComposition backend (WinRT
+    // Compositor.CreateHostBackdropBrush + WS_EX_NOREDIRECTIONBITMAP). Setting the
+    // attribute alone renders nothing on the layered pill, so report failure and
+    // let the caller fall through to a mechanism that shows a real material.
     const BOOL use_host_backdrop = TRUE;
     (void)DwmSetWindowAttribute(hwnd, DWMWA_USE_HOSTBACKDROPBRUSH,
-                                &use_host_backdrop,
-                                sizeof(use_host_backdrop));
+                                &use_host_backdrop, sizeof(use_host_backdrop));
+    return false;
 }
 
-void ApplyAccentAcrylic(HWND hwnd, const ToolbarSkin& skin) {
+bool ApplyAccent(HWND hwnd, const ToolbarSkin& skin, AccentState state) {
     using SetWindowCompositionAttributeProc =
         BOOL(WINAPI*)(HWND, WindowCompositionAttributeData*);
     HMODULE user32 = GetModuleHandleW(L"user32.dll");
@@ -775,46 +784,71 @@ void ApplyAccentAcrylic(HWND hwnd, const ToolbarSkin& skin) {
                      GetProcAddress(user32, "SetWindowCompositionAttribute"))
                : nullptr;
     if (!set_window_composition_attribute) {
-        return;
+        return false;
     }
+    // The accent path is a window attribute that composes with the toolbar's
+    // existing WS_EX_LAYERED + UpdateLayeredWindow presentation: the DWM blur
+    // shows through the pill wherever the layered bitmap's per-pixel alpha is
+    // below opaque. No composition-backend migration required.
     AccentPolicy accent = {};
-    accent.accent_state = AccentState::ACCENT_ENABLE_ACRYLICBLURBEHIND;
+    accent.accent_state = state;
     accent.gradient_color = AccentColorFromSkin(skin);
     WindowCompositionAttributeData data = {};
     data.attribute = WindowCompositionAttribute::AccentPolicy;
     data.data = &accent;
     data.data_size = sizeof(accent);
-    (void)set_window_composition_attribute(hwnd, &data);
+    return set_window_composition_attribute(hwnd, &data) != FALSE;
 }
 
-void ApplyDwmTransientAcrylic(HWND hwnd) {
+bool ApplyDwmTransientAcrylic(HWND hwnd) {
+    // Extend the frame so the DWM system backdrop fills the whole popup, then
+    // request Desktop Acrylic (supported). It composes with the layered pill via
+    // the layered bitmap's per-pixel alpha, like the accent path.
+    const MARGINS sheet = {-1, -1, -1, -1};
+    (void)DwmExtendFrameIntoClientArea(hwnd, &sheet);
     const DWORD backdrop = DWMSBT_TRANSIENTWINDOW;
-    (void)DwmSetWindowAttribute(hwnd, DWMWA_SYSTEMBACKDROP_TYPE, &backdrop,
-                                sizeof(backdrop));
+    return SUCCEEDED(DwmSetWindowAttribute(hwnd, DWMWA_SYSTEMBACKDROP_TYPE,
+                                           &backdrop, sizeof(backdrop)));
+}
+
+bool ApplyGlassMechanism(HWND hwnd, const ToolbarSkin& skin,
+                         ToolbarGlassMechanism mechanism) {
+    switch (mechanism) {
+        case ToolbarGlassMechanism::HostBackdrop:
+            return ApplyHostBackdropBrush(hwnd);
+        case ToolbarGlassMechanism::AccentAcrylic:
+            return ApplyAccent(hwnd, skin,
+                               AccentState::ACCENT_ENABLE_ACRYLICBLURBEHIND);
+        case ToolbarGlassMechanism::AccentBlur:
+            return ApplyAccent(hwnd, skin, AccentState::EnableBlurBehind);
+        case ToolbarGlassMechanism::DwmAcrylic:
+            return ApplyDwmTransientAcrylic(hwnd);
+        case ToolbarGlassMechanism::StaticTint:
+            // Flat pill: no backdrop, and NO per-present DWM calls (those on a
+            // moving layered window during a drag can stamp clone frames).
+            return true;
+    }
+    return false;
 }
 
 void ApplyToolbarGlassBackdrop(HWND hwnd, const ToolbarSkin& skin) {
     if (!hwnd) {
         return;
     }
-    const DWORD build = WindowsBuildNumber();
-    if (skin.glass_mechanism == ToolbarGlassMechanism::HostBackdrop &&
-        build >= 22000) {
-        ApplyHostBackdropBrush(hwnd);
+    // Windows 10 stays flat (Decision 7); glass materials are Win11-gated.
+    if (WindowsBuildNumber() < 22000) {
         return;
     }
-    if (skin.glass_mechanism == ToolbarGlassMechanism::AccentAcrylic &&
-        build >= 22000) {
-        ApplyAccentAcrylic(hwnd, skin);
+    // Try the skin's primary mechanism (default: undocumented accent blur-behind,
+    // live-content glass). If its API is unavailable/fails -- e.g. a Windows update
+    // removes the accent API -- fall back to the SUPPORTED DWM Desktop Acrylic so
+    // the bar degrades to a real material instead of a hollow/glassless pill.
+    if (ApplyGlassMechanism(hwnd, skin, skin.glass_mechanism)) {
         return;
     }
-    if (skin.glass_mechanism == ToolbarGlassMechanism::DwmAcrylic &&
-        build >= 22000) {
-        ApplyDwmTransientAcrylic(hwnd);
-        return;
+    if (skin.glass_fallback != skin.glass_mechanism) {
+        (void)ApplyGlassMechanism(hwnd, skin, skin.glass_fallback);
     }
-    // static translucent tint fallback: the D2D/UpdateLayeredWindow path remains
-    // non-hollow, no-activate, draggable, and covered by the M08 smoke.
 }
 
 struct D2DSurface::Impl {
@@ -1049,8 +1083,11 @@ bool D2DSurface::PresentLanguageBar(HWND hwnd, const LanguageBarState& state,
         D2D1_RENDER_TARGET_TYPE_DEFAULT,
         D2D1::PixelFormat(DXGI_FORMAT_B8G8R8A8_UNORM,
                           D2D1_ALPHA_MODE_PREMULTIPLIED),
-        static_cast<FLOAT>(state.dpi == 0 ? 96 : state.dpi),
-        static_cast<FLOAT>(state.dpi == 0 ? 96 : state.dpi));
+        // Render at 96 DPI (1 DIP = 1 px). The DIB is already physical-pixel
+        // sized (LanguageBarDesiredSize scales by DPI) and DrawLanguageBarContent
+        // scales every dimension via ScaleFloat(x, state.dpi). Setting the target
+        // DPI to state.dpi too would scale everything a SECOND time (the enlarge).
+        96.0f, 96.0f);
     HRESULT hr = impl_->d2d_factory->CreateDCRenderTarget(&properties, &target);
     RECT bind_rect = {0, 0, width, height};
     if (SUCCEEDED(hr)) {
@@ -1112,8 +1149,8 @@ bool D2DSurface::PaintLanguageBarPreview(HWND hwnd, HDC dc, const RECT& bounds,
         D2D1_RENDER_TARGET_TYPE_DEFAULT,
         D2D1::PixelFormat(DXGI_FORMAT_B8G8R8A8_UNORM,
                           D2D1_ALPHA_MODE_IGNORE),
-        static_cast<FLOAT>(state.dpi == 0 ? 96 : state.dpi),
-        static_cast<FLOAT>(state.dpi == 0 ? 96 : state.dpi));
+        // 96 DPI (1 DIP = 1 px); ScaleFloat already applies DPI (avoid double-scale).
+        96.0f, 96.0f);
     HRESULT hr = impl_->d2d_factory->CreateDCRenderTarget(&properties, &target);
     if (SUCCEEDED(hr)) {
         RECT bind_rect = bounds;
@@ -1412,6 +1449,14 @@ bool LanguageBarWindow::Update(const LanguageBarState& state, bool show) {
     }
     state_ = state;
     skin_ = LoadToolbarSkin(ModuleDirectoryFromAddress(), state_.skin_name);
+
+    // Render the bar at a fixed, compact 1x size regardless of caret/display DPI.
+    // The anchor DPI is only valid while composing and falls back to 96 when idle,
+    // which made the bar oscillate size (idle 96 vs composing 144) -- the
+    // enlarge/cut-off, and the rapid resize stamped the clone frames. A small
+    // floating indicator reads best at a consistent compact size; DPI scale-up is
+    // intentionally skipped here.
+    state_.dpi = 96;
 
     // drag-active guard: keep position during pointer capture. While the user is
     // actively dragging the bar (mouse captured), a caret-follow/state refresh

@@ -51,6 +51,7 @@ struct ToolbarSkinColor {
 enum class ToolbarGlassMechanism {
     HostBackdrop,
     AccentAcrylic,
+    AccentBlur,
     DwmAcrylic,
     StaticTint,
 };
@@ -74,6 +75,7 @@ struct ToolbarSkin {
     ToolbarSkinColor separator = {0.33f, 0.38f, 0.45f, 0.28f};
     ToolbarSkinColor shadow = {0.0f, 0.0f, 0.0f, 0.24f};
     ToolbarGlassMechanism glass_mechanism = ToolbarGlassMechanism::HostBackdrop;
+    ToolbarGlassMechanism glass_fallback = ToolbarGlassMechanism::DwmAcrylic;
     ToolbarSkinColor glass_tint = {0.92f, 0.97f, 1.0f, 0.56f};
     float glass_tint_opacity = 0.56f;
     float blur_amount = 28.0f;

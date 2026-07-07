@@ -23,9 +23,10 @@
     "family": "Microsoft JhengHei UI",
     "size": 14
   },
-  "glass_mechanism": "host_backdrop",
+  "glass_mechanism": "static_tint",
+  "glass_fallback": "static_tint",
   "glass_tint": "#8FEAF8FF",
-  "glass_tint_opacity": 0.56,
+  "glass_tint_opacity": 0.30,
   "blur_amount": 28,
   "highlight_intensity": 0.34,
   "segments": {

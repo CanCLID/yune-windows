@@ -728,6 +728,21 @@ DWORD WindowsBuildNumber() {
     return version.dwBuildNumber;
 }
 
+// The OS build number does not change during a session; cache it so per-present
+// render paths do not repeatedly probe ntdll.
+DWORD CachedWindowsBuildNumber() {
+    static const DWORD build = WindowsBuildNumber();
+    return build;
+}
+
+// True when the toolbar has a real DWM acrylic backdrop behind the (transparent)
+// composition surface. When false (Windows 10, or a non-acrylic skin), the pill
+// must be drawn opaque or it renders as a see-through bar over live content.
+bool ToolbarGlassBackdropActive(const ToolbarSkin& skin) {
+    return CachedWindowsBuildNumber() >= 22000 &&
+           skin.glass_mechanism == ToolbarGlassMechanism::DwmAcrylic;
+}
+
 bool ApplyDwmTransientAcrylic(HWND hwnd) {
     const MARGINS sheet = {-1, -1, -1, -1};
     (void)DwmExtendFrameIntoClientArea(hwnd, &sheet);
@@ -806,7 +821,15 @@ HRESULT DrawLanguageBarContent(ID2D1RenderTarget* target,
         D2D1::RoundedRect(D2D1::RectF(pill_left, pill_top, pill_right,
                                       pill_bottom),
                           radius, radius);
-    if (SUCCEEDED(target->CreateSolidColorBrush(ToD2DColor(skin.background),
+    // On the flat path (Windows 10, or any skin without the acrylic backdrop) the
+    // composition surface is transparent with nothing frosting behind it, so a
+    // low-alpha pill would show the live desktop through it and wash out the text.
+    // Force the pill opaque there; keep the skin's glass alpha when acrylic is on.
+    ToolbarSkinColor pill_background = skin.background;
+    if (!ToolbarGlassBackdropActive(skin)) {
+        pill_background.a = 1.0f;
+    }
+    if (SUCCEEDED(target->CreateSolidColorBrush(ToD2DColor(pill_background),
                                                 &brush))) {
         target->FillRoundedRectangle(pill, brush.Get());
         brush.Reset();
@@ -1007,7 +1030,11 @@ bool GlassSurface::EnsureDeviceResources(HWND hwnd, SIZE size,
     if (impl_->dcomp_surface && impl_->d2d_context && impl_->dwrite_factory &&
         impl_->hwnd == hwnd && impl_->surface_size.cx == size.cx &&
         impl_->surface_size.cy == size.cy) {
-        ApplyToolbarGlassBackdrop(hwnd, skin);
+        // Device stack already built for this window/size. The DWM backdrop is a
+        // set-once window property applied on the build path below -- do NOT
+        // re-apply it here: this branch runs on every present (every keystroke,
+        // hover, and drag mouse-move), and churning DwmExtendFrameIntoClientArea
+        // on a window being repositioned is wasteful and can flicker.
         return true;
     }
 

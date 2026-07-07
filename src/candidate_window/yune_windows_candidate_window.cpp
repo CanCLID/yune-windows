@@ -1,9 +1,12 @@
 #include "yune_windows_candidate_window.h"
 
-#include <d2d1.h>
+#include <d2d1_1.h>
 #include <d2d1helper.h>
+#include <d3d11.h>
+#include <dcomp.h>
 #include <dwrite.h>
 #include <dwmapi.h>
+#include <dxgi1_2.h>
 #include <uxtheme.h>
 #include <wrl/client.h>
 #include <windowsx.h>
@@ -15,6 +18,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
+#include <new>
 #include <sstream>
 
 namespace yune_windows {
@@ -32,40 +36,18 @@ constexpr COLORREF kCommentColor = RGB(88, 94, 104);
 constexpr int kLanguageBarDragThreshold = 4;
 constexpr int kToolbarSegmentCount = 5;
 
-#ifndef DWMWA_USE_HOSTBACKDROPBRUSH
-#define DWMWA_USE_HOSTBACKDROPBRUSH 17
-#endif
 #ifndef DWMWA_SYSTEMBACKDROP_TYPE
 #define DWMWA_SYSTEMBACKDROP_TYPE 38
+#endif
+#ifndef DWMWA_WINDOW_CORNER_PREFERENCE
+#define DWMWA_WINDOW_CORNER_PREFERENCE 33
 #endif
 #ifndef DWMSBT_TRANSIENTWINDOW
 #define DWMSBT_TRANSIENTWINDOW 3
 #endif
-
-enum class WindowCompositionAttribute {
-    AccentPolicy = 19,
-};
-
-enum class AccentState {
-    Disabled = 0,
-    EnableGradient = 1,
-    EnableTransparentGradient = 2,
-    EnableBlurBehind = 3,
-    ACCENT_ENABLE_ACRYLICBLURBEHIND = 4,
-};
-
-struct AccentPolicy {
-    AccentState accent_state = AccentState::Disabled;
-    DWORD accent_flags = 0;
-    DWORD gradient_color = 0;
-    DWORD animation_id = 0;
-};
-
-struct WindowCompositionAttributeData {
-    WindowCompositionAttribute attribute = WindowCompositionAttribute::AccentPolicy;
-    void* data = nullptr;
-    SIZE_T data_size = 0;
-};
+#ifndef DWMWCP_ROUND
+#define DWMWCP_ROUND 2
+#endif
 
 int Scale(int value, UINT dpi) {
     return MulDiv(value, static_cast<int>(dpi == 0 ? 96 : dpi), 96);
@@ -331,19 +313,10 @@ void LoadSkinColor(std::string_view json, std::string_view key,
 }
 
 ToolbarGlassMechanism ParseGlassMechanism(std::string_view value) {
-    if (value == "accent_acrylic") {
-        return ToolbarGlassMechanism::AccentAcrylic;
-    }
-    if (value == "accent_blur") {
-        return ToolbarGlassMechanism::AccentBlur;
-    }
-    if (value == "dwm_acrylic") {
-        return ToolbarGlassMechanism::DwmAcrylic;
-    }
     if (value == "static_tint") {
         return ToolbarGlassMechanism::StaticTint;
     }
-    return ToolbarGlassMechanism::HostBackdrop;
+    return ToolbarGlassMechanism::DwmAcrylic;
 }
 
 bool IsSafeSkinName(std::wstring_view value) {
@@ -755,100 +728,35 @@ DWORD WindowsBuildNumber() {
     return version.dwBuildNumber;
 }
 
-DWORD AccentColorFromSkin(const ToolbarSkin& skin) {
-    const DWORD alpha =
-        static_cast<DWORD>(std::lround(255.0f * skin.glass_tint_opacity));
-    const DWORD red = static_cast<DWORD>(std::lround(255.0f * skin.glass_tint.r));
-    const DWORD green = static_cast<DWORD>(std::lround(255.0f * skin.glass_tint.g));
-    const DWORD blue = static_cast<DWORD>(std::lround(255.0f * skin.glass_tint.b));
-    return (alpha << 24) | (blue << 16) | (green << 8) | red;
-}
-
-bool ApplyHostBackdropBrush(HWND hwnd) {
-    // Stub for a future full DirectComposition backend (WinRT
-    // Compositor.CreateHostBackdropBrush + WS_EX_NOREDIRECTIONBITMAP). Setting the
-    // attribute alone renders nothing on the layered pill, so report failure and
-    // let the caller fall through to a mechanism that shows a real material.
-    const BOOL use_host_backdrop = TRUE;
-    (void)DwmSetWindowAttribute(hwnd, DWMWA_USE_HOSTBACKDROPBRUSH,
-                                &use_host_backdrop, sizeof(use_host_backdrop));
-    return false;
-}
-
-bool ApplyAccent(HWND hwnd, const ToolbarSkin& skin, AccentState state) {
-    using SetWindowCompositionAttributeProc =
-        BOOL(WINAPI*)(HWND, WindowCompositionAttributeData*);
-    HMODULE user32 = GetModuleHandleW(L"user32.dll");
-    auto set_window_composition_attribute =
-        user32 ? reinterpret_cast<SetWindowCompositionAttributeProc>(
-                     GetProcAddress(user32, "SetWindowCompositionAttribute"))
-               : nullptr;
-    if (!set_window_composition_attribute) {
-        return false;
-    }
-    // The accent path is a window attribute that composes with the toolbar's
-    // existing WS_EX_LAYERED + UpdateLayeredWindow presentation: the DWM blur
-    // shows through the pill wherever the layered bitmap's per-pixel alpha is
-    // below opaque. No composition-backend migration required.
-    AccentPolicy accent = {};
-    accent.accent_state = state;
-    accent.gradient_color = AccentColorFromSkin(skin);
-    WindowCompositionAttributeData data = {};
-    data.attribute = WindowCompositionAttribute::AccentPolicy;
-    data.data = &accent;
-    data.data_size = sizeof(accent);
-    return set_window_composition_attribute(hwnd, &data) != FALSE;
-}
-
 bool ApplyDwmTransientAcrylic(HWND hwnd) {
-    // Extend the frame so the DWM system backdrop fills the whole popup, then
-    // request Desktop Acrylic (supported). It composes with the layered pill via
-    // the layered bitmap's per-pixel alpha, like the accent path.
     const MARGINS sheet = {-1, -1, -1, -1};
     (void)DwmExtendFrameIntoClientArea(hwnd, &sheet);
+    const DWORD corner = DWMWCP_ROUND;
+    (void)DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE,
+                                &corner, sizeof(corner));
     const DWORD backdrop = DWMSBT_TRANSIENTWINDOW;
     return SUCCEEDED(DwmSetWindowAttribute(hwnd, DWMWA_SYSTEMBACKDROP_TYPE,
                                            &backdrop, sizeof(backdrop)));
-}
-
-bool ApplyGlassMechanism(HWND hwnd, const ToolbarSkin& skin,
-                         ToolbarGlassMechanism mechanism) {
-    switch (mechanism) {
-        case ToolbarGlassMechanism::HostBackdrop:
-            return ApplyHostBackdropBrush(hwnd);
-        case ToolbarGlassMechanism::AccentAcrylic:
-            return ApplyAccent(hwnd, skin,
-                               AccentState::ACCENT_ENABLE_ACRYLICBLURBEHIND);
-        case ToolbarGlassMechanism::AccentBlur:
-            return ApplyAccent(hwnd, skin, AccentState::EnableBlurBehind);
-        case ToolbarGlassMechanism::DwmAcrylic:
-            return ApplyDwmTransientAcrylic(hwnd);
-        case ToolbarGlassMechanism::StaticTint:
-            // Flat pill: no backdrop, and NO per-present DWM calls (those on a
-            // moving layered window during a drag can stamp clone frames).
-            return true;
-    }
-    return false;
 }
 
 void ApplyToolbarGlassBackdrop(HWND hwnd, const ToolbarSkin& skin) {
     if (!hwnd) {
         return;
     }
-    // Windows 10 stays flat (Decision 7); glass materials are Win11-gated.
+    // Windows 10 stays flat (Decision 7); DWM Desktop Acrylic is Win11-gated.
     if (WindowsBuildNumber() < 22000) {
         return;
     }
-    // Try the skin's primary mechanism (default: undocumented accent blur-behind,
-    // live-content glass). If its API is unavailable/fails -- e.g. a Windows update
-    // removes the accent API -- fall back to the SUPPORTED DWM Desktop Acrylic so
-    // the bar degrades to a real material instead of a hollow/glassless pill.
-    if (ApplyGlassMechanism(hwnd, skin, skin.glass_mechanism)) {
-        return;
+    if (skin.glass_mechanism == ToolbarGlassMechanism::DwmAcrylic) {
+        (void)ApplyDwmTransientAcrylic(hwnd);
     }
-    if (skin.glass_fallback != skin.glass_mechanism) {
-        (void)ApplyGlassMechanism(hwnd, skin, skin.glass_fallback);
-    }
+}
+
+bool IsDeviceLoss(HRESULT hr) {
+    return hr == D2DERR_RECREATE_TARGET ||
+           hr == DXGI_ERROR_DEVICE_REMOVED ||
+           hr == DXGI_ERROR_DEVICE_RESET ||
+           hr == DXGI_ERROR_DEVICE_HUNG;
 }
 
 struct D2DSurface::Impl {
@@ -1025,114 +933,6 @@ void D2DSurface::DiscardDeviceResources() {
     }
 }
 
-bool D2DSurface::PresentLanguageBar(HWND hwnd, const LanguageBarState& state,
-                                    const ToolbarSkin& skin,
-                                    LanguageBarSegment hover_segment,
-                                    LanguageBarSegment pressed_segment,
-                                    bool has_hover,
-                                    bool has_pressed) {
-    if (!hwnd || !EnsureFactories()) {
-        return false;
-    }
-
-    RECT window_rect = {};
-    if (!GetWindowRect(hwnd, &window_rect)) {
-        return false;
-    }
-    const int width = std::max(
-        1, static_cast<int>(window_rect.right - window_rect.left));
-    const int height = std::max(
-        1, static_cast<int>(window_rect.bottom - window_rect.top));
-
-    HDC screen_dc = GetDC(nullptr);
-    if (!screen_dc) {
-        return false;
-    }
-    HDC memory_dc = CreateCompatibleDC(screen_dc);
-    if (!memory_dc) {
-        ReleaseDC(nullptr, screen_dc);
-        return false;
-    }
-
-    BITMAPINFO bitmap_info = {};
-    bitmap_info.bmiHeader.biSize = sizeof(bitmap_info.bmiHeader);
-    bitmap_info.bmiHeader.biWidth = width;
-    bitmap_info.bmiHeader.biHeight = -height;
-    bitmap_info.bmiHeader.biPlanes = 1;
-    bitmap_info.bmiHeader.biBitCount = 32;
-    bitmap_info.bmiHeader.biCompression = BI_RGB;
-
-    void* bits = nullptr;
-    HBITMAP bitmap =
-        CreateDIBSection(screen_dc, &bitmap_info, DIB_RGB_COLORS, &bits, nullptr, 0);
-    if (!bitmap || !bits) {
-        if (bitmap) {
-            DeleteObject(bitmap);
-        }
-        DeleteDC(memory_dc);
-        ReleaseDC(nullptr, screen_dc);
-        return false;
-    }
-    std::fill_n(static_cast<unsigned char*>(bits),
-                static_cast<size_t>(width) * static_cast<size_t>(height) * 4,
-                static_cast<unsigned char>(0));
-
-    HGDIOBJ old_bitmap = SelectObject(memory_dc, bitmap);
-    ComPtr<ID2D1DCRenderTarget> target;
-    D2D1_RENDER_TARGET_PROPERTIES properties = D2D1::RenderTargetProperties(
-        D2D1_RENDER_TARGET_TYPE_DEFAULT,
-        D2D1::PixelFormat(DXGI_FORMAT_B8G8R8A8_UNORM,
-                          D2D1_ALPHA_MODE_PREMULTIPLIED),
-        // Render at 96 DPI (1 DIP = 1 px). The DIB is already physical-pixel
-        // sized (LanguageBarDesiredSize scales by DPI) and DrawLanguageBarContent
-        // scales every dimension via ScaleFloat(x, state.dpi). Setting the target
-        // DPI to state.dpi too would scale everything a SECOND time (the enlarge).
-        96.0f, 96.0f);
-    HRESULT hr = impl_->d2d_factory->CreateDCRenderTarget(&properties, &target);
-    RECT bind_rect = {0, 0, width, height};
-    if (SUCCEEDED(hr)) {
-        hr = target->BindDC(memory_dc, &bind_rect);
-    }
-
-    if (SUCCEEDED(hr)) {
-        target->BeginDraw();
-        const HRESULT draw_hr = DrawLanguageBarContent(
-            target.Get(), impl_->dwrite_factory.Get(), {width, height}, state,
-            skin, hover_segment, pressed_segment, has_hover, has_pressed,
-            D2D1::ColorF(0.0f, 0.0f, 0.0f, 0.0f));
-        const HRESULT end_hr = target->EndDraw();
-        hr = FAILED(draw_hr) ? draw_hr : end_hr;
-    }
-
-    bool presented = false;
-    if (hr == D2DERR_RECREATE_TARGET) {
-        DiscardDeviceResources();
-    } else if (SUCCEEDED(hr)) {
-        GdiFlush();
-        // Position is owned solely by SetWindowPos (both the drag and the
-        // caret-follow paths move the window before calling Render). Passing a
-        // non-null pptDst here would make UpdateLayeredWindow a second position
-        // authority; when the two disagree mid-move the DWM leaves stale layered
-        // frames behind -- the reported "toolbar clones" trail. A NULL pptDst
-        // refreshes content in place at the window's current SetWindowPos rect.
-        POINT source = {0, 0};
-        SIZE size = {width, height};
-        BLENDFUNCTION blend = {};
-        blend.BlendOp = AC_SRC_OVER;
-        blend.SourceConstantAlpha = 255;
-        blend.AlphaFormat = AC_SRC_ALPHA;
-        presented =
-            UpdateLayeredWindow(hwnd, screen_dc, nullptr, &size, memory_dc,
-                                &source, 0, &blend, ULW_ALPHA) == TRUE;
-    }
-
-    SelectObject(memory_dc, old_bitmap);
-    DeleteObject(bitmap);
-    DeleteDC(memory_dc);
-    ReleaseDC(nullptr, screen_dc);
-    return presented;
-}
-
 bool D2DSurface::PaintLanguageBarPreview(HWND hwnd, HDC dc, const RECT& bounds,
                                          const LanguageBarState& state,
                                          const ToolbarSkin& skin) {
@@ -1174,26 +974,229 @@ bool D2DSurface::PaintLanguageBarPreview(HWND hwnd, HDC dc, const RECT& bounds,
     return SUCCEEDED(hr);
 }
 
+struct GlassSurface::Impl {
+    ComPtr<ID3D11Device> d3d_device;
+    ComPtr<IDXGIDevice> dxgi_device;
+    ComPtr<ID2D1Factory1> d2d_factory;
+    ComPtr<ID2D1Device> d2d_device;
+    ComPtr<ID2D1DeviceContext> d2d_context;
+    ComPtr<IDWriteFactory> dwrite_factory;
+    ComPtr<IDCompositionDevice> dcomp_device;
+    ComPtr<IDCompositionTarget> dcomp_target;
+    ComPtr<IDCompositionVisual> dcomp_visual;
+    ComPtr<IDCompositionSurface> dcomp_surface;
+    HWND hwnd = nullptr;
+    SIZE surface_size = {0, 0};
+};
+
+GlassSurface::~GlassSurface() {
+    DiscardDeviceResources();
+}
+
+bool GlassSurface::EnsureDeviceResources(HWND hwnd, SIZE size,
+                                         const ToolbarSkin& skin) {
+    if (!hwnd || size.cx <= 0 || size.cy <= 0) {
+        return false;
+    }
+    if (!impl_) {
+        impl_ = new (std::nothrow) Impl();
+        if (!impl_) {
+            return false;
+        }
+    }
+    if (impl_->dcomp_surface && impl_->d2d_context && impl_->dwrite_factory &&
+        impl_->hwnd == hwnd && impl_->surface_size.cx == size.cx &&
+        impl_->surface_size.cy == size.cy) {
+        ApplyToolbarGlassBackdrop(hwnd, skin);
+        return true;
+    }
+
+    impl_->d3d_device.Reset();
+    impl_->dxgi_device.Reset();
+    impl_->d2d_factory.Reset();
+    impl_->d2d_device.Reset();
+    impl_->d2d_context.Reset();
+    impl_->dwrite_factory.Reset();
+    impl_->dcomp_device.Reset();
+    impl_->dcomp_target.Reset();
+    impl_->dcomp_visual.Reset();
+    impl_->dcomp_surface.Reset();
+
+    HRESULT hr = D3D11CreateDevice(
+        nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr,
+        D3D11_CREATE_DEVICE_BGRA_SUPPORT, nullptr, 0, D3D11_SDK_VERSION,
+        &impl_->d3d_device, nullptr, nullptr);
+    if (FAILED(hr)) {
+        hr = D3D11CreateDevice(
+            nullptr, D3D_DRIVER_TYPE_WARP, nullptr,
+            D3D11_CREATE_DEVICE_BGRA_SUPPORT, nullptr, 0, D3D11_SDK_VERSION,
+            &impl_->d3d_device, nullptr, nullptr);
+    }
+    if (FAILED(hr) || FAILED(impl_->d3d_device.As(&impl_->dxgi_device))) {
+        DiscardDeviceResources();
+        return false;
+    }
+
+    hr = D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED,
+                           IID_PPV_ARGS(&impl_->d2d_factory));
+    if (SUCCEEDED(hr)) {
+        hr = impl_->d2d_factory->CreateDevice(impl_->dxgi_device.Get(),
+                                              &impl_->d2d_device);
+    }
+    if (SUCCEEDED(hr)) {
+        hr = impl_->d2d_device->CreateDeviceContext(
+            D2D1_DEVICE_CONTEXT_OPTIONS_NONE, &impl_->d2d_context);
+    }
+    if (SUCCEEDED(hr)) {
+        impl_->d2d_context->SetDpi(96.0f, 96.0f);
+        hr = DWriteCreateFactory(
+            DWRITE_FACTORY_TYPE_SHARED, __uuidof(IDWriteFactory),
+            reinterpret_cast<IUnknown**>(
+                impl_->dwrite_factory.GetAddressOf()));
+    }
+    if (SUCCEEDED(hr)) {
+        hr = DCompositionCreateDevice(
+            impl_->dxgi_device.Get(), __uuidof(IDCompositionDevice),
+            reinterpret_cast<void**>(impl_->dcomp_device.GetAddressOf()));
+    }
+    if (SUCCEEDED(hr)) {
+        hr = impl_->dcomp_device->CreateTargetForHwnd(
+            hwnd, TRUE, &impl_->dcomp_target);
+    }
+    if (SUCCEEDED(hr)) {
+        hr = impl_->dcomp_device->CreateVisual(&impl_->dcomp_visual);
+    }
+    if (SUCCEEDED(hr)) {
+        hr = impl_->dcomp_device->CreateSurface(
+            static_cast<UINT>(size.cx), static_cast<UINT>(size.cy),
+            DXGI_FORMAT_B8G8R8A8_UNORM, DXGI_ALPHA_MODE_PREMULTIPLIED,
+            &impl_->dcomp_surface);
+    }
+    if (SUCCEEDED(hr)) {
+        hr = impl_->dcomp_visual->SetContent(impl_->dcomp_surface.Get());
+    }
+    if (SUCCEEDED(hr)) {
+        hr = impl_->dcomp_target->SetRoot(impl_->dcomp_visual.Get());
+    }
+    if (SUCCEEDED(hr)) {
+        hr = impl_->dcomp_device->Commit();
+    }
+    if (FAILED(hr)) {
+        DiscardDeviceResources();
+        return false;
+    }
+
+    impl_->hwnd = hwnd;
+    impl_->surface_size = size;
+    ApplyToolbarGlassBackdrop(hwnd, skin);
+    return true;
+}
+
+HRESULT GlassSurface::RenderLanguageBar(const LanguageBarState& state,
+                                        const ToolbarSkin& skin,
+                                        LanguageBarSegment hover_segment,
+                                        LanguageBarSegment pressed_segment,
+                                        bool has_hover,
+                                        bool has_pressed) {
+    if (!impl_ || !impl_->dcomp_surface || !impl_->d2d_context ||
+        !impl_->dwrite_factory) {
+        return E_FAIL;
+    }
+
+    ComPtr<IDXGISurface> dxgi_surface;
+    POINT offset = {};
+    HRESULT hr = impl_->dcomp_surface->BeginDraw(
+        nullptr, __uuidof(IDXGISurface),
+        reinterpret_cast<void**>(dxgi_surface.GetAddressOf()), &offset);
+    if (FAILED(hr)) {
+        return hr;
+    }
+
+    D2D1_BITMAP_PROPERTIES1 properties = D2D1::BitmapProperties1(
+        D2D1_BITMAP_OPTIONS_TARGET | D2D1_BITMAP_OPTIONS_CANNOT_DRAW,
+        D2D1::PixelFormat(DXGI_FORMAT_B8G8R8A8_UNORM,
+                          D2D1_ALPHA_MODE_PREMULTIPLIED));
+    ComPtr<ID2D1Bitmap1> bitmap;
+    hr = impl_->d2d_context->CreateBitmapFromDxgiSurface(
+        dxgi_surface.Get(), &properties, &bitmap);
+    if (FAILED(hr)) {
+        const HRESULT end_surface_hr = impl_->dcomp_surface->EndDraw();
+        return FAILED(end_surface_hr) ? end_surface_hr : hr;
+    }
+
+    impl_->d2d_context->SetTarget(bitmap.Get());
+    impl_->d2d_context->BeginDraw();
+    impl_->d2d_context->SetTransform(D2D1::Matrix3x2F::Translation(
+        static_cast<float>(offset.x), static_cast<float>(offset.y)));
+    const HRESULT draw_hr = DrawLanguageBarContent(
+        impl_->d2d_context.Get(), impl_->dwrite_factory.Get(),
+        impl_->surface_size, state, skin, hover_segment, pressed_segment,
+        has_hover, has_pressed, D2D1::ColorF(0.0f, 0.0f, 0.0f, 0.0f));
+    const HRESULT end_draw_hr = impl_->d2d_context->EndDraw();
+    impl_->d2d_context->SetTransform(D2D1::Matrix3x2F::Identity());
+    impl_->d2d_context->SetTarget(nullptr);
+    const HRESULT end_surface_hr = impl_->dcomp_surface->EndDraw();
+    if (FAILED(draw_hr)) {
+        return draw_hr;
+    }
+    if (FAILED(end_draw_hr)) {
+        return end_draw_hr;
+    }
+    if (FAILED(end_surface_hr)) {
+        return end_surface_hr;
+    }
+    return impl_->dcomp_device->Commit();
+}
+
 bool GlassSurface::PresentLanguageBar(HWND hwnd, const LanguageBarState& state,
                                       const ToolbarSkin& skin,
                                       LanguageBarSegment hover_segment,
                                       LanguageBarSegment pressed_segment,
                                       bool has_hover,
                                       bool has_pressed) {
-    ApplyToolbarGlassBackdrop(hwnd, skin);
-    return d2d_surface_.PresentLanguageBar(hwnd, state, skin, hover_segment,
-                                           pressed_segment, has_hover,
-                                           has_pressed);
+    if (!hwnd) {
+        return false;
+    }
+    RECT window_rect = {};
+    if (!GetWindowRect(hwnd, &window_rect)) {
+        return false;
+    }
+    const SIZE size = {
+        std::max(1, static_cast<int>(window_rect.right - window_rect.left)),
+        std::max(1, static_cast<int>(window_rect.bottom - window_rect.top)),
+    };
+    if (!EnsureDeviceResources(hwnd, size, skin)) {
+        return false;
+    }
+    HRESULT hr = RenderLanguageBar(state, skin, hover_segment, pressed_segment,
+                                   has_hover, has_pressed);
+    if (SUCCEEDED(hr)) {
+        return true;
+    }
+
+    DiscardDeviceResources();
+    if (!IsDeviceLoss(hr) || !EnsureDeviceResources(hwnd, size, skin)) {
+        return false;
+    }
+    hr = RenderLanguageBar(state, skin, hover_segment, pressed_segment,
+                           has_hover, has_pressed);
+    if (FAILED(hr)) {
+        DiscardDeviceResources();
+        return false;
+    }
+    return true;
 }
 
 bool GlassSurface::PaintLanguageBarPreview(HWND hwnd, HDC dc, const RECT& bounds,
                                            const LanguageBarState& state,
                                            const ToolbarSkin& skin) {
-    return d2d_surface_.PaintLanguageBarPreview(hwnd, dc, bounds, state, skin);
+    return preview_surface_.PaintLanguageBarPreview(hwnd, dc, bounds, state, skin);
 }
 
 void GlassSurface::DiscardDeviceResources() {
-    d2d_surface_.DiscardDeviceResources();
+    delete impl_;
+    impl_ = nullptr;
+    preview_surface_.DiscardDeviceResources();
 }
 
 NativeCandidateWindow::~NativeCandidateWindow() {
@@ -1434,7 +1437,7 @@ bool LanguageBarWindow::EnsureCreated(HWND owner) {
     }
 
     hwnd_ = CreateWindowExW(WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW |
-                                WS_EX_TOPMOST | WS_EX_LAYERED,
+                                WS_EX_TOPMOST | WS_EX_NOREDIRECTIONBITMAP,
                             LanguageBarClassName().c_str(),
                             L"YuneWindowsLanguageBar",
                             WS_POPUP, 0, 0, 1, 1, owner, nullptr,
@@ -1453,16 +1456,14 @@ bool LanguageBarWindow::Update(const LanguageBarState& state, bool show) {
     // Render the bar at a fixed, compact 1x size regardless of caret/display DPI.
     // The anchor DPI is only valid while composing and falls back to 96 when idle,
     // which made the bar oscillate size (idle 96 vs composing 144) -- the
-    // enlarge/cut-off, and the rapid resize stamped the clone frames. A small
-    // floating indicator reads best at a consistent compact size; DPI scale-up is
-    // intentionally skipped here.
+    // enlarge/cut-off. A small floating indicator reads best at a consistent
+    // compact size; DPI scale-up is intentionally skipped here.
     state_.dpi = 96;
 
     // drag-active guard: keep position during pointer capture. While the user is
     // actively dragging the bar (mouse captured), a caret-follow/state refresh
-    // must not reposition or hide it -- doing so fights the drag's SetWindowPos
-    // and leaves stale layered frames behind (the "toolbar clones" trail). Just
-    // refresh the cached state/skin and repaint in place under the cursor.
+    // must not reposition or hide it -- doing so fights the drag's SetWindowPos.
+    // Refresh the cached state/skin and repaint in place under the cursor.
     if (pointer_captured_) {
         Render();
         return true;
@@ -1542,12 +1543,14 @@ LRESULT LanguageBarWindow::HandleMessage(UINT message, WPARAM wparam,
         case WM_ERASEBKGND:
             return 1;
         case WM_DPICHANGED:
-            state_.dpi = HIWORD(wparam);
+            (void)wparam;
+            state_.dpi = 96;
+            surface_.DiscardDeviceResources();
             if (lparam) {
                 const RECT* suggested = reinterpret_cast<const RECT*>(lparam);
+                const SIZE desired = LanguageBarDesiredSize(state_.dpi, skin_);
                 SetWindowPos(hwnd_, HWND_TOPMOST, suggested->left, suggested->top,
-                             suggested->right - suggested->left,
-                             suggested->bottom - suggested->top,
+                             desired.cx, desired.cy,
                              SWP_NOACTIVATE);
             }
             Render();

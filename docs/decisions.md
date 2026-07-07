@@ -129,17 +129,18 @@ to enable learning.
 
 ### D-15 - Modern toolbar stays native and server-owned
 
-M08 keeps the focus-scoped language bar native inside the TSF DLL: a
-`WS_EX_NOACTIVATE | WS_EX_LAYERED` Win32 popup rendered with Direct2D/DirectWrite
-and presented through `UpdateLayeredWindow`. WebView2, Electron, HTML, and a
-session-wide always-on UI host stay out of this milestone. The toolbar skin loads
-from `skins/<name>/theme.json` with a compiled-in default fallback, and toolbar
-position plus selected skin remain server-owned state via `op=set-toolbar-position`
-and `op=set-skin`; the TSF DLL does not read or write `state\ime-state.json`.
-The candidate window remains visually unchanged in M08, but the renderer/skin
-scaffolding is shared so M09 can adopt it deliberately. M08 renders manifest
-segment glyph labels; SVG/image asset rendering is deferred until a renderer path
-actually consumes those assets.
+M08 keeps the focus-scoped language bar native inside the TSF DLL. M08 first
+landed a `WS_EX_NOACTIVATE | WS_EX_LAYERED` Direct2D/DirectWrite popup presented
+through `UpdateLayeredWindow`; M11 Slice C supersedes that presentation with a
+`WS_EX_NOREDIRECTIONBITMAP` DirectComposition + Direct2D surface over DWM Desktop
+Acrylic. WebView2, Electron, HTML, and a session-wide always-on UI host stay out
+of the toolbar path. The toolbar skin loads from `skins/<name>/theme.json` with a
+compiled-in default fallback, and toolbar position plus selected skin remain
+server-owned state via `op=set-toolbar-position` and `op=set-skin`; the TSF DLL
+does not read or write `state\ime-state.json`. The candidate window remains
+visually unchanged for now, but the renderer/skin scaffolding is shared so M10 can
+adopt it deliberately. Manifest segment glyph labels are rendered; SVG/image
+asset rendering is deferred until a renderer path actually consumes those assets.
 
 ### D-16 - Settings panel is native Win32 (no WebView2)
 
@@ -161,27 +162,34 @@ M11 localizes the native settings panel and toolbar to Cantonese only for now,
 with user-visible strings centralized in a native `ui_strings` source so a
 future language toggle can be added without changing server protocol values.
 Settings combo boxes must keep display labels separate from the server IDs sent
-through `op=` payloads. The glass toolbar path prioritizes the documented Win11
-host backdrop brush, then accent acrylic, then DWM transient acrylic, then a
-static translucent tint fallback; non-elevated implementation evidence may prove
-the source and smoke contracts while live visual proof over real TSF hosts remains
-approval-gated.
+through `op=` payloads. The glass toolbar path uses native DirectComposition +
+Direct2D over the supported DWM Desktop Acrylic system backdrop; the earlier
+host-backdrop and accent-acrylic routes are not used. Non-elevated implementation
+evidence may prove the source, build, and smoke contracts while live visual proof
+over real TSF hosts remains approval-gated.
 
 ## Last Updated
+
+2026-07-07 - M11 Slice C replaces the language-bar toolbar's layered/ULW
+presentation with `WS_EX_NOREDIRECTIONBITMAP`, DirectComposition, Direct2D, and
+DWM Desktop Acrylic. The DComp surface render path uses a fixed 96-DPI D2D target
+and `D2D1_BITMAP_OPTIONS_TARGET | D2D1_BITMAP_OPTIONS_CANNOT_DRAW`; device loss
+recreates the graphics stack. Evidence is non-elevated under
+`docs/evidence/m11c/`; live visual clone-free/glass proof remains human-gated.
 
 2026-07-03 - M11 UI Modernization + Cantonese Localization added the embedded
 common-controls v6/PerMonitorV2 settings manifest, Microsoft JhengHei UI font
 and DPI relayout, build-gated DWM settings polish, centralized Cantonese UI
 strings, settings combo label/value split, toolbar glyph fixes including
-`luna_pinyin_octagram`, default-skin glass fields, and a `GlassSurface` shell
-with host-backdrop/acrylic/static-tint fallback ordering. Evidence is
-non-elevated under `docs/evidence/m11/`; live TSF-host glass visual proof remains
-approval-gated.
+`luna_pinyin_octagram`, default-skin glass fields, and the initial `GlassSurface`
+shell. Evidence is non-elevated under `docs/evidence/m11/`; live TSF-host glass
+visual proof remains approval-gated.
 
-2026-07-03 - M08/M09 live-test follow-up: fixed the toolbar "clone trail" on drag
-(made `SetWindowPos` the single position authority with a NULL `UpdateLayeredWindow`
-`pptDst`, plus a drag-active guard in `LanguageBarWindow::Update`) and the stray
-terminal on the gear button (the swap tooling now redeploys the GUI-subsystem
+2026-07-03 - M08/M09 live-test follow-up: reduced the toolbar "clone trail" on
+drag (made `SetWindowPos` the single position authority with a NULL
+`UpdateLayeredWindow` `pptDst`, plus a drag-active guard in
+`LanguageBarWindow::Update`) and fixed the stray terminal on the gear button (the
+swap tooling now redeploys the GUI-subsystem
 `YuneWindowsSettings.exe`, which had been left as a stale console build). No
 decision change; consistent with D-15 (native server-owned toolbar) and D-16
 (native Win32 settings panel). Regression guards added to the M08 contract.

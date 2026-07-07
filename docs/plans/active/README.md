@@ -9,13 +9,12 @@
   Win11-native settings panel (v6 manifest + JhengHei font + DWM gates), full
   Cantonese localization, combo label/value split, localized toolbar glyphs. Slice
   C (glass toolbar) was reworked on-device — see the handoff below.
-- `m11c-dcomp-glass-toolbar-handoff.md` - **ready for GPT to implement.** Replaces
-  the toolbar's `UpdateLayeredWindow` rendering with DirectComposition + Direct2D
-  over DWM acrylic: fixes the drag clone-trail (drops ULW) and delivers the glass.
-  De-risked by the validated prototype `src/tools/yune_windows_glass_spike.cpp`;
-  carries the locked gotchas (CANNOT_DRAW flag, 96-DPI no-double-scale,
-  extend-frame acrylic, preserve no-activate/drag/click/server-state). The
-  toolbar's separate DPI double-scale/enlarge bug is already fixed (`efd96f2`).
+- `m11c-dcomp-glass-toolbar-handoff.md` - **implemented.** Replaced the toolbar's
+  `UpdateLayeredWindow` rendering with DirectComposition + Direct2D over DWM
+  acrylic: the source drops ULW/layered presentation and uses the validated
+  `src/tools/yune_windows_glass_spike.cpp` model (CANNOT_DRAW flag, fixed 96-DPI
+  target, extend-frame acrylic, no-activate/drag/click/server-state preserved).
+  Human live visual confirmation of clone-free drag + glass remains pending.
 
 Later / unplanned, noted so the settings panel is designed for them:
 - Server `customize`+`deploy` path to actually apply the deploy-time **engine

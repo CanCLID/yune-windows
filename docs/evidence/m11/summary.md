@@ -1,6 +1,9 @@
 # M11 UI Modernization + Cantonese Localization Evidence
 
-Status: Slices A (native theming + Cantonese) and B (Win11 DWM polish) are implemented non-elevated. Slice C (glass toolbar) is **scaffolding only** — the toolbar still renders flat; the real WinRT composition host-backdrop backend is **deferred** to an on-device follow-up (see "Glass toolbar" below). Live visual proof remains approval-gated because it would require loading the TSF DLL in real desktop hosts and visually checking the toolbar over app content.
+Status: Slices A (native theming + Cantonese), B (Win11 DWM polish), and C
+(DirectComposition glass toolbar) are implemented non-elevated. Slice C ports the
+language-bar toolbar off `WS_EX_LAYERED` + `UpdateLayeredWindow` and onto a
+native DirectComposition + Direct2D surface over DWM Desktop Acrylic. Live visual proof remains approval-gated and human-gated because it requires loading the TSF DLL in real desktop hosts and visually checking clone-free drag plus glass.
 
 ## Implemented Scope
 
@@ -26,27 +29,23 @@ Status: Slices A (native theming + Cantonese) and B (Win11 DWM polish) are imple
     longer fall through to the first Latin character.
   - `skins/default/theme.json` uses CJK segment glyphs and adds glass metadata
     with back-compatible compiled-in defaults.
-- Glass toolbar — **scaffolding only; real glass deferred**:
-  - **The toolbar is unchanged and still renders flat.** It stays on the existing
-    `WS_EX_LAYERED` + `UpdateLayeredWindow` Direct2D path; `GlassSurface` is
-    currently a thin wrapper over `D2DSurface`, not a composition renderer.
-  - What landed is metadata + a mechanism-dispatch scaffold: `glass_mechanism`,
-    `glass_tint`/opacity/blur/highlight skin fields (back-compatible defaults), and
-    an `ApplyToolbarGlassBackdrop` switch. **The default skin uses
-    `glass_mechanism = host_backdrop`, whose `ApplyHostBackdropBrush` only sets the
-    `DWMWA_USE_HOSTBACKDROPBRUSH` flag — a no-op without a WinRT composition tree —
-    so there is NO visible glass yet.** The `accent_acrylic` and `dwm_acrylic`
-    branches are opt-in stubs (not default); accent-acrylic on a layered window
-    would blur the whole window rectangle (a rectangular halo behind the rounded
-    pill), which is exactly the limitation the composition path is meant to solve.
-  - **Deferred to an on-device Slice C follow-up:** the real WinRT
-    `Windows.UI.Composition` host-backdrop backend — `Compositor.CreateHostBackdropBrush`,
-    dropping `WS_EX_LAYERED` for `WS_EX_NOREDIRECTIONBITMAP`, a rounded composition
-    clip, and click-through hit-testing. It is **not implemented** here because it
-    cannot be visually verified without a live TSF host (approval-gated), and
-    landing it blind would risk the working toolbar. The static-tint/layered path
-    remains the guaranteed non-hollow, no-activate, draggable fallback, preserving
-    the M08/M09 clone-trail + no-activate + drag invariants.
+- Glass toolbar:
+  - `LanguageBarWindow` now creates a no-activate native popup with
+    `WS_EX_NOREDIRECTIONBITMAP` instead of `WS_EX_LAYERED`.
+  - `GlassSurface` owns the DirectComposition stack: D3D11 BGRA device,
+    `ID2D1DeviceContext` fixed to 96 DPI, `IDCompositionTarget`/visual/surface,
+    and a DComp surface present path that reuses `DrawLanguageBarContent`
+    unchanged.
+  - The DComp DXGI surface is wrapped as an `ID2D1Bitmap1` with
+    `D2D1_BITMAP_OPTIONS_TARGET | D2D1_BITMAP_OPTIONS_CANNOT_DRAW`, matching the
+    validated spike and avoiding the known `E_INVALIDARG` blank-render failure.
+  - DWM Desktop Acrylic is requested with `DwmExtendFrameIntoClientArea`,
+    `DWMWA_SYSTEMBACKDROP_TYPE = DWMSBT_TRANSIENTWINDOW`, and rounded corners.
+    Windows 10 remains a flat/no-backdrop fallback.
+  - Device-loss handling discards and recreates the D3D/D2D/DComp stack, then
+    retries one render.
+  - Live visual confirmation of repeated clone-free drag and frosted glass over a
+    real host was not run by Codex; it remains the human gate for the slice.
 - Localization note: `luna_pinyin_octagram` intentionally renders as
   `朙月拼音（八股文）` (fully Cantonese, user-confirmed — a pun on
   "Octagram" ≈ "8-gram" ≈ 八股) rather than yune-web's Latin
@@ -61,6 +60,7 @@ Passed non-elevated on 2026-07-03:
 - `tools\test-m08-modern-toolbar-contract.ps1`
 - `tools\test-m09-settings-panel-contract.ps1`
 - `tools\test-m11-ui-modernization-contract.ps1`
+- `tools\test-m11c-dcomp-glass-toolbar-contract.ps1`
 - `tools\test-language-bar-window-contract.ps1`
 - `tools\test-language-bar-smoke.ps1`
 - `tools\test-settings-window-smoke.ps1`

@@ -49,9 +49,6 @@ struct ToolbarSkinColor {
 };
 
 enum class ToolbarGlassMechanism {
-    HostBackdrop,
-    AccentAcrylic,
-    AccentBlur,
     DwmAcrylic,
     StaticTint,
 };
@@ -66,18 +63,18 @@ struct ToolbarSkin {
     int padding_y = 8;
     int segment_gap = 6;
     int corner_radius = 18;
-    int shadow_radius = 8;
-    ToolbarSkinColor background = {0.96f, 0.97f, 0.98f, 0.90f};
+    int shadow_radius = 0;
+    ToolbarSkinColor background = {0.96f, 0.97f, 0.98f, 0.42f};
     ToolbarSkinColor text = {0.08f, 0.09f, 0.11f, 1.0f};
     ToolbarSkinColor accent = {0.0f, 0.45f, 0.82f, 1.0f};
     ToolbarSkinColor hover = {0.86f, 0.92f, 1.0f, 0.74f};
     ToolbarSkinColor pressed = {0.74f, 0.84f, 0.96f, 0.90f};
     ToolbarSkinColor separator = {0.33f, 0.38f, 0.45f, 0.28f};
-    ToolbarSkinColor shadow = {0.0f, 0.0f, 0.0f, 0.24f};
-    ToolbarGlassMechanism glass_mechanism = ToolbarGlassMechanism::HostBackdrop;
-    ToolbarGlassMechanism glass_fallback = ToolbarGlassMechanism::DwmAcrylic;
-    ToolbarSkinColor glass_tint = {0.92f, 0.97f, 1.0f, 0.56f};
-    float glass_tint_opacity = 0.56f;
+    ToolbarSkinColor shadow = {0.0f, 0.0f, 0.0f, 0.0f};
+    ToolbarGlassMechanism glass_mechanism = ToolbarGlassMechanism::DwmAcrylic;
+    ToolbarGlassMechanism glass_fallback = ToolbarGlassMechanism::StaticTint;
+    ToolbarSkinColor glass_tint = {0.92f, 0.97f, 1.0f, 0.34f};
+    float glass_tint_opacity = 0.34f;
     float blur_amount = 28.0f;
     float highlight_intensity = 0.34f;
     std::array<std::wstring, 5> segment_labels = {
@@ -122,12 +119,6 @@ public:
     D2DSurface(const D2DSurface&) = delete;
     D2DSurface& operator=(const D2DSurface&) = delete;
 
-    bool PresentLanguageBar(HWND hwnd, const LanguageBarState& state,
-                            const ToolbarSkin& skin,
-                            LanguageBarSegment hover_segment,
-                            LanguageBarSegment pressed_segment,
-                            bool has_hover,
-                            bool has_pressed);
     bool PaintLanguageBarPreview(HWND hwnd, HDC dc, const RECT& bounds,
                                  const LanguageBarState& state,
                                  const ToolbarSkin& skin);
@@ -144,7 +135,7 @@ private:
 class GlassSurface {
 public:
     GlassSurface() = default;
-    ~GlassSurface() = default;
+    ~GlassSurface();
 
     GlassSurface(const GlassSurface&) = delete;
     GlassSurface& operator=(const GlassSurface&) = delete;
@@ -162,7 +153,17 @@ public:
     bool device_loss_recovery_available() const { return true; }
 
 private:
-    D2DSurface d2d_surface_;
+    bool EnsureDeviceResources(HWND hwnd, SIZE size, const ToolbarSkin& skin);
+    HRESULT RenderLanguageBar(const LanguageBarState& state,
+                              const ToolbarSkin& skin,
+                              LanguageBarSegment hover_segment,
+                              LanguageBarSegment pressed_segment,
+                              bool has_hover,
+                              bool has_pressed);
+
+    struct Impl;
+    Impl* impl_ = nullptr;
+    D2DSurface preview_surface_;
 };
 
 class NativeCandidateWindow {

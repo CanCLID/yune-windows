@@ -48,12 +48,16 @@ foreach ($Required in @(
 }
 
 foreach ($Required in @(
-        'WS_EX_LAYERED',
-        'UpdateLayeredWindow',
-        'ID2D1DCRenderTarget',
+        'WS_EX_NOREDIRECTIONBITMAP',
+        'ID2D1DeviceContext',
         'D2D1CreateFactory',
         'DWriteCreateFactory',
+        'DCompositionCreateDevice',
+        'CreateTargetForHwnd',
+        'CreateBitmapFromDxgiSurface',
+        'D2D1_BITMAP_OPTIONS_CANNOT_DRAW',
         'D2DERR_RECREATE_TARGET',
+        'DXGI_ERROR_DEVICE_REMOVED',
         'WM_DPICHANGED',
         'TrackMouseEvent',
         'TME_LEAVE',
@@ -62,10 +66,15 @@ foreach ($Required in @(
         'kLanguageBarDragThreshold',
         'ToolbarSegmentLabelForState',
         'skin\.segment_labels',
-        'GdiFlush',
         'SWP_NOACTIVATE'
     )) {
     Require-Text $WindowSource $Required "language-bar source is missing M08 D2D/drag pattern: $Required"
+}
+
+foreach ($Forbidden in @('WS_EX_LAYERED', 'UpdateLayeredWindow')) {
+    if ($WindowSource -match $Forbidden) {
+        throw "M08 toolbar current source must use the DComp presentation model, not ULW/layered: $Forbidden"
+    }
 }
 
 if ($WindowSource -match 'LanguageBarLabel\(segments\[i\], state\)') {
@@ -80,14 +89,10 @@ if ($WindowSource -match 'HTCAPTION') {
     throw "M08 no-activate drag must not use HTCAPTION."
 }
 
-# Ghost-trail fix: SetWindowPos is the single position authority. UpdateLayeredWindow
-# must not also move the window (non-null pptDst) or the two disagree mid-move and
-# the DWM leaves stale layered frames ("toolbar clones").
-Require-Text $WindowSource 'UpdateLayeredWindow\(hwnd, screen_dc, nullptr,' `
-    "language-bar present must pass a NULL pptDst so UpdateLayeredWindow does not become a second position authority (ghost-trail fix)."
-if ($WindowSource -match 'POINT destination = \{window_rect\.left') {
-    throw "language-bar present must not compute a per-frame pptDst for UpdateLayeredWindow (ghost-trail regression)."
-}
+# Ghost-trail fix: SetWindowPos is the single position authority. The toolbar
+# content must be a DComp surface so window moves do not stamp stale ULW frames.
+Require-Text $WindowSource 'SetWindowPos\(hwnd_, nullptr, clamped\.left, clamped\.top' `
+    "language-bar drag must still move the no-activate popup with SetWindowPos."
 Require-Text $WindowSource 'drag-active guard: keep position during pointer capture' `
     "language-bar Update must skip caret-follow reposition while the pointer is captured (drag-fight/ghost-trail fix)."
 
@@ -120,6 +125,9 @@ if ($TsfSource -match 'ime-state\.json') {
 foreach ($Required in @(
         'd2d1\.lib',
         'dwrite\.lib',
+        'd3d11\.lib',
+        'dxgi\.lib',
+        'dcomp\.lib',
         'YuneWindowsLanguageBarSmoke\.exe',
         'skins'
     )) {

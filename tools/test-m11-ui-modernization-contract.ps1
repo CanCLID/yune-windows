@@ -159,12 +159,10 @@ foreach ($Required in @(
     Require-Text $WindowSource $Required "toolbar source missing M11 glyph mapping: $Required"
 }
 
-# The glass SCAFFOLDING that actually landed must be present in SOURCE (header or
-# window source) -- NOT satisfied by an evidence-doc or comment-only mention. The
-# real WinRT composition host-backdrop BACKEND is deferred to the on-device Slice C
-# spike, so its tokens (CreateHostBackdropBrush / Windows.UI.Composition /
-# WS_EX_NOREDIRECTIONBITMAP) are intentionally NOT required here; the honest-state
-# guards below assert the toolbar is still on the layered path instead.
+# The glass backend must be present in SOURCE (header or window source) -- NOT
+# satisfied by an evidence-doc or comment-only mention. M11 Slice C intentionally
+# uses native DComp + Direct2D over DWM Desktop Acrylic, not WinRT host backdrop
+# and not the old layered/ULW renderer.
 foreach ($Required in @(
         'class GlassSurface',
         'ToolbarGlassMechanism',
@@ -172,30 +170,26 @@ foreach ($Required in @(
         'glass_tint',
         'glass_tint_opacity',
         'highlight_intensity',
-        'DWMWA_USE_HOSTBACKDROPBRUSH',
-        'SetWindowCompositionAttribute',
-        'ACCENT_ENABLE_ACRYLICBLURBEHIND',
+        'WS_EX_NOREDIRECTIONBITMAP',
+        'DCompositionCreateDevice',
+        'CreateTargetForHwnd',
+        'CreateBitmapFromDxgiSurface',
+        'D2D1_BITMAP_OPTIONS_CANNOT_DRAW',
+        'DwmExtendFrameIntoClientArea',
+        'DWMWA_WINDOW_CORNER_PREFERENCE',
         'DWMSBT_TRANSIENTWINDOW',
-        'static translucent tint'
+        'DXGI_ERROR_DEVICE_REMOVED'
     )) {
     if ($Header -match $Required -or $WindowSource -match $Required) {
         continue
     }
-    throw "M11 glass scaffolding is missing from source (header/window): $Required"
+    throw "M11 glass backend is missing from source (header/window): $Required"
 }
 
-# Honest-state guards. The toolbar still presents via WS_EX_LAYERED +
-# UpdateLayeredWindow; the composition migration is deferred. If a future change
-# actually migrates the toolbar to a WinRT composition host-backdrop backend, it
-# MUST update these assertions deliberately (they are the tripwire against another
-# silent overclaim).
-Require-Text $WindowSource 'WS_EX_LAYERED' `
-    "toolbar must still use WS_EX_LAYERED until the composition backend lands (update this contract when it migrates)."
-Require-Text $WindowSource 'UpdateLayeredWindow' `
-    "toolbar must still present via UpdateLayeredWindow until the composition backend lands."
-if ($WindowSource -match 'CreateHostBackdropBrush' -and
-    $WindowSource -notmatch 'WS_EX_NOREDIRECTIONBITMAP') {
-    throw "CreateHostBackdropBrush requires WS_EX_NOREDIRECTIONBITMAP: a real composition path, not a stub."
+foreach ($Forbidden in @('WS_EX_LAYERED', 'UpdateLayeredWindow', 'SetWindowCompositionAttribute', 'CreateHostBackdropBrush')) {
+    if ($WindowSource -match $Forbidden) {
+        throw "M11 glass backend must stay on the native DComp/DWM path, not the old/stub path: $Forbidden"
+    }
 }
 
 $Skin = $SkinManifestText | ConvertFrom-Json
@@ -219,8 +213,8 @@ foreach ($Required in @(
         'live visual proof remains approval-gated',
         'combo label/value split',
         'Cantonese',
-        'scaffold',
-        'deferred'
+        'DirectComposition',
+        'DWM Desktop Acrylic'
     )) {
     Require-Text $Evidence $Required "M11 evidence summary is missing: $Required"
 }

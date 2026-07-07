@@ -204,8 +204,11 @@ int SelfTest() {
         return 1;
     }
     const LONG_PTR ex_style = GetWindowLongPtrW(bar_hwnd, GWL_EXSTYLE);
-    if ((ex_style & WS_EX_NOACTIVATE) == 0 || (ex_style & WS_EX_LAYERED) == 0) {
-        std::cerr << "language bar missing no-activate layered styles\n";
+    if ((ex_style & WS_EX_NOACTIVATE) == 0 ||
+        (ex_style & WS_EX_TOOLWINDOW) == 0 ||
+        (ex_style & WS_EX_TOPMOST) == 0 ||
+        (ex_style & WS_EX_NOREDIRECTIONBITMAP) == 0) {
+        std::cerr << "language bar missing no-activate DComp popup styles\n";
         DestroyWindow(owner);
         return 1;
     }

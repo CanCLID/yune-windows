@@ -8,25 +8,25 @@
     "padding_y": 8,
     "segment_gap": 6,
     "corner_radius": 18,
-    "shadow_radius": 8
+    "shadow_radius": 0
   },
   "colors": {
-    "background": "#EAF8FAFC",
+    "background": "#66F8FAFC",
     "text": "#FF171A21",
     "accent": "#FF0875BE",
     "hover": "#BFE8F2FF",
     "pressed": "#D6C4DEF6",
     "separator": "#52647480",
-    "shadow": "#3C000000"
+    "shadow": "#00000000"
   },
   "font": {
     "family": "Microsoft JhengHei UI",
     "size": 14
   },
-  "glass_mechanism": "static_tint",
+  "glass_mechanism": "dwm_acrylic",
   "glass_fallback": "static_tint",
-  "glass_tint": "#8FEAF8FF",
-  "glass_tint_opacity": 0.30,
+  "glass_tint": "#57EAF8FF",
+  "glass_tint_opacity": 0.34,
   "blur_amount": 28,
   "highlight_intensity": 0.34,
   "segments": {

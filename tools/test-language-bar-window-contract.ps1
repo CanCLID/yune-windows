@@ -32,15 +32,18 @@ foreach ($Required in @(
 foreach ($Required in @(
         'YuneWindowsLanguageBar',
         'WS_EX_NOACTIVATE',
-        'WS_EX_LAYERED',
-        'UpdateLayeredWindow',
+        'WS_EX_NOREDIRECTIONBITMAP',
         'ModuleScopedClassName',
         'ModuleHandleFromAddress',
         'LanguageBarClassName\(\)\.c_str\(\)',
         'CandidateWindowClassName\(\)\.c_str\(\)',
         'D2D1CreateFactory',
         'DWriteCreateFactory',
+        'DCompositionCreateDevice',
+        'CreateTargetForHwnd',
+        'D2D1_BITMAP_OPTIONS_CANNOT_DRAW',
         'D2DERR_RECREATE_TARGET',
+        'DXGI_ERROR_DEVICE_REMOVED',
         'WM_DPICHANGED',
         'TrackMouseEvent',
         'TME_LEAVE',
@@ -56,6 +59,15 @@ foreach ($Required in @(
     )) {
     if ($WindowSource -notmatch $Required) {
         throw "language bar window implementation missing pattern: $Required"
+    }
+}
+
+foreach ($Forbidden in @(
+        'WS_EX_LAYERED',
+        'UpdateLayeredWindow'
+    )) {
+    if ($WindowSource -match $Forbidden) {
+        throw "language bar window must use the DComp model, not the old ULW/layered path: $Forbidden"
     }
 }
 

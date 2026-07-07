@@ -76,19 +76,19 @@ if ($LASTEXITCODE -ne 0) {
     throw "candidate window build failed with exit code $LASTEXITCODE"
 }
 
-$TsfCompile = "call `"$VsDevCmd`" -arch=x64 -host_arch=x64 >nul && cl.exe /nologo /std:c++20 /EHsc /W4 /permissive- /utf-8 /DUNICODE /D_UNICODE /LD /Fo`"$TsfObj`" /Fe`"$TsfDll`" `"$TsfSource`" `"$CandidateWindowObj`" /link ole32.lib uuid.lib advapi32.lib user32.lib gdi32.lib dwmapi.lib d2d1.lib dwrite.lib /EXPORT:DllGetClassObject,PRIVATE /EXPORT:DllCanUnloadNow,PRIVATE /EXPORT:DllRegisterServer,PRIVATE /EXPORT:DllUnregisterServer,PRIVATE"
+$TsfCompile = "call `"$VsDevCmd`" -arch=x64 -host_arch=x64 >nul && cl.exe /nologo /std:c++20 /EHsc /W4 /permissive- /utf-8 /DUNICODE /D_UNICODE /LD /Fo`"$TsfObj`" /Fe`"$TsfDll`" `"$TsfSource`" `"$CandidateWindowObj`" /link ole32.lib uuid.lib advapi32.lib user32.lib gdi32.lib dwmapi.lib d2d1.lib dwrite.lib d3d11.lib dxgi.lib dcomp.lib /EXPORT:DllGetClassObject,PRIVATE /EXPORT:DllCanUnloadNow,PRIVATE /EXPORT:DllRegisterServer,PRIVATE /EXPORT:DllUnregisterServer,PRIVATE"
 cmd.exe /d /s /c "$TsfCompile"
 if ($LASTEXITCODE -ne 0) {
     throw "TSF DLL build failed with exit code $LASTEXITCODE"
 }
 
-$CandidateWindowSmokeCompile = "call `"$VsDevCmd`" -arch=x64 -host_arch=x64 >nul && cl.exe /nologo /std:c++20 /EHsc /W4 /permissive- /utf-8 /DUNICODE /D_UNICODE /Fo`"$CandidateWindowSmokeObj`" /Fe`"$CandidateWindowSmokeExe`" `"$CandidateWindowSmokeSource`" `"$CandidateWindowObj`" /link user32.lib gdi32.lib ole32.lib dwmapi.lib d2d1.lib dwrite.lib"
+$CandidateWindowSmokeCompile = "call `"$VsDevCmd`" -arch=x64 -host_arch=x64 >nul && cl.exe /nologo /std:c++20 /EHsc /W4 /permissive- /utf-8 /DUNICODE /D_UNICODE /Fo`"$CandidateWindowSmokeObj`" /Fe`"$CandidateWindowSmokeExe`" `"$CandidateWindowSmokeSource`" `"$CandidateWindowObj`" /link user32.lib gdi32.lib ole32.lib dwmapi.lib d2d1.lib dwrite.lib d3d11.lib dxgi.lib dcomp.lib"
 cmd.exe /d /s /c "$CandidateWindowSmokeCompile"
 if ($LASTEXITCODE -ne 0) {
     throw "candidate window smoke build failed with exit code $LASTEXITCODE"
 }
 
-$LanguageBarSmokeCompile = "call `"$VsDevCmd`" -arch=x64 -host_arch=x64 >nul && cl.exe /nologo /std:c++20 /EHsc /W4 /permissive- /utf-8 /DUNICODE /D_UNICODE /Fo`"$LanguageBarSmokeObj`" /Fe`"$LanguageBarSmokeExe`" `"$LanguageBarSmokeSource`" `"$CandidateWindowObj`" /link user32.lib gdi32.lib ole32.lib dwmapi.lib d2d1.lib dwrite.lib"
+$LanguageBarSmokeCompile = "call `"$VsDevCmd`" -arch=x64 -host_arch=x64 >nul && cl.exe /nologo /std:c++20 /EHsc /W4 /permissive- /utf-8 /DUNICODE /D_UNICODE /Fo`"$LanguageBarSmokeObj`" /Fe`"$LanguageBarSmokeExe`" `"$LanguageBarSmokeSource`" `"$CandidateWindowObj`" /link user32.lib gdi32.lib ole32.lib dwmapi.lib d2d1.lib dwrite.lib d3d11.lib dxgi.lib dcomp.lib"
 cmd.exe /d /s /c "$LanguageBarSmokeCompile"
 if ($LASTEXITCODE -ne 0) {
     throw "language bar smoke build failed with exit code $LASTEXITCODE"
@@ -106,7 +106,7 @@ if ($LASTEXITCODE -ne 0) {
     throw "settings UI strings build failed with exit code $LASTEXITCODE"
 }
 
-$SettingsToolCompile = "call `"$VsDevCmd`" -arch=x64 -host_arch=x64 >nul && cl.exe /nologo /std:c++20 /EHsc /W4 /permissive- /utf-8 /DUNICODE /D_UNICODE /Fo`"$SettingsToolObj`" /Fe`"$SettingsToolExe`" `"$SettingsToolSource`" `"$SettingsUiStringsObj`" `"$CandidateWindowObj`" /link ole32.lib user32.lib gdi32.lib comctl32.lib dwmapi.lib advapi32.lib d2d1.lib dwrite.lib /SUBSYSTEM:WINDOWS /ENTRY:wmainCRTStartup /MANIFEST:EMBED /MANIFESTINPUT:`"$SettingsManifest`""
+$SettingsToolCompile = "call `"$VsDevCmd`" -arch=x64 -host_arch=x64 >nul && cl.exe /nologo /std:c++20 /EHsc /W4 /permissive- /utf-8 /DUNICODE /D_UNICODE /Fo`"$SettingsToolObj`" /Fe`"$SettingsToolExe`" `"$SettingsToolSource`" `"$SettingsUiStringsObj`" `"$CandidateWindowObj`" /link ole32.lib user32.lib gdi32.lib comctl32.lib dwmapi.lib advapi32.lib d2d1.lib dwrite.lib d3d11.lib dxgi.lib dcomp.lib /SUBSYSTEM:WINDOWS /ENTRY:wmainCRTStartup /MANIFEST:EMBED /MANIFESTINPUT:`"$SettingsManifest`""
 cmd.exe /d /s /c "$SettingsToolCompile"
 if ($LASTEXITCODE -ne 0) {
     throw "settings tool build failed with exit code $LASTEXITCODE"

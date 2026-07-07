@@ -5,12 +5,17 @@
   window. **Reconciled with M11:** the candidate-window migration rides M11's
   composition renderer (built once); only the second-skin / user-skin / candidate
   schema-field slices are independent — candidate skinning waits on M11 Slice C.
-- `m11-plan-ui-modernization-cantonese.md` - **current implementation focus.**
-  Non-elevated implementation now covers the Win11-native settings baseline
-  (v6 manifest + JhengHei font + DWM gates), Cantonese settings/toolbar strings,
-  combo label/value split, toolbar glyph fixes, and the glass-toolbar surface
-  shell with host-backdrop/acrylic/static-tint fallback ordering. Live TSF-host
-  visual proof of the glass effect remains approval-gated.
+- `m11-plan-ui-modernization-cantonese.md` - **Slices A+B landed** (`c014f18`):
+  Win11-native settings panel (v6 manifest + JhengHei font + DWM gates), full
+  Cantonese localization, combo label/value split, localized toolbar glyphs. Slice
+  C (glass toolbar) was reworked on-device — see the handoff below.
+- `m11c-dcomp-glass-toolbar-handoff.md` - **ready for GPT to implement.** Replaces
+  the toolbar's `UpdateLayeredWindow` rendering with DirectComposition + Direct2D
+  over DWM acrylic: fixes the drag clone-trail (drops ULW) and delivers the glass.
+  De-risked by the validated prototype `src/tools/yune_windows_glass_spike.cpp`;
+  carries the locked gotchas (CANNOT_DRAW flag, 96-DPI no-double-scale,
+  extend-frame acrylic, preserve no-activate/drag/click/server-state). The
+  toolbar's separate DPI double-scale/enlarge bug is already fixed (`efd96f2`).
 
 Later / unplanned, noted so the settings panel is designed for them:
 - Server `customize`+`deploy` path to actually apply the deploy-time **engine

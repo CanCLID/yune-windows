@@ -1,75 +1,108 @@
 # M11 UI Modernization + Cantonese Localization Evidence
 
-Status: Slices A (native theming + Cantonese), B (Win11 DWM polish), and C
-(DirectComposition glass toolbar) are implemented non-elevated. Slice C ports the
-language-bar toolbar off `WS_EX_LAYERED` + `UpdateLayeredWindow` and onto a
-native DirectComposition + Direct2D surface over DWM Desktop Acrylic. Live visual proof remains approval-gated and human-gated because it requires loading the TSF DLL in real desktop hosts and visually checking clone-free drag plus glass.
+Status: implementation fixed in the non-elevated tree; approval-gated installed
+visual proof pending. Keep M11 active. M10 must not begin until the installed
+gate proves one foreground-owned toolbar with clone-free dragging.
 
 ## Implemented Scope
 
-- Settings panel modernization:
-  - `YuneWindowsSettings.exe` embeds a common-controls v6 manifest with the
-    modern `PerMonitorV2` DPI element.
-  - Native controls use `Microsoft JhengHei UI`, are registered for DPI relayout,
-    and recreate/apply the font on `WM_DPICHANGED`.
-  - Windows 11 DWM polish is build-gated: dark mode, rounded corners, and Mica
-    are attempted only through guarded `DwmSetWindowAttribute` calls. Windows 10
-    stays on the clean themed native fallback.
-- Cantonese localization:
-  - User-visible settings strings are centralized in
-    `src/tools/yune_windows_ui_strings.*`.
-  - The panel title, sections, status line, disabled scaffold controls, refresh
-    action, preview fallback, and error dialogs are Cantonese.
-  - Output/schema/skin combo label/value split keeps visible labels separate from server value IDs, so
-    localized display text is not sent in `op=` payloads.
-- Toolbar glyphs and skin defaults:
-  - Toolbar literals were updated from `EN` to `英`, `繁` to `傳`, `臺` to `台`,
-    and `拼` to `朙`.
-  - `luna_pinyin_octagram` is explicit and maps to `朙`; unknown schemas no
-    longer fall through to the first Latin character.
-  - `skins/default/theme.json` uses CJK segment glyphs and adds glass metadata
-    with back-compatible compiled-in defaults.
-- Glass toolbar:
-  - `LanguageBarWindow` now creates a no-activate native popup with
-    `WS_EX_NOREDIRECTIONBITMAP` instead of `WS_EX_LAYERED`.
-  - `GlassSurface` owns the DirectComposition stack: D3D11 BGRA device,
-    `ID2D1DeviceContext` fixed to 96 DPI, `IDCompositionTarget`/visual/surface,
-    and a DComp surface present path that reuses `DrawLanguageBarContent`
-    unchanged.
-  - The DComp DXGI surface is wrapped as an `ID2D1Bitmap1` with
-    `D2D1_BITMAP_OPTIONS_TARGET | D2D1_BITMAP_OPTIONS_CANNOT_DRAW`, matching the
-    validated spike and avoiding the known `E_INVALIDARG` blank-render failure.
-  - DWM Desktop Acrylic is requested with `DwmExtendFrameIntoClientArea`,
-    `DWMWA_SYSTEMBACKDROP_TYPE = DWMSBT_TRANSIENTWINDOW`, and rounded corners.
-    Windows 10 remains a flat/no-backdrop fallback.
-  - Device-loss handling discards and recreates the D3D/D2D/DComp stack, then
-    retries one render.
-  - Live visual confirmation of repeated clone-free drag and frosted glass over a
-    real host was not run by Codex; it remains the human gate for the slice.
-- Localization note: `luna_pinyin_octagram` intentionally renders as
-  `朙月拼音（八股文）` (fully Cantonese, user-confirmed — a pun on
-  "Octagram" ≈ "8-gram" ≈ 八股) rather than yune-web's Latin
-  `朙月拼音 + Octagram` (see M11 plan appendix).
+- Settings and localization:
+  - common-controls v6/PerMonitorV2, JhengHei DPI relayout, guarded Windows 11
+    DWM polish, centralized Cantonese strings, and settings combo label/value
+    separation;
+  - localized toolbar glyphs including the explicit `luna_pinyin_octagram` path.
+- DirectComposition toolbar:
+  - native `WS_EX_NOACTIVATE | WS_EX_NOREDIRECTIONBITMAP` popup;
+  - Direct3D/Direct2D/DirectComposition surface with a fixed 96-DPI target and
+    `D2D1_BITMAP_OPTIONS_TARGET | D2D1_BITMAP_OPTIONS_CANNOT_DRAW`;
+  - device-loss recreation without adopting WebView2 or a UI-host process.
+- Ownership and visibility repair:
+  - missing contexts resolve through `ITfThreadMgr::GetFocus` and
+    `ITfDocumentMgr::GetTop`;
+  - the last valid root owner, anchor, and DPI are cached while focused;
+    ownerless or invalid updates fail closed;
+  - focused-service activation/deactivation is identity-aware; a per-service
+    apartment dispatcher and activation generation hide/release the superseded
+    service asynchronously outside the global mutex without an A -> B -> A race;
+  - process-local single-visible arbitration, the registered
+    `YuneWindows.ToolbarSuperseded.v1` cross-process fast path, and a 250 ms
+    foreground watchdog converge on the foreground owner;
+  - app deactivation hides; `WM_NCDESTROY` clears visibility, timer, capture,
+    owner, HWND, and graphics state.
+- Movement-only drag:
+  - intermediate movement performs `SetWindowPos` only, with no render,
+    `BeginDraw`, or composition commit;
+  - mid-capture state/DPI/layout/backdrop/device work queues;
+  - release, capture loss, cancel, focus loss, and hide share one non-reentrant
+    finalizer that persists once and renders once while preserving click behavior.
+- Effective backdrop:
+  - `DWMWA_SYSTEMBACKDROP_TYPE` is gated at Windows 11 build 22621;
+  - rendering opacity follows actual DWM success;
+  - failure/older Windows draw an opaque static pill;
+  - same-size acrylic/static changes apply/clear DWM state without per-present
+    churn;
+  - V1 retains `glass_mechanism` and consumed
+    `glass_fallback=static_tint`; inert `glass_tint`,
+    `glass_tint_opacity`, `blur_amount`, and `highlight_intensity` are removed.
 
-## Verification Results
+## Diagnostic Evidence
 
-Passed non-elevated on 2026-07-03:
+`tools/dev/capture-language-bar-topology.ps1` records privacy-safe toolbar
+topology: HWND, PID/TID/process, visibility, rect/DWM frame, owner/root,
+foreground relationship, styles, and capture state. It does not collect
+arbitrary titles or typed text.
 
-- `git diff --check`
+The read-only probe that motivated the repair found six real
+`YuneWindowsLanguageBar_*` HWNDs across four processes. All were ownerless, and
+a background process could retain a visible toolbar. This means the screenshot
+was primarily real-window duplication, not merely a painted afterimage.
+
+## Current Non-Elevated Verification
+
+Passed on 2026-07-09:
+
 - `tools\test-tsf-shell-build.ps1`
+- `tools\test-language-bar-smoke.ps1`
+- `tools\test-settings-window-smoke.ps1`
+- `tools\test-candidate-window-smoke.ps1`
+- `tools\test-settings-ime-state-contract.ps1`
+- `tools\test-server-ime-state-protocol-contract.ps1`
+- `tools\test-tsf-ime-state-hotkey-contract.ps1`
+- `tools\test-tsf-server-response-validation-contract.ps1`
+- `tools\test-dev-repl-ime-state-contract.ps1`
 - `tools\test-m08-modern-toolbar-contract.ps1`
 - `tools\test-m09-settings-panel-contract.ps1`
 - `tools\test-m11-ui-modernization-contract.ps1`
 - `tools\test-m11c-dcomp-glass-toolbar-contract.ps1`
 - `tools\test-language-bar-window-contract.ps1`
-- `tools\test-language-bar-smoke.ps1`
-- `tools\test-settings-window-smoke.ps1`
-- `tools\test-settings-ime-state-contract.ps1`
+- `tools\test-language-bar-topology-diagnostic-contract.ps1`
+- `tools\test-m06-key-path-fixes-contract.ps1`
 
-## Approval-Gated Steps Not Run
+The expanded smoke covers real ownership, ownerless-show rejection, same- and
+cross-process arbitration, stale supersession rejection, foreground/watchdog
+hiding, owner/`WM_NCDESTROY` cleanup, mid-drag state/paint/DPI/hide work,
+capture loss/cancel, and 50 repeated drags with at least 100 move events each.
+It checks zero movement renders, one final render, stable total HWND count and
+identity, one position callback, no segment misclick, and no focus steal. The
+backdrop seam covers build 22000, build 22621 success/failure, frame-extension
+failure, same-size acrylic/static transitions, effective opacity, and no
+per-present DWM churn.
 
-- Elevated install/register/unregister, registry mutation, AppVerifier/PageHeap,
-  verifier cleanup, and full Notepad/Chromium live IME loops remain skipped.
-- Live visual proof of the host backdrop brush over real app content remains
-  pending approval. The non-elevated implementation keeps static translucent tint
-  as the guaranteed non-hollow fallback until that visual check is approved.
+These are non-elevated source/build/protocol/UI-smoke results only. They do not
+substitute for the installed visual/topology gate below.
+
+## Approval-Gated Installed Proof Not Run
+
+No installed DLL swap, TSF registration, registry mutation, AppVerifier/PageHeap,
+forced holder shutdown, or reboot-prone cleanup was run. Current non-dev
+processes hold the TSF DLL.
+
+After fresh approval, exercise Notepad, Chromium, Explorer, and one Electron
+host. Accept only when at most one toolbar is visible system-wide; each visible
+toolbar has a valid foreground root owner; one drag retains one HWND; the old
+host hides within 250 ms; no copies/afterimages appear; focus is never stolen;
+and position survives focus changes and host restart.
+
+If acrylic fails with one real HWND, default to static-tint DirectComposition.
+If static DirectComposition also trails, use a normally redirected opaque native
+D2D toolbar. Do not archive M11/M11C or begin M10 before this gate passes.

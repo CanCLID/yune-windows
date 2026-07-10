@@ -133,8 +133,9 @@ M08 keeps the focus-scoped language bar native inside the TSF DLL. M08 first
 landed a `WS_EX_NOACTIVATE | WS_EX_LAYERED` Direct2D/DirectWrite popup presented
 through `UpdateLayeredWindow`; M11 Slice C supersedes that presentation with a
 `WS_EX_NOREDIRECTIONBITMAP` DirectComposition + Direct2D surface over DWM Desktop
-Acrylic. WebView2, Electron, HTML, and a session-wide always-on UI host stay out
-of the toolbar path. The toolbar skin loads from `skins/<name>/theme.json` with a
+Acrylic when DWM accepts it, otherwise an opaque static pill. WebView2, Electron,
+HTML, and a session-wide always-on UI host stay out of the toolbar path. The
+toolbar skin loads from `skins/<name>/theme.json` with a
 compiled-in default fallback, and toolbar position plus selected skin remain
 server-owned state via `op=set-toolbar-position` and `op=set-skin`; the TSF DLL
 does not read or write `state\ime-state.json`. The candidate window remains
@@ -163,19 +164,66 @@ with user-visible strings centralized in a native `ui_strings` source so a
 future language toggle can be added without changing server protocol values.
 Settings combo boxes must keep display labels separate from the server IDs sent
 through `op=` payloads. The glass toolbar path uses native DirectComposition +
-Direct2D over the supported DWM Desktop Acrylic system backdrop; the earlier
+Direct2D. It requests the supported DWM Desktop Acrylic system backdrop only on
+build 22621+, records successful frame extension plus backdrop application as
+the effective state, and otherwise draws an opaque static pill; the earlier
 host-backdrop and accent-acrylic routes are not used. Non-elevated implementation
-evidence may prove the source, build, and smoke contracts while live visual proof
-over real TSF hosts remains approval-gated.
+evidence may prove source, build, and smoke contracts while installed topology
+and visual proof remain approval-gated.
+
+### D-18 - Toolbar visibility is foreground-owned and fail-closed
+
+The native per-process TSF architecture remains. A toolbar may be visible only
+with a valid root owner that matches the foreground root. Missing TSF contexts
+resolve through the focused document and reuse only a last-known valid
+owner/anchor/DPI cache only for contextless replies; an explicit context that
+cannot establish its own owner fails closed. Focus-service handoff is
+identity-aware and asynchronous through a per-service apartment dispatcher with
+an activation generation; process-local arbitration plus the registered
+supersession message is the fast path, and a 250 ms foreground watchdog is
+authoritative.
+
+During capture, pointer movement changes only the HWND position. State, DPI,
+backdrop, and graphics changes queue until one non-reentrant finalizer persists
+the position at most once and renders at most once. Clone-free correctness
+outranks acrylic: an installed failure demotes the toolbar from acrylic to static
+DirectComposition, then to a normally redirected opaque native D2D HWND. M10 is
+blocked until this installed gate passes and retains ownership of candidate
+rendering.
+
+### D-19 - M10 V1 skins are manifest-only and candidate proof is independent
+
+After the M11 installed gate passes, M10 introduces shared `SkinDefinition` and
+`SkinCatalog` code for server, TSF, and settings. V1 accepts bounded JSON
+manifests only: no PNG, SVG, executable content, or asset paths. User skins live
+under `%LOCALAPPDATA%\Yune\WindowsIme\skins-user`, are deleted by normal
+uninstall/reinstall, and survive non-elevated dev swaps. Catalog IPC uses
+`list-skins`, `reload-skins`, `set-skin`, and a stable `skin_revision`; invalid or
+deleted active skins fall back atomically to `default`.
+
+Candidate rendering remains an M10 gate, not evidence inherited from M11. It
+uses an opaque/static-tint DComp surface, preserves M04 ownership/typing
+semantics, and recreates a normally redirected GDI window if composition fails
+before first show. Cold and warm candidate performance must be compared with a
+recorded GDI baseline before M10 can close.
 
 ## Last Updated
+
+2026-07-09 - M11 toolbar stabilization corrected the diagnosed real-window
+topology: owner recovery/cache now fails closed, focused-service replacement is
+identity-aware and asynchronously generation-guarded, visibility arbitrates
+within/across processes, and a 250 ms watchdog enforces foreground ownership.
+Drag movement no longer renders or commits; one finalizer persists and flushes
+once. DWM backdrop use is gated at build 22621 and requires successful frame plus
+backdrop setup, otherwise using an opaque static fallback. Installed visual proof
+remains approval-gated, so M11/M11C stay active and M10 remains blocked.
 
 2026-07-07 - M11 Slice C replaces the language-bar toolbar's layered/ULW
 presentation with `WS_EX_NOREDIRECTIONBITMAP`, DirectComposition, Direct2D, and
 DWM Desktop Acrylic. The DComp surface render path uses a fixed 96-DPI D2D target
 and `D2D1_BITMAP_OPTIONS_TARGET | D2D1_BITMAP_OPTIONS_CANNOT_DRAW`; device loss
 recreates the graphics stack. Evidence is non-elevated under
-`docs/evidence/m11c/`; live visual clone-free/glass proof remains human-gated.
+`docs/evidence/m11c/`; installed clone-free/glass proof remains approval-gated.
 
 2026-07-03 - M11 UI Modernization + Cantonese Localization added the embedded
 common-controls v6/PerMonitorV2 settings manifest, Microsoft JhengHei UI font

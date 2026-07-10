@@ -1,105 +1,116 @@
 # M10 Skin Breadth + Candidate-Window Skinning Plan
 
-> **Status:** active. Broadens the skin system (more built-in skins,
-> user-imported skins) and extends the shared Direct2D renderer + active skin to
-> the candidate window, so the whole IME surface — toolbar *and* candidate panel —
-> looks consistent (the larger part of the "Sogou fancy" impression).
->
-> **⚠ Reconciliation with M11 (read before implementing Slice C):** M11 upgrades
-> the shared renderer to a DirectComposition frosted-glass surface (`GlassSurface`).
-> To avoid building the renderer twice, **Slice C's "move the candidate window onto
-> the shared renderer" is superseded by M11 Slice C** — the candidate window should
-> ride M11's `GlassSurface`, not a separate GDI→D2D pass. **Hard dependency:**
-> candidate-window skinning therefore *waits on* M11 Slice C. Only Slices A and B
-> here (second built-in skin, user-imported skins, candidate skin-schema fields +
-> back-compat) are independent and can land first. See
-> `m11-plan-ui-modernization-cantonese.md` → "Relationship to M10".
+> **Status:** blocked on the M11 installed gate. No M10 implementation begins
+> until an approval-gated installed run proves one foreground-owned toolbar with
+> clone-free dragging. M11 supplies the reusable native composition foundation;
+> M10 retains ownership of skin breadth, catalog/import behavior, and candidate
+> rendering.
 
-**Goal:** prove the skin system with more than one skin, let users bring their own
-skins safely, and restyle the candidate window with the same shared renderer/skin.
+## Goal
 
-**Depends on M09:** the skin picker in the settings panel, M08's skin-driven
-toolbar glyph labels, and the shared `D2DSurface`. Rich icon/image asset
-rendering can be added here only with a renderer path that consumes those assets.
+Ship a bounded manifest-only V1 skin system with more than one built-in skin,
+safe user imports, stable server/TSF/settings catalog behavior, and a fully
+restyled native candidate window without changing the Yune engine ABI.
 
----
+## Locked V1 boundaries
 
-## Current Facts (grounded, after M09)
+- Skins contain manifest data only: colors, typography, geometry, segment
+  labels, and candidate styling. V1 accepts no PNG, SVG, executable content, or
+  asset paths.
+- User manifests live at
+  `%LOCALAPPDATA%\Yune\WindowsIme\skins-user\<id>\theme.json`.
+- Normal uninstall/reinstall deliberately deletes user skins. Non-elevated dev
+  DLL/server swaps leave them intact.
+- Built-in IDs are reserved. Invalid, missing, or deleted active skins
+  atomically fall back to `default`.
+- No animated/WebView2 skin engine, no candidate ordering/paging behavior
+  change, no Yune ABI change, and `disable_learning` remains forced.
 
-- After M09 the toolbar renders skin-driven glyph labels via the shared
-  `D2DSurface`, and the settings panel has a working skin picker (`op=set-skin`).
-- The candidate window is still GDI (`NativeCandidateWindow::Paint`); it has
-  monitor-clamped positioning + owner/foreground guard from M04.
-- D-04 keeps the candidate window native for latency — Direct2D is native, so
-  restyling it with the shared renderer is compatible.
+## Recommended order
 
-## Non-Goals
-- No animated/mascot skins (later `YuneWindowsUiHost.exe`).
-- No candidate ordering/paging/latency change — render-layer restyle only.
-- No Yune ABI change; `disable_learning` forced.
+### Slice A - Shared skin foundation
 
-## Slice Map (sequence)
-1. **Slice A — Second built-in skin** (e.g. light + dark/glass), authored as a
-   manifest first and with assets only after the renderer consumes them, to prove
-   the schema generalizes; fix any schema gaps.
-2. **Slice B — User-imported skins** (`%LOCALAPPDATA%\Yune\WindowsIme\skins-user\`;
-   strict validation, safe fallback, nothing executed from a skin).
-3. **Slice C — Candidate window skinning.** Extend the skin schema with
-   candidate-window fields + back-compat (independent — can land now). The
-   **render migration is deferred to M11 Slice C** (locked): the candidate panel
-   rides M11's shared composition renderer (`GlassSurface`), not a separate
-   GDI→D2D pass. Keep caret anchoring/paging/guards; verify no latency regression
-   when it lands.
+1. Add an equal-sized built-in dark/static skin, `midnight`, to exercise
+   same-size acrylic/static switching.
+2. Introduce dependency-free shared `SkinDefinition` and `SkinCatalog` code for
+   the server, TSF DLL, and settings app.
+3. Parse JSON with full-input validation and require `schema_version: 1`.
+4. Reject duplicate keys, unknown keys, malformed/truncated JSON, and whole
+   manifests containing an invalid field.
+5. Enforce:
+   - IDs matching `[A-Za-z0-9][A-Za-z0-9_-]{0,63}`;
+   - a 64 KiB manifest limit;
+   - at most 32 user skins;
+   - finite bounded geometry; and
+   - valid RGBA colors.
+6. Cache parsed definitions by `{skin_id, skin_revision}` so toolbar and key
+   updates never reread unchanged manifests.
 
-## Design Details
-- **Second skin (A):** a contrasting skin proves the manifest covers real variation
-  (colors, geometry, glyph labels, and icons/images only if an asset renderer
-  lands). Any field the toolbar needs but the schema can't express is a schema gap
-  to close here.
-- **User-imported skins (B):** import = drop a folder with `theme.json` + assets;
-  validate strictly (reject/fall back on malformed manifests or unexpected asset
-  paths; load only declared colors/geometry/images/SVG — never execute anything).
-  The settings-panel skin picker enumerates install + user skins.
-- **Candidate window (C) — extend the skin schema FIRST, then migrate the render.**
-  The M08 skin manifest only has toolbar fields; the candidate panel needs its own.
-  Step 1 (before touching `NativeCandidateWindow`): add candidate-window fields to
-  `theme.json` and the loader — **panel background, corner radius, padding, row
-  background, highlighted-row background + text, candidate text, comment/annotation
-  text, romanization text, and page indicator** — with defaults so **existing
-  toolbar-only skins still load** (back-compat: missing candidate fields fall back
-  to sane derived values, e.g. from the toolbar palette). Add a contract that a
-  toolbar-only skin still loads and that a skin with candidate fields drives the
-  panel.
-  Step 2 (**deferred to M11 Slice C** — locked): the candidate panel rides M11's
-  shared composition renderer (`GlassSurface`) + active skin, rendering the rows
-  from those fields — built once with the toolbar, not a separate GDI→D2D pass
-  here. Preserve M04 caret anchoring, paging, and the owner/foreground guard
-  exactly — render-only. Measure that candidates appear as fast as the GDI version
-  (no latency regression), reusing the M04 evidence approach. (Whether it lands on
-  the full `GlassSurface` or a simpler tinted D2D surface depends on the M11 Slice
-  C spike, since candidates sit over app content, not the wallpaper.)
+### Slice B - Catalog IPC and settings
 
-## Tasks
-- [ ] Second built-in skin (manifest first; rendered assets only after the
-  renderer consumes them); close schema gaps.
-- [ ] User skins folder + strict validation + fallback; malformed-skin contract.
-- [ ] Extend the skin schema with candidate-window fields (panel bg, radius,
-  padding, row bg, highlight bg/text, candidate text, comment text, romanization
-  text, page indicator) + back-compat defaults; contract for toolbar-only skins.
-- [ ] (Deferred to M11 Slice C) Candidate window rides M11's shared composition
-  renderer + skin; latency check vs M04.
-- [ ] Evidence under `docs/evidence/m10/`; contracts; roadmap/decisions. Commit to
-  `main`.
+1. Add `op=list-skins`, returning valid ID, display name, origin, and revision.
+2. Add `op=reload-skins`, rebuilding the fully validated catalog.
+3. Make `op=set-skin` reject unknown or invalid IDs.
+4. Add `skin_revision` to state responses as a stable content fingerprint.
+5. Update the settings picker to use catalog responses and preserve the atomic
+   `default` fallback when a selected user skin disappears or becomes invalid.
+6. Verify normal uninstall/reinstall deletion and dev-swap preservation without
+   broadening machine-state scope.
 
-## Reviewer Questions
-- Candidate-window skin: full panel restyle, or start with background/highlight and
-  keep text layout as-is?
-- User-skin trust model: allowed asset formats (SVG/PNG only), size limits, path
-  containment.
+### Slice C - Candidate renderer
 
-## Completion Gates
-- At least two built-in skins selectable from the picker; a user-imported skin loads
-  and applies; a malformed one falls back cleanly (no crash, nothing executed).
-- The candidate window matches the active skin with no latency regression vs M04.
-- No animated/WebView2 skin engine; no Yune ABI change; `disable_learning` forced.
-  Evidence under `docs/evidence/m10/`.
+1. Benchmark the existing GDI candidate window before migration: 30 cold first
+   shows and 500 warm updates.
+2. Generalize the DComp device/surface lifecycle independently from
+   toolbar-specific drawing.
+3. Add active skin ID and revision to `CandidateWindowState`.
+4. Move the candidate window to an opaque/static-tint DComp surface. Candidate
+   Acrylic is out of scope.
+5. Apply the active skin to background, border, radius, padding, rows,
+   highlight, candidate text, annotations, and page indicator.
+6. Preserve caret anchoring, paging, selection, foreground/owner guards,
+   no-activation behavior, sanitized comments, and numbering.
+7. Localize `Page n/N` to `頁 n/N`.
+8. If DComp initialization fails before first show, destroy the failed window and
+   recreate a normally redirected GDI candidate window; never show a blank
+   surface.
+
+## Verification
+
+### Catalog contracts
+
+- Reject malformed, truncated, oversized, duplicate-key, unknown-key,
+  non-finite, out-of-range, built-in-ID collision, missing, and deleted
+  manifests.
+- Prove the 32-user-skin limit, reserved IDs, content-stable `skin_revision`,
+  whole-manifest rejection, and atomic `default` fallback.
+- Prove `list-skins`, `reload-skins`, `set-skin`, and state-response behavior
+  across server, TSF, settings, and dev-REPL paths.
+
+### Candidate performance gate
+
+Compared with the GDI baseline:
+
+- warm median and p95 may regress by at most 10% or 1 ms, whichever allowance is
+  larger; and
+- cold median and p95 may regress by at most 15% or 2 ms, whichever allowance is
+  larger.
+
+### Candidate behavior gate
+
+- The active skin/revision drives every candidate visual field.
+- `頁 n/N`, caret anchoring, paging, selection, comments, numbering, ownership,
+  foreground matching, and no-focus-steal behavior remain correct.
+- Forced DComp first-show failure recreates the normally redirected GDI fallback
+  and never exposes a blank candidate window.
+
+## Completion gates
+
+- `default` and `midnight` are selectable and exercise equal-sized backdrop
+  switching.
+- A valid user manifest loads; every invalid case is rejected atomically; normal
+  uninstall/reinstall and dev-swap lifetime rules are proven.
+- IPC/catalog revision behavior is stable and cached.
+- The candidate restyle passes behavior and cold/warm performance gates.
+- Evidence lands under `docs/evidence/m10/`, roadmap/decisions are reconciled,
+  and no claim relies on M11 toolbar evidence to close M10 candidate gates.

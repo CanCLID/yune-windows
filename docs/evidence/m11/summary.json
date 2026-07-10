@@ -1,20 +1,28 @@
 {
   "milestone": "M11",
   "title": "UI Modernization + Cantonese Localization",
-  "status": "non-elevated implementation evidence complete",
+  "status": "implementation fixed; approval-gated installed proof pending",
   "evidence": "docs/evidence/m11/summary.md",
   "live_visual_status": "approval-gated",
   "live_machine_steps_run": false,
+  "m10_blocked": true,
   "verification_passed": [
-    "git diff --check",
     "tools\\test-tsf-shell-build.ps1",
+    "tools\\test-language-bar-smoke.ps1",
+    "tools\\test-settings-window-smoke.ps1",
+    "tools\\test-candidate-window-smoke.ps1",
+    "tools\\test-settings-ime-state-contract.ps1",
+    "tools\\test-server-ime-state-protocol-contract.ps1",
+    "tools\\test-tsf-ime-state-hotkey-contract.ps1",
+    "tools\\test-tsf-server-response-validation-contract.ps1",
+    "tools\\test-dev-repl-ime-state-contract.ps1",
     "tools\\test-m08-modern-toolbar-contract.ps1",
     "tools\\test-m09-settings-panel-contract.ps1",
     "tools\\test-m11-ui-modernization-contract.ps1",
+    "tools\\test-m11c-dcomp-glass-toolbar-contract.ps1",
     "tools\\test-language-bar-window-contract.ps1",
-    "tools\\test-language-bar-smoke.ps1",
-    "tools\\test-settings-window-smoke.ps1",
-    "tools\\test-settings-ime-state-contract.ps1"
+    "tools\\test-language-bar-topology-diagnostic-contract.ps1",
+    "tools\\test-m06-key-path-fixes-contract.ps1"
   ],
   "implemented": {
     "settings_manifest_per_monitor_v2": true,
@@ -22,7 +30,19 @@
     "settings_cantonese_ui_strings": true,
     "combo_label_value_split": true,
     "toolbar_cantonese_glyphs": true,
-    "glass_surface_shell": true,
-    "host_backdrop_live_visual_proof": false
+    "directcomposition_toolbar": true,
+    "owner_fail_closed": true,
+    "focused_context_recovery_and_cache": true,
+    "identity_aware_focus_handoff": true,
+    "asynchronous_generation_safe_focus_handoff": true,
+    "process_and_cross_process_visibility_arbitration": true,
+    "foreground_watchdog_ms": 250,
+    "movement_only_drag": true,
+    "one_final_render_flush": true,
+    "system_backdrop_minimum_build": 22621,
+    "effective_static_fallback": true,
+    "deterministic_backdrop_regression_smoke": true,
+    "privacy_safe_topology_diagnostic": true,
+    "installed_clone_free_visual_proof": false
   }
 }

@@ -1,20 +1,22 @@
 # Active Plans
 
-- `m10-plan-skin-breadth-candidate-window.md` - **current focus.** More built-in skins,
-  user-imported skins, and applying the shared renderer + skin to the candidate
-  window. **Reconciled with M11:** the candidate-window migration rides M11's
-  composition renderer (built once); only the second-skin / user-skin / candidate
-  schema-field slices are independent — candidate skinning waits on M11 Slice C.
-- `m11-plan-ui-modernization-cantonese.md` - **Slices A+B landed** (`c014f18`):
-  Win11-native settings panel (v6 manifest + JhengHei font + DWM gates), full
-  Cantonese localization, combo label/value split, localized toolbar glyphs. Slice
-  C (glass toolbar) was reworked on-device — see the handoff below.
-- `m11c-dcomp-glass-toolbar-handoff.md` - **implemented.** Replaced the toolbar's
-  `UpdateLayeredWindow` rendering with DirectComposition + Direct2D over DWM
-  acrylic: the source drops ULW/layered presentation and uses the validated
-  `src/tools/yune_windows_glass_spike.cpp` model (CANNOT_DRAW flag, fixed 96-DPI
-  target, extend-frame acrylic, no-activate/drag/click/server-state preserved).
-  Human live visual confirmation of clone-free drag + glass remains pending.
+- `m11-plan-ui-modernization-cantonese.md` - **current stop-the-line focus.**
+  Slices A/B and the Slice C renderer are implemented. The toolbar-clone repair
+  now fails closed on missing/invalid owners, arbitrates the visible toolbar
+  within and across processes, watches foreground ownership every 250 ms, and
+  keeps drag motion presentation-free until one final flush. Non-elevated build
+  and expanded drag smoke pass; approval-gated installed visual proof is still
+  required before M11 can close.
+- `m11c-dcomp-glass-toolbar-handoff.md` - **implementation fixed; installed proof
+  pending.** Records the current per-process TSF architecture, ownership and
+  supersession rules, movement-only drag contract, effective-backdrop fallback,
+  topology diagnostics, and deterministic live fallback order.
+- `m10-plan-skin-breadth-candidate-window.md` - **blocked on the M11 installed
+  gate.** M10 still owns built-in/user skin breadth and the native candidate
+  restyle. Its locked V1 continuation is manifest-only, bounded, revisioned, and
+  keeps candidate behavior/performance evidence separate. No M10 slice begins
+  until an installed run proves one foreground-owned toolbar with clone-free
+  dragging; M11 supplies only the reusable composition foundation.
 
 Later / unplanned, noted so the settings panel is designed for them:
 - Server `customize`+`deploy` path to actually apply the deploy-time **engine

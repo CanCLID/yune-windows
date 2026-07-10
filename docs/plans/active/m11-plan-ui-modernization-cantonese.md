@@ -1,75 +1,66 @@
 # M11 UI Modernization + Cantonese Localization Plan
 
-> **Status:** Slices A + B implemented non-elevated (`c014f18`). **Slice C
-> (glass) is scaffolding only** — the toolbar still renders flat; the real WinRT
-> `Windows.UI.Composition` host-backdrop backend is **deferred** to an on-device
-> follow-up (it needs the live spike and can't be verified blind). Modernizes the
-> two native
-> UI surfaces — the Win32 settings panel and the Direct2D floating toolbar — and
-> localizes **all** user-facing text from English to written Cantonese, mirroring
-> `yune-web`'s terminology. Stays native (no WebView2), consistent with D-15
-> (native server-owned toolbar) and D-16 (native Win32 settings panel).
+> **Status:** implementation fixed in the non-elevated tree; approval-gated
+> installed proof pending. Slices A/B modernize and localize the native settings
+> and toolbar surfaces. Slice C now uses DirectComposition + Direct2D, fails
+> closed on missing/invalid owners, arbitrates the visible toolbar within and
+> across processes, and moves the HWND without presenting during drag. M11 stays
+> active until an installed run proves one foreground-owned toolbar with no
+> clones or afterimages. Native only; no WebView2.
 >
-> **This draft was revised after a technical/localization/coherence review.** Two
-> HIGH corrections are baked in: (1) the "glass" backdrop mechanism (a plain
-> `CompositionBackdropBrush` does **not** blur what is behind a separate window),
-> and (2) the settings combos couple *display text* to the *server value*, so
-> localization needs a label/value split. Read the **Known Risks** section.
+> **2026-07-09 stabilization amendment:** a topology probe proved the screenshot
+> was primarily multiple real toolbar HWNDs across processes, not merely painted
+> ULW/DComp trails. The ownership, focus handoff, drag, and backdrop contracts
+> below supersede the earlier assumption that changing presentation alone fixed
+> cloning.
 
-**Goal:** the settings panel should look like a first-party Windows 11 app
-instead of a classic Win32 dialog; the toolbar should read as premium frosted
-glass; and every string the user sees should be in Cantonese using `yune-web`'s
-exact wording.
+**Goal:** keep the first-party Windows 11/Cantonese UI while guaranteeing one
+foreground-owned toolbar that drags without copies or focus steal. Acrylic is a
+conditional enhancement; clone-free correctness comes first.
 
 ---
 
 ## Relationship to M10 (read first)
 
-M10 (skin breadth + candidate-window skinning) is active and plans to migrate
-`NativeCandidateWindow` GDI → shared Direct2D renderer + skin. M11's glass work
-(Slice C) upgrades that *same* renderer to a DirectComposition surface. Building
-the composition renderer twice is waste.
+M10 owns skin breadth, catalog/import behavior, and candidate-window rendering.
+M11 owns the toolbar stabilization and supplies only the reusable composition
+device/surface foundation. Candidate rendering must not be counted as M11 scope.
 
-**Locked reconciliation (M10 already annotated):** M11 Slice C builds the shared
-composition renderer **once** and applies it to the toolbar; the candidate-window
-render migration (M10 Slice C) rides the same renderer instead of a separate
-GDI→D2D pass. **Hard dependency (locked):** candidate-window skinning *waits on*
-M11 Slice C — only M10 Slices A/B (second skin, user-imported skins, candidate
-skin-schema fields) are independent and can land first. M10's Slice C map entry,
-Design step 2, and task are annotated "deferred to M11 Slice C". The one part that
-stays spike-dependent (Known Risk R3): the candidate window sits over app
-*content* (not the wallpaper), so it may land on a simpler tinted surface rather
-than the full `GlassSurface` — the Slice C spike decides *that*, not whether the
-migration defers to M11 (it does).
+**Stop-the-line dependency:** no M10 slice begins until an approval-gated
+installed M11 run proves one foreground-owned toolbar with clone-free dragging.
+After that gate, M10 may generalize the composition lifecycle for an
+opaque/static-tint candidate surface while preserving its independent latency and
+fallback requirements.
 
 ---
 
 ## Current Facts (grounded)
 
-- **Settings panel** (`src/tools/yune_windows_settings.cpp`) applies **zero**
-  modernization: no common-controls v6 manifest (classic unthemed 3D controls),
-  no font (falls back to the blocky `System` GUI font), no DWM attributes, no
-  per-monitor DPI awareness. All labels are English `L"..."` literals. **The
-  output/schema/skin comboboxes use the raw ID as the *visible item text*, and
-  `SelectedComboText()` sends that exact visible text back to the server as the
-  ID** (see Known Risk R2).
-- **Toolbar** (`src/candidate_window/yune_windows_candidate_window.cpp`,
-  `LanguageBarWindow` + `D2DSurface`) is `WS_EX_NOACTIVATE | WS_EX_LAYERED`, drawn
-  with `ID2D1DCRenderTarget` into a DIB and presented via `UpdateLayeredWindow`
-  (per-pixel alpha). ULW cannot sample/blur content behind the window (flat look).
-  **The active-state segment glyphs are hardcoded C++ literals in
-  `ToolbarSegmentLabelForState` / `SchemaLabel` / `OutputStandardLabel`, not skin
-  manifest fields.** Today they emit `繁` (opencc), `港` (hk), `臺` (taiwan), `简`
-  (mainland), `粵/倉/拼` per schema, and **`L"EN"` for ascii-active** — the one
-  outright-English glyph. `SchemaLabel` has no `luna_pinyin_octagram` case and
-  falls through to `value.substr(0,1)` → a Latin **`l`** leak.
-- **Localization source of truth:** `yune/apps/yune-web/src/uiText.ts` (bilingual
-  `yue` + `en`, **default `yue`**), plus `schemaText.yue`, `outputStandardText.yue`.
-  Yune's Chinese name is **新韻**. Full mapping in the **String Mapping Appendix**.
-- Build compiles `/utf-8 /DUNICODE /D_UNICODE`; wide `L"..."` literals in UTF-8
-  source render Cantonese/Traditional glyphs (given a CJK font). `/W4`, no `/WX`.
-- Settings exe links `/SUBSYSTEM:WINDOWS /ENTRY:wmainCRTStartup`;
-  `dev-swap-tsf-dll.ps1` now redeploys it (M08/M09 follow-up).
+- Slices A/B are implemented: common-controls v6/PerMonitorV2, JhengHei DPI
+  relayout, guarded DWM settings polish, centralized Cantonese strings, combo
+  label/value separation, and localized toolbar glyphs.
+- Slice C uses `WS_EX_NOREDIRECTIONBITMAP`, DirectComposition, and Direct2D. The
+  validated surface path keeps a fixed 96-DPI target and
+  `D2D1_BITMAP_OPTIONS_CANNOT_DRAW`.
+- A privacy-safe topology probe found six real `YuneWindowsLanguageBar_*` HWNDs
+  across four processes. All were ownerless, and a background process could keep
+  one visible. The clone problem therefore cannot be closed by renderer evidence
+  alone.
+- Missing TSF contexts now resolve through `ITfThreadMgr::GetFocus` and
+  `ITfDocumentMgr::GetTop`. The last valid root owner, anchor, and DPI are cached
+  while focused; contextless updates may reuse them but can never show or
+  reparent an ownerless toolbar.
+- Focus-service handoff is identity-aware. Process-local arbitration, the
+  registered `YuneWindows.ToolbarSuperseded.v1` message, and a 250 ms foreground
+  watchdog converge on at most one foreground-owned visible toolbar.
+- Drag movement is HWND-only. All rendering/resource work during capture is
+  queued and one non-reentrant finalizer persists the position once and flushes
+  at most one render.
+- The system-backdrop attribute is gated at Windows 11 build 22621. Rendering
+  follows actual DWM success; failure and older builds use an opaque static pill.
+- `glass_mechanism` and consumed `glass_fallback=static_tint` remain. The inert
+  `glass_tint`, `glass_tint_opacity`, `blur_amount`, and
+  `highlight_intensity` V1 fields are removed.
 
 ## Non-Goals
 - No WebView2 / Electron / HTML on any surface (D-15/D-16 hold).
@@ -82,35 +73,19 @@ migration defers to M11 (it does).
 - Tier 3 (fully custom-drawn D2D panel) is **not** in scope — but Slices A/B must
   not foreclose it.
 
-## Known Risks (must read before implementing)
+## Stabilization Risks
 
-- **R1 — Blurring the live app behind the bar needs a specific path; the obvious
-  one is wrong.** A *plain* `CompositionBackdropBrush` samples only the **same**
-  window's visual tree — not the app behind a separate HWND — so it renders a
-  hollow/transparent bar. The **supported** way to blur live content behind a Win32
-  window is the **host backdrop brush**: `DwmSetWindowAttribute(hwnd,
-  DWMWA_USE_HOSTBACKDROPBRUSH, TRUE)` (documented for **non-UWP** windows, Win11
-  build **22000+**) filled by `Compositor.CreateHostBackdropBrush` (WinRT
-  `Windows.UI.Composition`, which "samples the area behind the window"), with the
-  window styled `WS_EX_NOREDIRECTIONBITMAP` so the composition shows through. This
-  path has real setup friction and historically-reported flakiness — hence the
-  community `SetWindowCompositionAttribute` `ACCENT_ENABLE_ACRYLICBLURBEHIND`
-  workaround (undocumented but battle-tested; TranslucentTB et al.). The *supported
-  DWM system backdrops* (`DWMSBT_MAINWINDOW` Mica, `DWMSBT_TRANSIENTWINDOW` Desktop
-  Acrylic) blur the **desktop wallpaper**, not the live app — a weaker but fully
-  stable look. **Decision (locked, Decision 4):** spike the **documented host
-  backdrop brush first**, then the undocumented accent acrylic, then DWM wallpaper
-  acrylic, then a static tint — never a hollow bar. Do **not** use a plain
-  `CompositionBackdropBrush` for behind-window blur.
-- **R2 — Combo display text == server value.** The output/schema/skin combos put
-  raw IDs as visible text and `SelectedComboText()` round-trips that visible text
-  to the server as the ID. Localizing the visible text **will break** `op=`
-  calls unless the implementer separates *display label* from *value ID* (store
-  the ID via `CB_SETITEMDATA` or a parallel array; look it up on selection).
-- **R3 — `WS_EX_LAYERED`/ULW and a composition backdrop are mutually exclusive.**
-  Moving the toolbar to DirectComposition means dropping `WS_EX_LAYERED` +
-  `UpdateLayeredWindow`. Dropping them must not resurrect the M08/M09 clone-trail
-  or focus-steal, and must re-achieve per-pixel-alpha click-through (see Slice C).
+- **R1 — Backdrop requests can fail or trail even when topology is correct.**
+  `DWMWA_SYSTEMBACKDROP_TYPE` is supported from build 22621. Cache actual DWM
+  success and render an opaque static pill when it is unavailable. The installed
+  gate, not the requested skin enum, decides whether acrylic remains the default.
+- **R2 — Localized combo labels must stay separate from protocol values.** This
+  split is implemented and remains a regression boundary: visible Cantonese text
+  must never be sent as an `op=` schema/output/skin ID.
+- **R3 — Multiple real toolbar windows outlive renderer changes.** The per-process
+  TSF architecture needs fail-closed ownership, identity-aware focus handoff,
+  process/cross-process arbitration, and the watchdog. A single real HWND can
+  still exhibit a visual trail, so the live fallback order remains mandatory.
 
 ## Decisions (locked by user 2026-07-03 unless marked "reviewer confirm")
 1. **Language scope — LOCKED: Cantonese-only now.** Strings centralized in one
@@ -124,21 +99,14 @@ migration defers to M11 (it does).
    which is a Mainland-software convention); `coming soon` → **（即將推出）**;
    `connected`/`offline` → **已連線 / 離線**; `default` (skin name) → **預設**;
    `Unknown` → **未知**. (Reviewer confirm wording.)
-4. **Glass backdrop mechanism — LOCKED: live blur, supported path first.** The
-   user chose live-content blur (not wallpaper-only). Implement via a **priority
-   chain**: (1) **documented host backdrop brush** — `DWMWA_USE_HOSTBACKDROPBRUSH`
-   + `Compositor.CreateHostBackdropBrush` (WinRT `Windows.UI.Composition`, Win11
-   22000+, `WS_EX_NOREDIRECTIONBITMAP`); (2) undocumented
-   `SetWindowCompositionAttribute` `ACCENT_ENABLE_ACRYLICBLURBEHIND` (battle-tested
-   fallback); (3) DWM Desktop Acrylic (wallpaper blur, fully supported); (4) static
-   translucent tint. **Never a hollow bar.** The Slice C spike measures which of
-   (1)/(2) actually delivers on the target builds and locks the primary; it no
-   longer chooses *whether* to have live blur. Do **not** use a plain
-   `CompositionBackdropBrush` for behind-window blur (it can't reach behind).
-5. **M10 reconciliation — LOCKED (M10 annotated):** build the composition renderer
-   once; the candidate-window render migration defers to M11 Slice C. Only *whether*
-   the candidate lands on the full `GlassSurface` vs a simpler tinted surface stays
-   spike-dependent (R3 + candidate-over-content caveat).
+4. **Backdrop mechanism — UPDATED 2026-07-09:** request supported DWM Desktop
+   Acrylic only on build 22621+, record effective success, and fall back to a
+   fully opaque static pill. Clone-free behavior outranks glass. If acrylic trails
+   with one real HWND, default to static-tint DComp; if static DComp trails, use a
+   normally redirected opaque native D2D toolbar.
+5. **M10 reconciliation — UPDATED 2026-07-09:** M11 supplies the reusable
+   composition foundation, but M10 owns candidate rendering. No M10 work begins
+   until the installed M11 clone-free gate passes.
 6. **Output-standard glyphs:** `uiText.yue` is authoritative — change the C++
    literals (`繁→傳`, `臺→台`, `拼→朙`) and `L"EN"→英` to match the appendix.
 7. **Windows 10 — LOCKED: flat-native fallback.** Glass/Mica/rounded are
@@ -188,42 +156,29 @@ On the now-themed window, **gated by build number**:
   corners + dark mode; treat Mica as a bonus, not the headline.
 
 ### Slice C — Glass toolbar (shared composition renderer; reconciled with M10)
-1. **Spike first (de-risk R1/R3):** a throwaway proof, over a real editor window,
-   on a `WS_POPUP | WS_EX_NOACTIVATE | WS_EX_TOPMOST | WS_EX_NOREDIRECTIONBITMAP`
-   window (**not** `WS_EX_LAYERED`), testing the R1 priority chain in order:
-   (a) **documented** `DWMWA_USE_HOSTBACKDROPBRUSH` + `CreateHostBackdropBrush`
-   (WinRT `Windows.UI.Composition`); (b) undocumented `SetWindowCompositionAttribute`
-   `ACCENT_ENABLE_ACRYLICBLURBEHIND`; (c) DWM `DWMSBT_TRANSIENTWINDOW` acrylic
-   (wallpaper); (d) static tint. Lock the first that blurs live content without
-   artifacts. Confirm no focus-steal, no clone-trail, correct rounded click-through.
-   Record findings + screenshots under `docs/evidence/m11/`.
-2. Build a shared **`GlassSurface`** on the **WinRT `Windows.UI.Composition`
-   compositor** interop'd to the HWND (`ICompositorDesktopInterop::CreateDesktopWindowTarget`)
-   — this is the layer that exposes `CreateHostBackdropBrush`; raw
-   `IDCompositionDevice` does not. Visual tree: backdrop-brush visual (host backdrop
-   / accent per the spike) → content layer (existing `DrawLanguageBarContent` via a
-   D2D/composition surface) → tint → rounded-rect composition clip → drop shadow →
-   optional animated specular.
-3. **Window model for the migration (R3):** create the popup
-   `WS_POPUP | WS_EX_NOACTIVATE | WS_EX_TOPMOST | WS_EX_NOREDIRECTIONBITMAP`
-   (NOREDIRECTIONBITMAP is required or the DComp content shows a black rectangle;
-   **not** `WS_EX_LAYERED`). Re-achieve per-pixel-alpha **click-through**: the
-   transparent shadow/rounded-corner margins must return `HTTRANSPARENT` (or use a
-   `SetWindowRgn`/input region) so clicks fall through to the app, while the pill
-   body returns `HTCLIENT` for the drag — `WM_NCHITTEST → HTCLIENT` over the whole
-   rect (today's behavior) would make the transparent margin swallow clicks.
-   Preserve `MA_NOACTIVATE`, the `SetCapture` drag (verify it still works on a
-   never-activating window), per-monitor DPI, monitor clamp, server-owned
-   position/skin, and the **M08/M09 single-position-authority + drag-active guard**
-   (no clone trail). Handle composition **device loss** (recreate the visual tree).
-4. Extend the skin schema with **glass fields** (tint color + opacity, blur
-   amount/mechanism, corner radius, highlight intensity, shadow) with back-compat
-   defaults so existing manifests still load.
-5. **M10 candidate window rides `GlassSurface`** (conditional — R3 + candidate
-   sits over app content, so a wallpaper/live-blur backdrop may look weaker there;
-   the spike must check the candidate case too, and it may end up a simpler tinted
-   D2D surface). Preserve M04 caret anchoring/paging/owner-foreground guard;
-   verify no latency regression vs the GDI version.
+1. Keep the native per-process TSF architecture and the existing
+   `WS_EX_NOACTIVATE | WS_EX_NOREDIRECTIONBITMAP` DirectComposition surface.
+2. Resolve missing contexts through `GetFocus` → `GetTop`, cache only valid root
+   owners/anchors/DPI, and fail closed instead of showing or reparenting an
+   ownerless toolbar.
+3. Use identity-aware focused-service activation/deactivation with a
+   per-service apartment dispatcher and activation generation, process-local
+   single-visible arbitration, the registered supersession message, and the
+   250 ms foreground watchdog. Hide on app deactivation and fully unregister on
+   `WM_NCDESTROY`.
+4. Make drag movement-only. Queue state, DPI, layout, backdrop, and device work
+   during capture; centralize all capture-ending paths into one finalizer that
+   persists once and renders once.
+5. Gate DWM system backdrop at build 22621, require both frame-extension and
+   backdrop success, and render the static fallback fully opaque. Handle
+   same-size acrylic/static transitions without per-present DWM calls.
+6. Keep only consumed V1 backdrop fields: `glass_mechanism` and
+   `glass_fallback`. Remove inert tint/opacity/blur/highlight fields.
+7. Add privacy-safe topology diagnostics and expanded non-elevated ownership,
+   supersession, watchdog, destruction, and repeated-drag coverage.
+8. Run the approval-gated installed host matrix. Apply the deterministic
+   acrylic → static DComp → normally redirected opaque native D2D fallback if
+   any visual-trail condition fails.
 
 ---
 
@@ -241,12 +196,10 @@ On the now-themed window, **gated by build number**:
   plus `<dependency>` on `Microsoft.Windows.Common-Controls` `6.0.0.0`. Use
   `<dpiAwareness>PerMonitorV2</dpiAwareness>` (2016 namespace) — **not** the older
   `<dpiAware>` element. A contract should assert the manifest is embedded.
-- **Glass honesty (corrected):** the *documented host backdrop brush*
-  (`DWMWA_USE_HOSTBACKDROPBRUSH` + `CreateHostBackdropBrush`) and the undocumented
-  accent-acrylic path both blur the **live** content behind the bar; the DWM
-  *system backdrops* (Mica/Acrylic) blur only the **desktop wallpaper**. A plain
-  `CompositionBackdropBrush` reaches neither. Refraction/lensing is faked with edge
-  gradients + specular. Set expectations by the path the spike locks.
+- **Backdrop honesty:** DWM Desktop Acrylic is optional presentation, not a
+  correctness dependency. It is requested only at build 22621+, and the renderer
+  uses it only when DWM reports success. The guaranteed result is an opaque static
+  pill; the installed gate may demote or remove the toolbar DComp path if it trails.
 - **DPI:** PerMonitorV2 + re-layout + font recreation on `WM_DPICHANGED`; the
   toolbar already handles DPI and must keep doing so through the renderer swap.
 - **Fallback:** Slice B/C attributes are Win11-era; guard by build number and
@@ -377,20 +330,19 @@ contract clean.
   add octagram case) + align default `theme.json` segment glyphs.
 - [x] **Slice B:** DWM Mica (≥22621) + rounded (≥22000) + dark-mode (20↦19) +
   accent; Win10 flat fallback; document Mica-on-opaque-dialog expectation.
-- [x] **Slice C spike:** compare acrylic-blur-behind vs DWM acrylic vs static tint
-  on a no-activate topmost popup **without WS_EX_LAYERED**; evidence + screenshots
-  under `docs/evidence/m11/`; pick the mechanism. Non-elevated evidence records
-  the priority chain and keeps live screenshots approval-gated.
-- [x] **Slice C:** shared `GlassSurface` shell with the DComp
-  `WS_EX_NOREDIRECTIONBITMAP` host-backdrop path documented/guarded, explicit
-  fallback ordering, and toolbar migration through the shell while keeping
-  no-activate/drag/DPI/position/skin + M08/M09 clone-trail invariants and device
-  loss recovery. The checked-in shell preserves the existing layered Direct2D
-  fallback until live TSF-host visual proof approves a full DComp style swap.
-- [x] **Slice C:** skin schema glass fields + back-compat; candidate window (M10
-  Slice C) rides `GlassSurface` **if** the spike supports it; latency check vs M04.
-- [x] Contracts (see below). Evidence under `docs/evidence/m11/`.
-- [x] Roadmap / decisions / README updates; **annotate M10 Slice C**. Commit to `main`.
+- [x] **Slice C:** DirectComposition + Direct2D toolbar presentation and device
+  recreation path.
+- [x] **Stabilization:** fail-closed root ownership, context recovery/cache,
+  identity-aware focus-service handoff, process/cross-process arbitration,
+  250 ms watchdog, deactivation/destruction cleanup.
+- [x] **Drag:** movement-only `SetWindowPos`, deferred state/resource work, and
+  one non-reentrant final flush/persist path.
+- [x] **Backdrop/schema:** build-22621 gate, effective-state rendering, opaque
+  static fallback, same-size transition cleanup, and removal of inert V1 fields.
+- [x] Privacy-safe topology diagnostic and expanded non-elevated drag smoke.
+- [x] Non-elevated TSF build and expanded language-bar smoke.
+- [ ] Approval-gated installed Notepad/Chromium/Explorer/Electron proof.
+- [ ] Archive M11/M11C and unblock M10 only after the installed gate passes.
 
 ## Contract coverage (sharpened)
 Because contracts are source-grep PowerShell, a blanket "no English" grep would
@@ -405,9 +357,13 @@ false-positive on legitimate ASCII (`op=` verbs, `schema_id`s like `jyut6ping3`,
 - Assert `SchemaLabel`/`ToolbarSegmentLabelForState` have no `substr` fallthrough
   and no `L"EN"`/Latin glyph for any known schema/standard.
 - Assert combos store value IDs separately from display text (label/value split).
-- Assert DWM attribute calls are build-gated; assert toolbar keeps `WS_EX_NOACTIVATE`,
-  single-position-authority, and drag-active guard after the renderer swap.
-- Assert a toolbar-only skin still loads (glass-field back-compat).
+- Assert DWM backdrop calls are gated at build 22621, effective success controls
+  opacity, static transitions clear the backdrop, and unchanged presents do not
+  churn DWM calls.
+- Assert ownerless show fails, focus handoff is identity-aware, the watchdog
+  hides stale windows, drag movement does not render, and finalization renders
+  and persists exactly once.
+- Assert removed inert glass fields are rejected/absent.
 
 ## Completion Gates
 - Settings panel renders themed Win11-native controls in JhengHei/Segoe, rounded
@@ -416,23 +372,20 @@ false-positive on legitimate ASCII (`op=` verbs, `schema_id`s like `jyut6ping3`,
 - **No English remains** on any user-facing surface (panel, title, dialog
   captions + bodies, toolbar labels incl. ascii-active and octagram); terminology
   matches `uiText.yue`; server `op=` calls still work (label/value split verified).
-- Toolbar shows a frosted-glass look — **live blur of the content behind the bar
-  (host backdrop brush `DWMWA_USE_HOSTBACKDROPBRUSH`/`CreateHostBackdropBrush`, or
-  the accent-acrylic fallback) + tint + rounded + shadow + specular**, with
-  graceful fallback to wallpaper acrylic / static tint if a build breaks it — still
-  no-activate, drags as a single bar with no clone trail, persists position.
-- Candidate window (if folded in) matches the active skin with no latency
-  regression vs M04.
+- Installed topology shows at most one visible toolbar system-wide; every visible
+  toolbar has a valid owner whose root is foreground.
+- Repeated drag keeps one HWND, produces no clones/afterimages, never steals
+  focus, persists one final position, and leaves the previous host hidden within
+  250 ms after focus transfer.
+- Acrylic is retained only if that gate passes. Otherwise follow the static DComp
+  then normally redirected opaque native D2D fallback sequence.
+- Candidate rendering is excluded from M11 and remains M10-owned.
 - No WebView2/Electron/HTML; no engine/ABI change; `disable_learning` forced.
 - Tier 3 remains a clean future option that Slices A/B set up.
 
-## Reviewer Questions
-**Decided/locked:** glass = **live blur, documented host backdrop brush first**
-(Decision 4); language = **Cantonese-only now** (Decision 1); Win10 =
-**flat-native fallback, no glass** (Decision 7); M10 render-migration **defers to
-M11 Slice C** (Decision 5, M10 annotated). Remaining open items:
-- Confirm new terms: 主題 (skin), 即將推出, 已連線/離線, 預設, 未知, and the
-  derived strings (window title, status-line template, "已安裝方案可喺上面切換。",
-  error bodies/caption, 工具列預覽無法顯示).
-- Confirm output-standard glyph change 繁→傳 (mirror `uiText.yue`) and the
-  toolbar literal edits (EN→英, 臺→台, 拼→朙, add octagram 朙).
+## Remaining Decision Gate
+
+The only open architecture choice is live visual: retain acrylic, default to
+static-tint DComp, or use a normally redirected opaque native D2D toolbar. The
+installed acceptance result determines that choice. Localization terminology is
+already implemented and is not reopened by the clone repair.

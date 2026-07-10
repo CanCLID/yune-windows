@@ -1,14 +1,14 @@
 # M10 Native UI Presentation Closeout
 
-> **Status:** implementation and focused non-elevated closeout preflight
-> complete; installed acceptance pending.
+> **Status:** candidate `7622305` deployed; restart and installed acceptance
+> pending.
 >
 > M10 is the canonical milestone for the native Cantonese UI, toolbar
 > presentation, and settings-window usability work previously planned and
 > evidenced under M11/M11C, plus only the settings DPI/resize/scroll portion of
 > M11D. Implementation last changed at `eb262fa`; the older pre-rebaseline
-> source/evidence baseline remains `337b9bd`. No fresh installed proof exists
-> for the current closeout tree.
+> source/evidence baseline remains `337b9bd`. The durable candidate manifest is
+> recorded, but no post-restart or installed acceptance proof exists yet.
 
 ## Outcome
 
@@ -48,9 +48,10 @@ The approved 2026-07-09 PT clone/drag observation used the older source commit
 `1f419837b0575dc1ea47dba2785cbb6949b7e73c`. It proved that the then-installed
 toolbar could retain one foreground-owned HWND in Notepad and Chromium without
 fresh user-observed copies or afterimages. It is useful regression evidence, but
-it is not installed acceptance for the current implementation baseline, whose
-reliability and settings repairs have not yet been deployed and visually
-exercised.
+it is not installed acceptance for the current implementation baseline.
+Candidate `7622305` contains the current reliability and settings repairs; it is
+deployed with restart required and has not yet been post-restart verified or
+visually exercised.
 
 ## In scope
 
@@ -112,8 +113,10 @@ pre-deployment matrix is required before a run is graded as M11, not before an
 M10-only presentation run.
 
 The milestones may reuse one exact candidate when no product or package input
-changes. If later M11 work changes such an input, the affected M10 toolbar
-regressions must be rerun on the new combined candidate before downstream work.
+changes. If later M11 work changes such an input, every affected M10 regression
+gate must be rerun on the new combined candidate before downstream work,
+including installed settings gate B whenever settings or shared UI inputs
+change.
 If M11 cannot make a toolbar visible in one of M10's required hosts, that M10
 host remains `not_exercised`; separation never converts absence into proof.
 
@@ -248,3 +251,11 @@ summary under `docs/evidence/m10/` that links the legacy M11/M11C/M11D material
 without rewriting its original claims, move this plan to history, and leave M11
 active until its own activation/state/visibility acceptance passes. M12 and M13
 remain future work under their independent plans and evidence gates.
+
+## Last Updated
+
+- 2026-07-10: Aligned the D-22 rerun rule with the decision record: rerun every
+  affected M10 gate, including installed settings gate B when its inputs change.
+- 2026-07-10: Recorded candidate `7622305` as deployed with exact hashes and a
+  required restart; post-restart verification and both installed verdicts remain
+  pending.

@@ -42,7 +42,10 @@ foreach ($Required in @(
         'ApprovalNote',
         'AllowLoadedTsfHolders',
         'DurableManifestPath',
-        'docs\\evidence\\m10\\machine-state\\frozen-candidate\.json',
+        'docs[\\/]evidence[\\/]m10[\\/]machine-state[\\/]frozen-candidate\.json',
+        'Get-M10GitSourceStatus',
+        'ignored_generated_entry',
+        ':\(exclude\)\$IgnoredGeneratedRepoRelativePath',
         'durable candidate manifest must be outside the OS temp tree',
         'Write-M10AtomicResultFile',
         '\[System.IO.File\]::Replace',
@@ -68,6 +71,9 @@ foreach ($Required in @(
     if ($Source -notmatch $Required) {
         throw "M10 frozen-candidate helper is missing required safety marker: $Required"
     }
+}
+if ($Source -match ':\(exclude\)docs/evidence/m10/machine-state/?(?:"|\*)') {
+    throw "M10 deploy helper must not ignore the whole machine-state evidence directory."
 }
 
 foreach ($Forbidden in @(
@@ -117,12 +123,21 @@ foreach ($Required in @(
         'exactly_one_running_installed_server',
         'install_root_old_or_aside_path',
         'Get-M10VerifyNamedProcesses',
-        'total_processes_considered',
-        'module_enumeration_succeeded',
-        'module_enumeration_failure_count',
-        'coverage_incomplete',
-        'enumeration_failures',
-        'm10_frozen_candidate_post_restart_verify'
+         'total_processes_considered',
+         'module_enumeration_succeeded',
+         'module_enumeration_failure_count',
+         'suspicious_managed_module_count',
+         'native_psapi_fallback',
+         'targeted_tasklist_module_filter',
+         'current_session_inventory_complete',
+         'coverage_incomplete',
+         'enumeration_failures',
+         'Win32_OperatingSystem.LastBootUpTime',
+         'booted_strictly_after_deployment',
+         'verifier_script_sha256',
+         'tooling_source_commit',
+         'verifier_matches_tooling_commit',
+         'm10_frozen_candidate_post_restart_verify'
     )) {
     if ($VerifySource -notmatch [regex]::Escape($Required)) {
         throw "M10 post-restart verifier is missing required marker: $Required"
@@ -239,6 +254,8 @@ try {
         throw "could not parse deploy helper for rollback fault contract"
     }
     foreach ($FunctionName in @(
+            "Invoke-M10GitText",
+            "Get-M10GitSourceStatus",
             "Write-M10AtomicResultFile",
             "New-M10AsidePath",
             "Restore-M10DeploymentOperations",
@@ -253,6 +270,70 @@ try {
             throw "missing rollback function for fault contract: $FunctionName"
         }
         Invoke-Expression $FunctionAst.Extent.Text
+    }
+
+    # The canonical deploy-owned receipt may be untracked on its first run or
+    # modified after a later run. Excluding that exact path must handle both
+    # states without hiding any other dirty entry.
+    $StatusFixtureRoot = Join-Path $TempRoot "source-status-fixture"
+    New-Item -Path $StatusFixtureRoot -ItemType Directory -Force | Out-Null
+    & git -C $StatusFixtureRoot init --quiet
+    if ($LASTEXITCODE -ne 0) {
+        throw "could not initialize source-status fixture"
+    }
+    Set-Content -LiteralPath (Join-Path $StatusFixtureRoot "tracked.txt") `
+        -Value "tracked" -Encoding ascii
+    & git -C $StatusFixtureRoot add tracked.txt
+    & git -C $StatusFixtureRoot `
+        -c user.name=M10Contract `
+        -c user.email=m10-contract@example.invalid `
+        commit --quiet -m baseline
+    if ($LASTEXITCODE -ne 0) {
+        throw "could not commit source-status fixture baseline"
+    }
+    $StatusManifestRelativePath =
+        "docs/evidence/m10/machine-state/frozen-candidate.json"
+    $StatusManifestPath = Join-Path $StatusFixtureRoot (
+        $StatusManifestRelativePath -replace '/', '\')
+    New-Item -Path (Split-Path -Parent $StatusManifestPath) `
+        -ItemType Directory -Force | Out-Null
+    Set-Content -LiteralPath $StatusManifestPath -Value "untracked" -Encoding ascii
+
+    $OriginalRepoRoot = $RepoRoot
+    try {
+        $RepoRoot = $StatusFixtureRoot
+        $OnlyUntrackedReceipt = Get-M10GitSourceStatus `
+            -IgnoredGeneratedRepoRelativePath $StatusManifestRelativePath
+        if (-not [string]::IsNullOrWhiteSpace($OnlyUntrackedReceipt)) {
+            throw "exact source-status exclude did not ignore the untracked deploy receipt"
+        }
+
+        & git -C $StatusFixtureRoot add $StatusManifestRelativePath
+        & git -C $StatusFixtureRoot `
+            -c user.name=M10Contract `
+            -c user.email=m10-contract@example.invalid `
+            commit --quiet -m manifest
+        if ($LASTEXITCODE -ne 0) {
+            throw "could not commit source-status fixture manifest"
+        }
+        Set-Content -LiteralPath $StatusManifestPath -Value "modified" -Encoding ascii
+        $OnlyModifiedReceipt = Get-M10GitSourceStatus `
+            -IgnoredGeneratedRepoRelativePath $StatusManifestRelativePath
+        if (-not [string]::IsNullOrWhiteSpace($OnlyModifiedReceipt)) {
+            throw "exact source-status exclude did not ignore the modified deploy receipt"
+        }
+
+        Set-Content -LiteralPath (Join-Path $StatusFixtureRoot "unrelated.txt") `
+            -Value "must remain visible" -Encoding ascii
+        $UnrelatedStatus = Get-M10GitSourceStatus `
+            -IgnoredGeneratedRepoRelativePath $StatusManifestRelativePath
+        if ($UnrelatedStatus -notmatch 'unrelated\.txt' -or
+            $UnrelatedStatus -match 'frozen-candidate\.json') {
+            throw "source-status exclude hid unrelated dirt or exposed only the owned receipt"
+        }
+    }
+    finally {
+        $RepoRoot = $OriginalRepoRoot
     }
 
     $AtomicManifestPath = Join-Path $TempRoot "atomic-manifest.json"
@@ -341,10 +422,16 @@ try {
         throw "could not parse post-restart verifier for boundary contracts"
     }
     foreach ($FunctionName in @(
-            "Resolve-M10VerifyFullPath",
-            "Test-M10VerifyPathUnderRoot",
-            "Get-M10VerifyStartState",
-            "Test-M10VerifyProperty",
+             "Resolve-M10VerifyFullPath",
+             "Test-M10VerifyPathUnderRoot",
+             "Get-M10VerifyStartState",
+             "Get-M10VerifyBootBoundaryState",
+             "Test-M10VerifyManagedModuleSnapshotComplete",
+             "Initialize-M10VerifyNativeModuleInspector",
+             "Get-M10VerifyNativeModuleSnapshot",
+             "Get-M10VerifyTargetedTsfProcesses",
+             "Get-M10VerifyToolProvenance",
+             "Test-M10VerifyProperty",
             "Test-M10VerifyExactBoolean",
             "Assert-M10VerifyManifestAdmission",
             "Assert-M10VerifyDurableManifestPath"
@@ -385,6 +472,52 @@ try {
         -not $NewStart.start_time_known -or
         -not $NewStart.started_strictly_after_deployment) {
         throw "post-restart verifier does not fail closed at the strict deployment-time boundary"
+    }
+
+    $UnknownBoot = Get-M10VerifyBootBoundaryState `
+        -LastBootUpTime "" `
+        -DeploymentCompletedAt $SyntheticDeploymentBoundary
+    $OldBoot = Get-M10VerifyBootBoundaryState `
+        -LastBootUpTime "2026-07-10T11:59:59Z" `
+        -DeploymentCompletedAt $SyntheticDeploymentBoundary
+    $EqualBoot = Get-M10VerifyBootBoundaryState `
+        -LastBootUpTime "2026-07-10T12:00:00Z" `
+        -DeploymentCompletedAt $SyntheticDeploymentBoundary
+    $NewBoot = Get-M10VerifyBootBoundaryState `
+        -LastBootUpTime "2026-07-10T12:00:00.001Z" `
+        -DeploymentCompletedAt $SyntheticDeploymentBoundary
+    if ($UnknownBoot.boot_time_known -or
+        $UnknownBoot.booted_strictly_after_deployment -or
+        -not $OldBoot.boot_time_known -or
+        $OldBoot.booted_strictly_after_deployment -or
+        -not $EqualBoot.boot_time_known -or
+        $EqualBoot.booted_strictly_after_deployment -or
+        -not $NewBoot.boot_time_known -or
+        -not $NewBoot.booted_strictly_after_deployment) {
+        throw "post-restart verifier does not fail closed at the strict OS boot-time boundary"
+    }
+    if ((Test-M10VerifyManagedModuleSnapshotComplete -ModuleCount 0) -or
+        (Test-M10VerifyManagedModuleSnapshotComplete -ModuleCount 1) -or
+        -not (Test-M10VerifyManagedModuleSnapshotComplete -ModuleCount 2)) {
+        throw "post-restart verifier accepts a silent zero/one-module partial enumeration"
+    }
+    $NativeSnapshot = Get-M10VerifyNativeModuleSnapshot -ProcessId $PID
+    if (-not $NativeSnapshot.succeeded -or
+        $NativeSnapshot.method -ne "native_psapi_fallback" -or
+        $NativeSnapshot.module_count -le 1) {
+        throw "post-restart verifier native module fallback failed its current-process probe"
+    }
+    $TargetedSnapshot = Get-M10VerifyTargetedTsfProcesses
+    if (-not $TargetedSnapshot.query_succeeded -or
+        $TargetedSnapshot.method -ne "targeted_tasklist_module_filter") {
+        throw "post-restart verifier targeted tasklist module probe failed"
+    }
+    $ToolProvenance = Get-M10VerifyToolProvenance -ScriptPath $VerifyScript
+    if ($ToolProvenance.verifier_script_sha256 -notmatch
+            '^[A-Fa-f0-9]{64}$' -or
+        -not $ToolProvenance.repository_detected -or
+        -not $ToolProvenance.tooling_source_commit_known) {
+        throw "post-restart verifier did not bind its tooling provenance"
     }
 
     $SyntheticDurablePath = Join-Path $RepoRoot (
@@ -514,6 +647,11 @@ if ($RunPostRestartLiveVerification) {
     if ($VerifyResult.pass -ne $true -or
         $VerifyResult.operation -ne
             "m10_frozen_candidate_post_restart_verify" -or
+        -not $VerifyResult.restart_boundary.proof_complete -or
+        -not $VerifyResult.tooling.repository_detected -or
+        -not $VerifyResult.tooling.tooling_source_commit_known -or
+        -not $VerifyResult.tooling.verifier_matches_tooling_commit -or
+        -not $VerifyResult.tooling.working_tree_clean -or
         -not $VerifyResult.holders.coverage_complete) {
         throw "opt-in post-restart installed verification did not pass"
     }

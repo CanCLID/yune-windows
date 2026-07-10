@@ -12,6 +12,16 @@ function Read-RepoFile([string]$RelativePath) {
     return Get-Content -Raw -LiteralPath $Path -Encoding UTF8
 }
 
+function Read-RepoFileFromExactlyOnePath([string[]]$RelativePaths) {
+    $ExistingPaths = @($RelativePaths | Where-Object {
+            Test-Path -LiteralPath (Join-Path $RepoRoot $_) -PathType Leaf
+        })
+    if ($ExistingPaths.Count -ne 1) {
+        throw "expected exactly one canonical plan path, found $($ExistingPaths.Count): $($RelativePaths -join ', ')"
+    }
+    return Read-RepoFile $ExistingPaths[0]
+}
+
 function Require-Text([string]$Text, [string]$Pattern, [string]$Message) {
     if ($Text -notmatch $Pattern) {
         throw $Message
@@ -20,6 +30,29 @@ function Require-Text([string]$Text, [string]$Pattern, [string]$Message) {
 
 function Text-FromCodePoints([int[]]$CodePoints) {
     return -join ($CodePoints | ForEach-Object { [string][char]$_ })
+}
+
+$PlanFallbackScratch = Join-Path $env:TEMP (
+    "yune-windows\m10-plan-history-contract-$PID-$([Guid]::NewGuid().ToString('N'))")
+$OriginalRepoRoot = $RepoRoot
+try {
+    $HistoryPlanPath = Join-Path $PlanFallbackScratch `
+        "docs\plans\history\m10-native-ui-presentation-closeout.md"
+    New-Item -Path (Split-Path -Parent $HistoryPlanPath) `
+        -ItemType Directory -Force | Out-Null
+    Set-Content -LiteralPath $HistoryPlanPath -Value "archived M10 plan" -Encoding utf8
+    $RepoRoot = $PlanFallbackScratch
+    $ArchivedPlanProbe = Read-RepoFileFromExactlyOnePath @(
+        "docs\plans\active\m10-native-ui-presentation-closeout.md",
+        "docs\plans\history\m10-native-ui-presentation-closeout.md")
+    if ($ArchivedPlanProbe -notmatch 'archived M10 plan') {
+        throw "M11 contract could not resolve the canonical M10 plan after archival."
+    }
+}
+finally {
+    $RepoRoot = $OriginalRepoRoot
+    Remove-Item -LiteralPath $PlanFallbackScratch `
+        -Recurse -Force -ErrorAction SilentlyContinue
 }
 
 $SettingsSource = Read-RepoFile "src\tools\yune_windows_settings.cpp"
@@ -33,7 +66,9 @@ $WindowSource = Read-RepoFile "src\candidate_window\yune_windows_candidate_windo
 $SkinManifestText = Read-RepoFile "skins\default\theme.json"
 $Evidence = Read-RepoFile "docs\evidence\m11\summary.md"
 $Roadmap = Read-RepoFile "docs\roadmap.md"
-$M10Plan = Read-RepoFile "docs\plans\active\m10-native-ui-presentation-closeout.md"
+$M10Plan = Read-RepoFileFromExactlyOnePath @(
+    "docs\plans\active\m10-native-ui-presentation-closeout.md",
+    "docs\plans\history\m10-native-ui-presentation-closeout.md")
 $M11Plan = Read-RepoFile "docs\plans\active\m11-activation-state-reliability.md"
 
 foreach ($Required in @(

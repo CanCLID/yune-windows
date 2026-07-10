@@ -238,6 +238,426 @@ function Assert-M10VerifyDurableManifestPath {
     }
 }
 
+function Get-M10VerifyBootBoundaryState {
+    param(
+        [string]$LastBootUpTime,
+        [Parameter(Mandatory = $true)]
+        [DateTimeOffset]$DeploymentCompletedAt
+    )
+
+    $Parsed = [DateTimeOffset]::MinValue
+    $Known = -not [string]::IsNullOrWhiteSpace($LastBootUpTime) -and
+        [DateTimeOffset]::TryParse(
+            $LastBootUpTime,
+            [Globalization.CultureInfo]::InvariantCulture,
+            [Globalization.DateTimeStyles]::RoundtripKind,
+            [ref]$Parsed)
+    return [pscustomobject][ordered]@{
+        last_boot_up_time = $LastBootUpTime
+        boot_time_known = $Known
+        booted_strictly_after_deployment =
+            $Known -and $Parsed -gt $DeploymentCompletedAt
+    }
+}
+
+function Get-M10VerifyOperatingSystemBootBoundary {
+    param(
+        [Parameter(Mandatory = $true)]
+        [DateTimeOffset]$DeploymentCompletedAt
+    )
+
+    $LastBootUpTime = ""
+    $QueryError = ""
+    try {
+        $OperatingSystem = Get-CimInstance `
+            -ClassName Win32_OperatingSystem `
+            -ErrorAction Stop
+        if ($null -eq $OperatingSystem -or
+            $null -eq $OperatingSystem.LastBootUpTime) {
+            throw "Win32_OperatingSystem did not return LastBootUpTime"
+        }
+        $LastBootUpTime = ([DateTimeOffset](
+                $OperatingSystem.LastBootUpTime)).ToString("o")
+    }
+    catch {
+        $QueryError = $_.Exception.Message
+    }
+    $State = Get-M10VerifyBootBoundaryState `
+        -LastBootUpTime $LastBootUpTime `
+        -DeploymentCompletedAt $DeploymentCompletedAt
+    return [pscustomobject][ordered]@{
+        query_method = "Win32_OperatingSystem.LastBootUpTime"
+        query_succeeded = [string]::IsNullOrWhiteSpace($QueryError)
+        query_error = $QueryError
+        last_boot_up_time = $State.last_boot_up_time
+        boot_time_known = $State.boot_time_known
+        booted_strictly_after_deployment =
+            $State.booted_strictly_after_deployment
+        proof_complete =
+            [string]::IsNullOrWhiteSpace($QueryError) -and
+            $State.boot_time_known -and
+            $State.booted_strictly_after_deployment
+    }
+}
+
+function Test-M10VerifyManagedModuleSnapshotComplete {
+    param([Parameter(Mandatory = $true)][int]$ModuleCount)
+
+    # A live Windows process necessarily maps more than its executable image.
+    # System.Diagnostics can silently return only that image when module access
+    # is denied, so a zero/one-module result is never accepted as complete.
+    return $ModuleCount -gt 1
+}
+
+function Initialize-M10VerifyNativeModuleInspector {
+    if ("YuneWindows.M10NativeModuleInspector" -as [type]) {
+        return
+    }
+
+    Add-Type -Language CSharp -TypeDefinition @'
+using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Runtime.InteropServices;
+using System.Text;
+
+namespace YuneWindows
+{
+    public sealed class M10NativeModuleRecord
+    {
+        public string FileName { get; set; }
+        public long ModuleMemorySize { get; set; }
+    }
+
+    public sealed class M10NativeModuleSnapshot
+    {
+        public bool Success { get; set; }
+        public int ErrorCode { get; set; }
+        public string ErrorStage { get; set; }
+        public string ErrorMessage { get; set; }
+        public M10NativeModuleRecord[] Modules { get; set; }
+    }
+
+    public static class M10NativeModuleInspector
+    {
+        private const uint ProcessQueryInformation = 0x0400;
+        private const uint ProcessVmRead = 0x0010;
+        private const uint ListModulesAll = 0x03;
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct ModuleInfo
+        {
+            public IntPtr BaseAddress;
+            public uint SizeOfImage;
+            public IntPtr EntryPoint;
+        }
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern IntPtr OpenProcess(
+            uint desiredAccess,
+            bool inheritHandle,
+            int processId);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool CloseHandle(IntPtr handle);
+
+        [DllImport("psapi.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool EnumProcessModulesEx(
+            IntPtr process,
+            [Out] IntPtr[] modules,
+            int byteCount,
+            out int bytesNeeded,
+            uint filterFlag);
+
+        [DllImport("psapi.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        private static extern uint GetModuleFileNameEx(
+            IntPtr process,
+            IntPtr module,
+            StringBuilder fileName,
+            int size);
+
+        [DllImport("psapi.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool GetModuleInformation(
+            IntPtr process,
+            IntPtr module,
+            out ModuleInfo moduleInfo,
+            int byteCount);
+
+        private static M10NativeModuleSnapshot Failure(
+            string stage,
+            int errorCode)
+        {
+            return new M10NativeModuleSnapshot
+            {
+                Success = false,
+                ErrorCode = errorCode,
+                ErrorStage = stage,
+                ErrorMessage = new Win32Exception(errorCode).Message,
+                Modules = new M10NativeModuleRecord[0]
+            };
+        }
+
+        public static M10NativeModuleSnapshot Inspect(int processId)
+        {
+            IntPtr process = OpenProcess(
+                ProcessQueryInformation | ProcessVmRead,
+                false,
+                processId);
+            if (process == IntPtr.Zero)
+            {
+                return Failure("OpenProcess", Marshal.GetLastWin32Error());
+            }
+
+            try
+            {
+                IntPtr[] handles = new IntPtr[256];
+                int bytesNeeded;
+                for (int attempt = 0; attempt < 4; ++attempt)
+                {
+                    if (!EnumProcessModulesEx(
+                        process,
+                        handles,
+                        handles.Length * IntPtr.Size,
+                        out bytesNeeded,
+                        ListModulesAll))
+                    {
+                        return Failure(
+                            "EnumProcessModulesEx",
+                            Marshal.GetLastWin32Error());
+                    }
+                    int required =
+                        (bytesNeeded + IntPtr.Size - 1) / IntPtr.Size;
+                    if (required <= handles.Length)
+                    {
+                        var modules = new List<M10NativeModuleRecord>(required);
+                        for (int index = 0; index < required; ++index)
+                        {
+                            var fileName = new StringBuilder(32768);
+                            if (GetModuleFileNameEx(
+                                process,
+                                handles[index],
+                                fileName,
+                                fileName.Capacity) == 0)
+                            {
+                                return Failure(
+                                    "GetModuleFileNameEx",
+                                    Marshal.GetLastWin32Error());
+                            }
+                            ModuleInfo moduleInfo;
+                            if (!GetModuleInformation(
+                                process,
+                                handles[index],
+                                out moduleInfo,
+                                Marshal.SizeOf(typeof(ModuleInfo))))
+                            {
+                                return Failure(
+                                    "GetModuleInformation",
+                                    Marshal.GetLastWin32Error());
+                            }
+                            modules.Add(new M10NativeModuleRecord
+                            {
+                                FileName = fileName.ToString(),
+                                ModuleMemorySize = moduleInfo.SizeOfImage
+                            });
+                        }
+                        return new M10NativeModuleSnapshot
+                        {
+                            Success = true,
+                            ErrorCode = 0,
+                            ErrorStage = "",
+                            ErrorMessage = "",
+                            Modules = modules.ToArray()
+                        };
+                    }
+                    handles = new IntPtr[required + 64];
+                }
+                return Failure("module_list_changed_repeatedly", 24);
+            }
+            finally
+            {
+                CloseHandle(process);
+            }
+        }
+    }
+}
+'@
+}
+
+function Get-M10VerifyNativeModuleSnapshot {
+    param([Parameter(Mandatory = $true)][int]$ProcessId)
+
+    try {
+        Initialize-M10VerifyNativeModuleInspector
+        $Snapshot = [YuneWindows.M10NativeModuleInspector]::Inspect($ProcessId)
+        $Modules = @($Snapshot.Modules | ForEach-Object {
+                [pscustomobject][ordered]@{
+                    file_name = [string]$_.FileName
+                    module_memory_size = [long]$_.ModuleMemorySize
+                }
+            })
+        return [pscustomobject][ordered]@{
+            method = "native_psapi_fallback"
+            succeeded = [bool]$Snapshot.Success -and $Modules.Count -gt 0
+            module_count = $Modules.Count
+            modules = $Modules
+            error_stage = [string]$Snapshot.ErrorStage
+            error_code = [int]$Snapshot.ErrorCode
+            error_message = [string]$Snapshot.ErrorMessage
+        }
+    }
+    catch {
+        return [pscustomobject][ordered]@{
+            method = "native_psapi_fallback"
+            succeeded = $false
+            module_count = 0
+            modules = @()
+            error_stage = "native_inspector_initialization"
+            error_code = 0
+            error_message = $_.Exception.Message
+        }
+    }
+}
+
+function Get-M10VerifyTargetedTsfProcesses {
+    $TasklistPath = Join-Path $env:SystemRoot "System32\tasklist.exe"
+    $Records = [System.Collections.Generic.List[object]]::new()
+    $InformationalOutput = [System.Collections.Generic.List[string]]::new()
+    if (-not (Test-Path -LiteralPath $TasklistPath -PathType Leaf)) {
+        return [pscustomobject][ordered]@{
+            method = "targeted_tasklist_module_filter"
+            query_succeeded = $false
+            query_error = "tasklist.exe is missing"
+            process_count = 0
+            processes = @()
+            informational_output = @()
+        }
+    }
+    try {
+        $Output = @(& $TasklistPath `
+                /m "YuneWindowsTSF*" `
+                /fo csv `
+                /nh 2>&1)
+        $ExitCode = $LASTEXITCODE
+        if ($ExitCode -ne 0) {
+            throw "tasklist.exe exited with $ExitCode"
+        }
+        foreach ($LineValue in $Output) {
+            $Line = ([string]$LineValue).Trim()
+            if ([string]::IsNullOrWhiteSpace($Line)) {
+                continue
+            }
+            if (-not $Line.StartsWith('"')) {
+                $InformationalOutput.Add($Line) | Out-Null
+                continue
+            }
+            $Row = $Line | ConvertFrom-Csv -Header ImageName, ProcessId, Modules
+            $ParsedProcessId = 0
+            if (-not [int]::TryParse(
+                    [string]$Row.ProcessId,
+                    [ref]$ParsedProcessId) -or
+                $ParsedProcessId -le 0 -or
+                [string]$Row.Modules -notmatch '(?i)YuneWindowsTSF') {
+                throw "tasklist.exe returned an invalid targeted module row"
+            }
+            if (@($Records | Where-Object {
+                        $_.process_id -eq $ParsedProcessId
+                    }).Count -eq 0) {
+                $Records.Add([pscustomobject][ordered]@{
+                        process_id = $ParsedProcessId
+                        process_name = [System.IO.Path]::GetFileNameWithoutExtension(
+                            [string]$Row.ImageName)
+                        reported_modules = [string]$Row.Modules
+                    }) | Out-Null
+            }
+        }
+        return [pscustomobject][ordered]@{
+            method = "targeted_tasklist_module_filter"
+            query_succeeded = $true
+            query_error = ""
+            process_count = $Records.Count
+            processes = @($Records)
+            informational_output = @($InformationalOutput)
+        }
+    }
+    catch {
+        return [pscustomobject][ordered]@{
+            method = "targeted_tasklist_module_filter"
+            query_succeeded = $false
+            query_error = $_.Exception.Message
+            process_count = 0
+            processes = @()
+            informational_output = @($InformationalOutput)
+        }
+    }
+}
+
+function Get-M10VerifyToolProvenance {
+    param([Parameter(Mandatory = $true)][string]$ScriptPath)
+
+    $ResolvedScriptPath = Resolve-M10VerifyFullPath $ScriptPath
+    $RepoRoot = Resolve-M10VerifyFullPath (
+        Join-Path (Split-Path -Parent $ResolvedScriptPath) "..\..")
+    $RepositoryDetected = Test-Path -LiteralPath (
+        Join-Path $RepoRoot ".git")
+    $ToolingCommit = ""
+    $GitQueryError = ""
+    $WorkingTreeClean = $false
+    $VerifierMatchesToolingCommit = $false
+    $RelativeScriptPath = $ResolvedScriptPath.Substring(
+        $RepoRoot.TrimEnd("\").Length).TrimStart("\").Replace("\", "/")
+    if ($RepositoryDetected) {
+        try {
+            $ToolingCommit = (& git -C $RepoRoot rev-parse HEAD 2>&1 |
+                    Out-String).Trim()
+            if ($LASTEXITCODE -ne 0 -or
+                $ToolingCommit -notmatch '^[A-Fa-f0-9]{40}$') {
+                throw "git rev-parse HEAD did not return a full commit"
+            }
+            $Status = (& git -C $RepoRoot status --porcelain `
+                    --untracked-files=all 2>&1 | Out-String).Trim()
+            if ($LASTEXITCODE -ne 0) {
+                throw "git status failed"
+            }
+            $WorkingTreeClean = [string]::IsNullOrWhiteSpace($Status)
+            $TrackedPath = (& git -C $RepoRoot ls-files `
+                    --error-unmatch `
+                    -- $RelativeScriptPath 2>&1 | Out-String).Trim()
+            if ($LASTEXITCODE -eq 0 -and
+                -not [string]::IsNullOrWhiteSpace($TrackedPath)) {
+                & git -C $RepoRoot diff --quiet `
+                    HEAD `
+                    -- $RelativeScriptPath
+                if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne 1) {
+                    throw "git diff --quiet failed"
+                }
+                $VerifierMatchesToolingCommit = $LASTEXITCODE -eq 0
+            }
+        }
+        catch {
+            $GitQueryError = $_.Exception.Message
+            $ToolingCommit = ""
+        }
+    }
+    return [pscustomobject][ordered]@{
+        verifier_script_path = $ResolvedScriptPath
+        verifier_repo_relative_path = $RelativeScriptPath
+        verifier_script_sha256 = (Get-FileHash `
+                -Algorithm SHA256 `
+                -LiteralPath $ResolvedScriptPath).Hash
+        repository_root = $RepoRoot
+        repository_detected = $RepositoryDetected
+        tooling_source_commit = $ToolingCommit
+        tooling_source_commit_known =
+            $ToolingCommit -match '^[A-Fa-f0-9]{40}$'
+        verifier_matches_tooling_commit = $VerifierMatchesToolingCommit
+        working_tree_clean = $WorkingTreeClean
+        git_query_error = $GitQueryError
+    }
+}
+
 function Get-M10VerifyTsfHolders {
     param(
         [Parameter(Mandatory = $true)][string]$InstallRoot,
@@ -251,115 +671,247 @@ function Get-M10VerifyTsfHolders {
     $Holders = [System.Collections.Generic.List[object]]::new()
     $EnumerationFailures = [System.Collections.Generic.List[object]]::new()
     $ExitedBeforeEnumeration = [System.Collections.Generic.List[object]]::new()
+    $FallbackAttempts = [System.Collections.Generic.List[object]]::new()
+    $TargetedUnresolved = [System.Collections.Generic.List[object]]::new()
+    $TargetedScan = Get-M10VerifyTargetedTsfProcesses
+    $TargetedByPid = @{}
+    foreach ($Record in @($TargetedScan.processes)) {
+        $TargetedByPid[[int]$Record.process_id] = $Record
+    }
+
     $CurrentSessionId = [int](Get-Process -Id $PID -ErrorAction Stop).SessionId
-    $Processes = @(Get-Process -ErrorAction Stop | Where-Object {
-            [int]$_.SessionId -eq $CurrentSessionId -and [int]$_.Id -ne 0
-        })
+    $ProcessByPid = @{}
+    foreach ($InitialProcess in @(Get-Process -ErrorAction Stop | Where-Object {
+                [int]$_.SessionId -eq $CurrentSessionId -and [int]$_.Id -ne 0
+            })) {
+        $ProcessByPid[[int]$InitialProcess.Id] = $InitialProcess
+    }
+    # A targeted scan is system-wide. Add any reported holder outside the
+    # current session so its mapped path and image size are still checked.
+    foreach ($TargetedProcessId in @($TargetedByPid.Keys)) {
+        if (-not $ProcessByPid.ContainsKey([int]$TargetedProcessId)) {
+            $TargetedProcess = Get-Process `
+                -Id ([int]$TargetedProcessId) `
+                -ErrorAction SilentlyContinue
+            if ($null -ne $TargetedProcess) {
+                $ProcessByPid[[int]$TargetedProcessId] = $TargetedProcess
+            }
+        }
+    }
+    $Processes = @($ProcessByPid.Values)
     $EnumerationSucceeded = 0
+    $ManagedAccepted = 0
+    $NativeFallbackSucceeded = 0
+    $SuspiciousManagedCount = 0
+
     foreach ($InitialProcess in $Processes) {
         $ProcessId = [int]$InitialProcess.Id
         $ProcessName = [string]$InitialProcess.ProcessName
-        try {
-            $Process = Get-Process -Id $ProcessId -ErrorAction Stop
-            $Modules = @($Process.Modules)
-            $EnumerationSucceeded += 1
-            foreach ($Module in $Modules) {
-                if ([string]::IsNullOrWhiteSpace([string]$Module.FileName)) {
-                    continue
-                }
-                $ModulePath = Resolve-M10VerifyFullPath ([string]$Module.FileName)
-                $IsCurrentPath = [string]::Equals(
-                    $ModulePath,
-                    $ExpectedPath,
-                    [System.StringComparison]::OrdinalIgnoreCase)
-                $IsUnderInstallRoot = Test-M10VerifyPathUnderRoot `
-                    -Path $ModulePath `
-                    -Root $InstallRoot
-                $ModuleLeaf = [System.IO.Path]::GetFileName($ModulePath)
-                $IsInstallRootTsfImage = $IsUnderInstallRoot -and
-                    $ModuleLeaf.StartsWith(
-                        "YuneWindowsTSF.dll",
-                        [System.StringComparison]::OrdinalIgnoreCase)
-                if (-not $IsCurrentPath -and -not $IsInstallRootTsfImage) {
-                    continue
-                }
-                $ProcessPath = ""
-                $StartedAt = ""
-                try { $ProcessPath = [string]$Process.Path } catch {}
-                try { $StartedAt = $Process.StartTime.ToString("o") } catch {}
-                $StartState = Get-M10VerifyStartState `
-                    -StartedAt $StartedAt `
-                    -DeploymentCompletedAt $DeploymentCompletedAt
-                $ModuleSize = [long]$Module.ModuleMemorySize
-                $Holders.Add([pscustomobject][ordered]@{
-                        process_id = [int]$Process.Id
-                        process_name = [string]$Process.ProcessName
-                        process_path = $ProcessPath
-                        process_started_at = $StartState.process_started_at
-                        start_time_known = $StartState.start_time_known
-                        started_strictly_after_deployment =
-                            $StartState.started_strictly_after_deployment
-                        module_path = $ModulePath
-                        module_path_kind = if ($IsCurrentPath) {
-                            "current_installed_path"
-                        }
-                        else {
-                            "install_root_old_or_aside_path"
-                        }
-                        is_current_installed_path = $IsCurrentPath
-                        is_install_root_old_or_aside_path = -not $IsCurrentPath
-                        module_memory_size = $ModuleSize
-                        matches_candidate_image_size =
-                            $ModuleSize -eq $ExpectedImageSize
-                    }) | Out-Null
-                break
-            }
-        }
-        catch {
-            $StillExists = $null -ne (Get-Process `
-                    -Id $ProcessId `
-                    -ErrorAction SilentlyContinue)
-            if (-not $StillExists) {
-                $ExitedBeforeEnumeration.Add([pscustomobject][ordered]@{
-                        process_id = $ProcessId
-                        process_name = $ProcessName
-                        category = "process_exited"
-                    }) | Out-Null
-                continue
-            }
-            $Exception = $_.Exception
-            $Category = if ($Exception -is [System.UnauthorizedAccessException] -or
-                $Exception.InnerException -is [System.UnauthorizedAccessException]) {
-                "access_denied"
-            }
-            elseif ($Exception -is [System.ComponentModel.Win32Exception] -or
-                $Exception.InnerException -is [System.ComponentModel.Win32Exception]) {
-                "win32_enumeration_error"
-            }
-            elseif ($Exception -is [System.InvalidOperationException]) {
-                "invalid_operation"
-            }
-            else {
-                "module_enumeration_error"
-            }
-            $EnumerationFailures.Add([pscustomobject][ordered]@{
+        $IsTargeted = $TargetedByPid.ContainsKey($ProcessId)
+        $Process = Get-Process -Id $ProcessId -ErrorAction SilentlyContinue
+        if ($null -eq $Process) {
+            $ExitedBeforeEnumeration.Add([pscustomobject][ordered]@{
                     process_id = $ProcessId
                     process_name = $ProcessName
-                    category = $Category
+                    targeted_by_tasklist = $IsTargeted
+                    category = "process_exited"
+                }) | Out-Null
+            continue
+        }
+
+        $ManagedError = ""
+        $ManagedModules = @()
+        try {
+            $ManagedModules = @($Process.Modules)
+        }
+        catch {
+            $ManagedError = $_.Exception.Message
+        }
+        $ManagedCount = $ManagedModules.Count
+        $EnumerationMethod = "managed_process_modules"
+        $ModuleRecords = @()
+        if ([string]::IsNullOrWhiteSpace($ManagedError) -and
+            (Test-M10VerifyManagedModuleSnapshotComplete `
+                -ModuleCount $ManagedCount)) {
+            $ManagedAccepted += 1
+            $ModuleRecords = @($ManagedModules | ForEach-Object {
+                    [pscustomobject][ordered]@{
+                        file_name = [string]$_.FileName
+                        module_memory_size = [long]$_.ModuleMemorySize
+                    }
+                })
+        }
+        else {
+            $Trigger = if ([string]::IsNullOrWhiteSpace($ManagedError)) {
+                $SuspiciousManagedCount += 1
+                "suspicious_managed_module_count"
+            }
+            else {
+                "managed_module_exception"
+            }
+            $NativeSnapshot = Get-M10VerifyNativeModuleSnapshot `
+                -ProcessId $ProcessId
+            $FallbackAttempts.Add([pscustomobject][ordered]@{
+                    process_id = $ProcessId
+                    process_name = $ProcessName
+                    targeted_by_tasklist = $IsTargeted
+                    trigger = $Trigger
+                    managed_module_count = $ManagedCount
+                    managed_error = $ManagedError
+                    fallback_method = $NativeSnapshot.method
+                    fallback_succeeded = $NativeSnapshot.succeeded
+                    fallback_module_count = $NativeSnapshot.module_count
+                    fallback_error_stage = $NativeSnapshot.error_stage
+                    fallback_error_code = $NativeSnapshot.error_code
+                    fallback_error_message = $NativeSnapshot.error_message
+                }) | Out-Null
+            if ($NativeSnapshot.succeeded) {
+                $EnumerationMethod = $NativeSnapshot.method
+                $NativeFallbackSucceeded += 1
+                $ModuleRecords = @($NativeSnapshot.modules)
+            }
+            else {
+                $StillExists = $null -ne (Get-Process `
+                        -Id $ProcessId `
+                        -ErrorAction SilentlyContinue)
+                if (-not $StillExists) {
+                    $ExitedBeforeEnumeration.Add([pscustomobject][ordered]@{
+                            process_id = $ProcessId
+                            process_name = $ProcessName
+                            targeted_by_tasklist = $IsTargeted
+                            category = "process_exited"
+                        }) | Out-Null
+                    continue
+                }
+                $Failure = [pscustomobject][ordered]@{
+                    process_id = $ProcessId
+                    process_name = $ProcessName
+                    targeted_by_tasklist = $IsTargeted
+                    category = if ($Trigger -eq
+                        "suspicious_managed_module_count") {
+                        "suspicious_partial_enumeration_native_fallback_failed"
+                    }
+                    else {
+                        "managed_and_native_enumeration_failed"
+                    }
+                    managed_module_count = $ManagedCount
+                    managed_error = $ManagedError
+                    fallback_method = $NativeSnapshot.method
+                    fallback_error_stage = $NativeSnapshot.error_stage
+                    fallback_error_code = $NativeSnapshot.error_code
+                    fallback_error_message = $NativeSnapshot.error_message
+                }
+                $EnumerationFailures.Add($Failure) | Out-Null
+                if ($IsTargeted) {
+                    $TargetedUnresolved.Add($Failure) | Out-Null
+                }
+                continue
+            }
+        }
+
+        $EnumerationSucceeded += 1
+        $FoundTsfModule = $false
+        foreach ($Module in $ModuleRecords) {
+            if ([string]::IsNullOrWhiteSpace([string]$Module.file_name)) {
+                continue
+            }
+            $ModulePath = Resolve-M10VerifyFullPath ([string]$Module.file_name)
+            $IsCurrentPath = [string]::Equals(
+                $ModulePath,
+                $ExpectedPath,
+                [System.StringComparison]::OrdinalIgnoreCase)
+            $IsUnderInstallRoot = Test-M10VerifyPathUnderRoot `
+                -Path $ModulePath `
+                -Root $InstallRoot
+            $ModuleLeaf = [System.IO.Path]::GetFileName($ModulePath)
+            $IsTsfImage = $ModuleLeaf.StartsWith(
+                "YuneWindowsTSF.dll",
+                [System.StringComparison]::OrdinalIgnoreCase)
+            $IsInstallRootTsfImage = $IsUnderInstallRoot -and $IsTsfImage
+            if (-not $IsTsfImage) {
+                continue
+            }
+            $FoundTsfModule = $true
+            $ProcessPath = ""
+            $StartedAt = ""
+            try { $ProcessPath = [string]$Process.Path } catch {}
+            try { $StartedAt = $Process.StartTime.ToString("o") } catch {}
+            $StartState = Get-M10VerifyStartState `
+                -StartedAt $StartedAt `
+                -DeploymentCompletedAt $DeploymentCompletedAt
+            $ModuleSize = [long]$Module.module_memory_size
+            $Holders.Add([pscustomobject][ordered]@{
+                    process_id = [int]$Process.Id
+                    process_name = [string]$Process.ProcessName
+                    process_path = $ProcessPath
+                    process_started_at = $StartState.process_started_at
+                    start_time_known = $StartState.start_time_known
+                    started_strictly_after_deployment =
+                        $StartState.started_strictly_after_deployment
+                    enumeration_method = $EnumerationMethod
+                    targeted_by_tasklist = $IsTargeted
+                    module_path = $ModulePath
+                    module_path_kind = if ($IsCurrentPath) {
+                        "current_installed_path"
+                    }
+                    elseif ($IsInstallRootTsfImage) {
+                        "install_root_old_or_aside_path"
+                    }
+                    else {
+                        "other_path"
+                    }
+                    is_current_installed_path = $IsCurrentPath
+                    is_install_root_old_or_aside_path =
+                        -not $IsCurrentPath -and $IsInstallRootTsfImage
+                    is_other_path =
+                        -not $IsCurrentPath -and -not $IsInstallRootTsfImage
+                    module_memory_size = $ModuleSize
+                    matches_candidate_image_size =
+                        $ModuleSize -eq $ExpectedImageSize
+                }) | Out-Null
+            break
+        }
+        # A complete detail scan that no longer sees the tasklist-reported
+        # module is an unload race, not an unresolved partial enumeration.
+        if ($IsTargeted -and -not $FoundTsfModule) {
+            $ExitedBeforeEnumeration.Add([pscustomobject][ordered]@{
+                    process_id = $ProcessId
+                    process_name = $ProcessName
+                    targeted_by_tasklist = $true
+                    category = "target_module_unloaded_before_detail_scan"
                 }) | Out-Null
         }
     }
+
+    $TargetedCoverageComplete = $TargetedScan.query_succeeded -and
+        $TargetedUnresolved.Count -eq 0
     return [pscustomobject][ordered]@{
         holders = @($Holders)
         coverage = [pscustomobject][ordered]@{
-            scope = "current_session_non_idle_processes"
+            scope =
+                "targeted_yune_tsf_modules_plus_current_session_inventory"
             session_id = $CurrentSessionId
+            methods = @(
+                "managed_process_modules",
+                "native_psapi_fallback",
+                "targeted_tasklist_module_filter")
+            targeted_scan = $TargetedScan
+            targeted_coverage_complete = $TargetedCoverageComplete
+            targeted_unresolved_count = $TargetedUnresolved.Count
+            targeted_unresolved = @($TargetedUnresolved)
             total_processes_considered = $Processes.Count
             module_enumeration_succeeded = $EnumerationSucceeded
+            managed_enumeration_accepted = $ManagedAccepted
+            suspicious_managed_module_count = $SuspiciousManagedCount
+            native_fallback_attempted = $FallbackAttempts.Count
+            native_fallback_succeeded = $NativeFallbackSucceeded
             exited_before_enumeration_count = $ExitedBeforeEnumeration.Count
             module_enumeration_failure_count = $EnumerationFailures.Count
-            coverage_incomplete = $EnumerationFailures.Count -gt 0
+            current_session_inventory_complete =
+                $EnumerationFailures.Count -eq 0
+            coverage_incomplete = -not $TargetedCoverageComplete
             exited_before_enumeration = @($ExitedBeforeEnumeration)
+            fallback_attempts = @($FallbackAttempts)
             enumeration_failures = @($EnumerationFailures)
         }
     }
@@ -577,6 +1129,9 @@ $DeploymentCompletedAtValid =
 Assert-M10VerifyManifestAdmission `
     -Manifest $Manifest `
     -DeploymentCompletedAtValid $DeploymentCompletedAtValid
+$RestartBoundary = Get-M10VerifyOperatingSystemBootBoundary `
+    -DeploymentCompletedAt $DeploymentCompletedAt
+$ToolProvenance = Get-M10VerifyToolProvenance -ScriptPath $PSCommandPath
 
 $ArtifactByName = @{}
 foreach ($Artifact in @($Manifest.build.artifacts)) {
@@ -671,6 +1226,18 @@ $AsideEntries = @(Get-ChildItem `
         })
 
 $Failures = [System.Collections.Generic.List[string]]::new()
+$Warnings = [System.Collections.Generic.List[string]]::new()
+if (-not $RestartBoundary.proof_complete) {
+    $Failures.Add(
+        "operating-system boot time is not known to be strictly after candidate deployment completion") | Out-Null
+}
+if (-not $ToolProvenance.repository_detected -or
+    -not $ToolProvenance.tooling_source_commit_known -or
+    -not $ToolProvenance.verifier_matches_tooling_commit -or
+    -not $ToolProvenance.working_tree_clean) {
+    $Failures.Add(
+        "verifier script is not pinned to a clean recorded tooling source commit") | Out-Null
+}
 foreach ($Artifact in $InstalledArtifacts) {
     if (-not $Artifact.matches_candidate) {
         $Failures.Add("installed artifact mismatch: $($Artifact.name)") | Out-Null
@@ -693,7 +1260,18 @@ if (-not $ComState.path_matches) {
 }
 if ($HolderCoverage.coverage_incomplete) {
     $Failures.Add(
-        "TSF holder scan coverage is incomplete; rerun where every current-session process can be enumerated") | Out-Null
+        "targeted TSF holder scan is incomplete; tasklist-reported holders must have complete module details") | Out-Null
+}
+if (-not $HolderCoverage.current_session_inventory_complete) {
+    if ($RestartBoundary.proof_complete -and
+        $HolderCoverage.targeted_coverage_complete) {
+        $Warnings.Add(
+            "current-session module inventory contains explicitly recorded access limitations; strict OS boot proof plus complete targeted holder details supply stale-process exclusion") | Out-Null
+    }
+    else {
+        $Failures.Add(
+            "current-session module inventory is incomplete without both strict OS boot proof and complete targeted holder details") | Out-Null
+    }
 }
 if ($Holders.Count -eq 0 -and -not $AllowNoHolders) {
     $Failures.Add("no mapped installed TSF holder was available for post-restart proof") | Out-Null
@@ -705,7 +1283,7 @@ foreach ($Holder in $Holders) {
     }
     if (-not $Holder.is_current_installed_path) {
         $Failures.Add(
-            "mapped TSF holder uses an old/aside install-root path: $($Holder.process_name)[$($Holder.process_id)]") | Out-Null
+            "mapped TSF holder uses a non-current path: $($Holder.process_name)[$($Holder.process_id)]") | Out-Null
     }
     if (-not $Holder.start_time_known) {
         $Failures.Add(
@@ -753,7 +1331,9 @@ $Result = [ordered]@{
     schema_version = 1
     operation = "m10_frozen_candidate_post_restart_verify"
     captured_at = [DateTimeOffset]::Now.ToString("o")
-    privacy_note = "Records artifact hashes, registration state, process identity/path/start time, and module sizes only; no window titles, typed text, composition text, or arbitrary keystrokes are read."
+    privacy_note = "Records artifact hashes, boot time, verifier provenance, registration state, process identity/path/start time, and module sizes only; no window titles, typed text, composition text, or arbitrary keystrokes are read."
+    tooling = $ToolProvenance
+    restart_boundary = $RestartBoundary
     candidate = [ordered]@{
         manifest_path = $ManifestPath
         manifest_sha256 = $ManifestSha256
@@ -785,7 +1365,10 @@ $Result = [ordered]@{
     }
     holders = [ordered]@{
         allow_no_holders = [bool]$AllowNoHolders
-        coverage_complete = -not [bool]$HolderCoverage.coverage_incomplete
+        coverage_complete =
+            [bool]$HolderCoverage.targeted_coverage_complete
+        current_session_inventory_complete =
+            [bool]$HolderCoverage.current_session_inventory_complete
         coverage = $HolderCoverage
         count = $Holders.Count
         current_installed_path_count = @($Holders | Where-Object {
@@ -793,6 +1376,9 @@ $Result = [ordered]@{
             }).Count
         old_or_aside_install_root_path_count = @($Holders | Where-Object {
                 $_.is_install_root_old_or_aside_path
+            }).Count
+        other_path_count = @($Holders | Where-Object {
+                $_.is_other_path
             }).Count
         expected_module_memory_size = $ExpectedImageSize
         all_match_candidate_image_size =
@@ -854,6 +1440,7 @@ $Result = [ordered]@{
             entries = @($SettingsProcesses)
         }
     }
+    warnings = @($Warnings)
     failures = @($Failures)
     pass = $Failures.Count -eq 0
 }

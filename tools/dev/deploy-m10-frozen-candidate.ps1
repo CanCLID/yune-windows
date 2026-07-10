@@ -31,6 +31,21 @@ function Invoke-M10GitText {
     return $Text
 }
 
+function Get-M10GitSourceStatus {
+    param([string]$IgnoredGeneratedRepoRelativePath = "")
+
+    $Arguments = @("status", "--porcelain", "--untracked-files=all")
+    if (-not [string]::IsNullOrWhiteSpace($IgnoredGeneratedRepoRelativePath)) {
+        # Ignore only the exact deploy-owned receipt. A directory-wide exclude
+        # could hide unrelated evidence or product-source changes.
+        $Arguments += @(
+            "--",
+            ".",
+            ":(exclude)$IgnoredGeneratedRepoRelativePath")
+    }
+    return Invoke-M10GitText -Arguments $Arguments
+}
+
 function Get-M10FileRecord {
     param(
         [Parameter(Mandatory = $true)][string]$Name,
@@ -459,6 +474,28 @@ function Set-M10FailedDeploymentSessionState {
 }
 
 $InstallRoot = Resolve-YuneWindowsDevFullPath $InstallDir
+$CanonicalDurableManifestRelativePath =
+    "docs/evidence/m10/machine-state/frozen-candidate.json"
+$CanonicalDurableManifestPath = Resolve-YuneWindowsDevFullPath (
+    Join-Path $RepoRoot $CanonicalDurableManifestRelativePath)
+$ResolvedDurableManifestPath = ""
+$IgnoredGeneratedRepoRelativePath = ""
+if ($Mode -eq "Deploy") {
+    $ResolvedDurableManifestPath = if (
+        [string]::IsNullOrWhiteSpace($DurableManifestPath)) {
+        $CanonicalDurableManifestPath
+    }
+    else {
+        Resolve-YuneWindowsDevFullPath $DurableManifestPath
+    }
+    if ([string]::Equals(
+            $ResolvedDurableManifestPath,
+            $CanonicalDurableManifestPath,
+            [System.StringComparison]::OrdinalIgnoreCase)) {
+        $IgnoredGeneratedRepoRelativePath =
+            $CanonicalDurableManifestRelativePath
+    }
+}
 $ActualCommit = Invoke-M10GitText -Arguments @("rev-parse", "HEAD")
 $ResolvedExpectedCommit = Invoke-M10GitText `
     -Arguments @("rev-parse", "--verify", "$ExpectedSourceCommit^{commit}")
@@ -469,8 +506,8 @@ if (-not [string]::Equals(
     throw "source commit $ActualCommit does not match pinned commit $ResolvedExpectedCommit"
 }
 $Branch = Invoke-M10GitText -Arguments @("branch", "--show-current")
-$StatusText = Invoke-M10GitText `
-    -Arguments @("status", "--porcelain", "--untracked-files=all")
+$StatusText = Get-M10GitSourceStatus `
+    -IgnoredGeneratedRepoRelativePath $IgnoredGeneratedRepoRelativePath
 $SourceClean = [string]::IsNullOrWhiteSpace($StatusText)
 $DirtyPaths = if ($SourceClean) {
     @()
@@ -523,6 +560,7 @@ $Result = [ordered]@{
         branch = $Branch
         clean = $SourceClean
         dirty_entries = $DirtyPaths
+        ignored_generated_entry = $IgnoredGeneratedRepoRelativePath
         post_build_verified = $false
         build_script = $BuildScriptRecord
     }
@@ -658,11 +696,7 @@ if (Test-M10PathNested -Candidate $ResultPath -Root $InstallRoot) {
 $Result.manifest.scratch_path = $ResultPath
 
 if ($Mode -eq "Deploy") {
-    if ([string]::IsNullOrWhiteSpace($DurableManifestPath)) {
-        $DurableManifestPath = Join-Path $RepoRoot (
-            "docs\evidence\m10\machine-state\frozen-candidate.json")
-    }
-    $DurableManifestPath = Resolve-YuneWindowsDevFullPath $DurableManifestPath
+    $DurableManifestPath = $ResolvedDurableManifestPath
     $OsTempRoot = Resolve-YuneWindowsDevFullPath ([System.IO.Path]::GetTempPath())
     if (Test-M10PathNested -Candidate $DurableManifestPath -Root $InstallRoot) {
         throw "durable candidate manifest must be written outside the install root"
@@ -697,8 +731,8 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 $PostBuildCommit = Invoke-M10GitText -Arguments @("rev-parse", "HEAD")
-$PostBuildStatus = Invoke-M10GitText `
-    -Arguments @("status", "--porcelain", "--untracked-files=all")
+$PostBuildStatus = Get-M10GitSourceStatus `
+    -IgnoredGeneratedRepoRelativePath $IgnoredGeneratedRepoRelativePath
 if (-not [string]::Equals(
         $PostBuildCommit,
         $ResolvedExpectedCommit,

@@ -4,13 +4,14 @@ The 2026-07-10 rebaseline removes the historical "M11 before M10" inversion.
 See `docs/reference/m10-m13-rebaseline.md` for the complete old-to-new scope and
 evidence map.
 
-- `m10-native-ui-presentation-closeout.md` - **implementation and focused
-  non-elevated closeout preflight complete; installed acceptance pending.**
+- `m10-native-ui-presentation-closeout.md` - **candidate deployed; restart and
+  installed acceptance pending.**
   Owns the native Cantonese surface,
   DirectComposition toolbar presentation, clone-free ownership/drag/backdrop
   behavior, and settings DPI/resize/scroll usability. The older installed
-  clone result remains regression evidence; the current implementation baseline
-  still needs hash-pinned toolbar-presentation and settings-usability verdicts.
+  clone result remains regression evidence; frozen candidate `7622305` still
+  needs its bound post-restart verification plus hash-pinned toolbar-presentation
+  and settings-usability verdicts.
 - `m11-activation-state-reliability.md` - **implementation complete; focused
   non-elevated checks pass; expanded pre-deployment verification and installed
   acceptance remain pending.** Owns profile/focus

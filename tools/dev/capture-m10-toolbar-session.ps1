@@ -208,9 +208,15 @@ catch {
             param(
                 [string]$ReadyPath,
                 [string]$StopPath,
-                [int]$IntervalMs)
+                [int]$IntervalMs,
+                [string]$BaselineProcessIdsJson)
 
             $Observed = [Collections.Generic.Dictionary[int, object]]::new()
+            $Baseline = [Collections.Generic.HashSet[int]]::new()
+            $BaselineProcessIds = $BaselineProcessIdsJson | ConvertFrom-Json
+            foreach ($BaselineProcessId in $BaselineProcessIds) {
+                [void]$Baseline.Add([int]$BaselineProcessId)
+            }
             $PollCount = 0
             $MaximumGapMs = 0.0
             $PreviousPollAt = [DateTimeOffset]::UtcNow
@@ -232,6 +238,9 @@ catch {
                     foreach ($Process in @(Get-Process `
                             -Name "YuneWindowsSettings" `
                             -ErrorAction SilentlyContinue)) {
+                        if ($Baseline.Contains([int]$Process.Id)) {
+                            continue
+                        }
                         if (-not $Observed.ContainsKey([int]$Process.Id)) {
                             $ProcessStartedAt = ""
                             try {
@@ -268,7 +277,8 @@ catch {
         } -ArgumentList @(
             $SettingsPollingReadyPath,
             $SettingsPollingStopPath,
-            $SettingsPollingIntervalMs)
+            $SettingsPollingIntervalMs,
+            (ConvertTo-Json -Compress -InputObject @($SettingsProcessesBefore)))
 
         $ReadyDeadline = [DateTimeOffset]::UtcNow.AddSeconds(5)
         while (-not (Test-Path -LiteralPath $SettingsPollingReadyPath) -and

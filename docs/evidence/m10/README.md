@@ -13,8 +13,9 @@ matching `summary.md` with the final human-readable verdict.
 
 1. Record the clean full source commit and the diff proving whether intervening
    changes affect product build/package inputs.
-2. Run and record the focused non-elevated preflight, including the 100%, 125%,
-   150%, and 200% settings minimum/larger/scroll matrix.
+2. Before deployment, run the focused non-elevated matrix, including the 100%,
+   125%, 150%, and 200% settings minimum/larger/scroll cases. Do not deploy a
+   candidate whose focused checks fail.
 3. Record built and installed SHA-256 values for the TSF DLL, server, settings
    executable, and default skin. `Deploy` atomically refreshes the canonical
    manifest at
@@ -25,11 +26,26 @@ matching `summary.md` with the final human-readable verdict.
    loaded TSF holders map the pinned image.
    The deployment helper must write the authoritative candidate manifest to the
    durable repository evidence path, not leave its only copy under `%TEMP%`.
-   After that manifest exists, replace
-   `pending_until_frozen_docs_commit` in `non-elevated-preflight.json` with the
-   manifest's exact `source.actual_commit`; the completed-summary contract
-   requires those values to match.
-4. In fresh Notepad, Chromium, Explorer, and one named Electron host, run one
+   Commit that manifest in its own machine-state evidence commit before the
+   reboot. The deploy helper excludes only that exact deploy-owned canonical
+   manifest from its clean-source check, so a retained receipt cannot block a
+   later candidate-preserving redeploy; every other tracked or untracked entry
+   still makes the source check fail closed.
+4. After the durable manifest is committed, rerun and record the focused matrix
+   from the final clean, candidate-preserving tooling tree with
+   `tools/dev/capture-m10-non-elevated-preflight.ps1`. It records overall and
+   per-check start/completion timestamps for the 20 script checks plus
+   `git diff --check`, exit codes, the unchanged checked-tree commit, the exact
+   manifest hash, and a zero-product-input diff from the deployed source.
+   Commit the resulting JSON after the measured run. Never infer timing from
+   commit timestamps or hand-edit the captured attestation.
+
+   ```powershell
+   powershell -NoProfile -ExecutionPolicy Bypass `
+     -File tools\dev\capture-m10-non-elevated-preflight.ps1 `
+     -ImplementationCommit eb262fad85320d4410365d1214ee2be9837fae53
+   ```
+5. In fresh Notepad, Chromium, Explorer, and one named Electron host, run one
    toolbar session per host with at least 10 grip and 10 settings-segment drags.
    Use `tools/dev/capture-m10-toolbar-session.ps1` while the operator performs
    the drags, and let sampling continue through the final pointer release. A
@@ -55,14 +71,14 @@ matching `summary.md` with the final human-readable verdict.
    verdicts to the exact capture SHA-256. The finalizer requires the original
    receipt and rejects a capture edited after receipt creation; do not resample
    or edit either JSON file.
-5. Launch the installed settings executable directly. Capture `initial`,
+6. Launch the installed settings executable directly. Capture `initial`,
    `minimum`, `minimum_scrolled`, `larger`, and `reopened` geometry as relevant
    with `tools/dev/capture-m10-settings-geometry.ps1`. Exercise both Windows
    light and dark themes and record the DPI actually inspected. The completed
    contract derives the exercised DPI and initial/minimum/larger client sizes
    from these files. Its `minimum_scrolled` capture must mechanically show both
    scrollbar positions at their computed ends.
-6. Fill `summary.json`, add `summary.md`, and run
+7. Fill `summary.json`, add `summary.md`, and run
    `tools/test-m10-evidence-summary-contract.ps1` before archival.
 
 Example topology capture:
@@ -136,5 +152,10 @@ powershell -NoProfile -ExecutionPolicy Bypass `
 
 The live verifier admits only `status=deployed_restart_required` manifests with
 `performed=true`, an empty deployment error, and no rollback attempt or
-completion. Its holder scan records current-session process coverage and blocks
-the final pass when any process module enumeration remains inaccessible.
+completion. It also requires the recorded OS boot time to be strictly after
+deployment and binds the verifier's SHA-256 to a clean tooling commit. Zero- or
+one-module process snapshots are recorded as partial, retried through native
+PSAPI, and never counted as complete. A targeted system-wide
+`tasklist /m YuneWindowsTSF*` scan must resolve every reported holder; raw
+current-session access limitations remain explicit warnings only when that
+targeted scan and the strict boot boundary both supply the stale-image proof.

@@ -1,6 +1,16 @@
 # M11D Activation, Toggle, Visibility, and Settings Repair Evidence
 
-Status: implementation fixed and non-elevated gates passed on 2026-07-09 PT;
+> **Pre-rebaseline provenance (D-21):** This file intentionally retains its
+> original M11D label, path, hashes, counts, test names, and historical verdicts.
+> Its settings DPI/resize/scroll evidence is now owned by canonical **M10**; its
+> activation, CAS/state-transition, dispatcher, and toolbar-visibility evidence
+> is now owned by canonical **M11**. Legacy M11/M11C presentation evidence also
+> maps to M10. References below to “M10 blocked” describe the former combined
+> skin/candidate plan, now split into the **M12 skin platform** and **M13 candidate
+> presentation** milestones. This evidence does not claim installed proof for the
+> current rebaseline hash.
+
+Pre-rebaseline status: implementation fixed and non-elevated gates passed on 2026-07-09 PT;
 approval-gated installed proof is pending. This evidence does not close M11 or
 unblock M10.
 

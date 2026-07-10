@@ -1,5 +1,10 @@
 # M11 Slice C — Toolbar Clone Repair Handoff
 
+> **Historical pre-rebaseline handoff:** D-21 assigns this ownership, topology,
+> drag, and backdrop work to the canonical M10 presentation closeout. References
+> below retain their original M11/M11C labels as implementation provenance; see
+> `docs/reference/m10-m13-rebaseline.md`.
+
 > **Status:** installed clone/drag proof passed on 2026-07-09 PT
 > (2026-07-10 UTC). Keep M11/M11C active under M11D until activation, lone-Shift
 > transition, and toolbar visibility are deterministic across all four hosts.

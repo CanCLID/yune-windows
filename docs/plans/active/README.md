@@ -1,32 +1,41 @@
 # Active Plans
 
-- `m11d-ime-activation-toolbar-visibility.md` - **implementation fixed;
-  installed proof pending.** The installed clone/drag sub-gate passed, but Chromium needed nine
-  toggle attempts, Explorer needed five and then eleven, and Claude produced no
-  toolbar after twelve attempts. M11D separates Windows profile activation,
-  token/disposition-based sink/hook routing, boot-epoch/revision CAS, and toolbar
-  show eligibility. Non-elevated CAS/token/parity/visibility gates pass; the
-  hash-pinned four-host run remains open.
-- `m11-plan-ui-modernization-cantonese.md` - **installed clone/drag proof
-  passed; M11D pending.** Slices A/B and the Slice C renderer are implemented.
-  Fresh Notepad/Chromium dragging retained one foreground-owned HWND with no
-  visual copies. The settings DPI/resize/scroll repair is implemented and passes
-  its non-elevated smoke; installed visual/usability proof remains part of the
-  combined hash-pinned Explorer/Electron gate.
-- `m11c-dcomp-glass-toolbar-handoff.md` - **clone repair proven; reliability
-  gate pending.** Records the current per-process TSF architecture, ownership
-  and supersession rules, movement-only drag contract, effective-backdrop
-  fallback, topology diagnostics, and installed clone-free result.
-- `m10-plan-skin-breadth-candidate-window.md` - **blocked on the combined M11
-  closeout.** M10 still
-  owns built-in/user skin breadth and the native candidate
-  restyle. Its locked V1 continuation is manifest-only, bounded, revisioned, and
-  keeps candidate behavior/performance evidence separate. No M10 slice begins
-  until the M11 settings closeout, deterministic activation/visibility, and the
-  complete installed Notepad/Chromium/Explorer/Electron gate pass; M11 supplies
-  only the reusable composition foundation.
+The 2026-07-10 rebaseline removes the historical "M11 before M10" inversion.
+See `docs/reference/m10-m13-rebaseline.md` for the complete old-to-new scope and
+evidence map.
+
+- `m10-native-ui-presentation-closeout.md` - **implementation complete;
+  installed acceptance pending.** Owns the native Cantonese surface,
+  DirectComposition toolbar presentation, clone-free ownership/drag/backdrop
+  behavior, and settings DPI/resize/scroll usability. The older installed
+  clone result remains regression evidence; the current implementation baseline
+  still needs hash-pinned toolbar-presentation and settings-usability verdicts.
+- `m11-activation-state-reliability.md` - **implementation complete; focused
+  non-elevated checks pass; expanded pre-deployment verification and installed
+  acceptance remain pending.** Owns profile/focus
+  identity, lone-Shift token/parity routing, boot-ID/revision CAS, bounded IPC,
+  privacy-safe tracing, and deterministic toolbar eligibility. Its four-host
+  gate requires visible-without-sacrificial-toggle behavior, 50 paced exact
+  transitions, rapid-burst parity, and previous-host hiding within 250 ms.
+- `m12-skin-platform.md` - **planned; blocked on M10 + M11 installed
+  acceptance.** Owns the strict manifest-only skin definition/catalog, built-in
+  `midnight`, transactional user-manifest import, revisioned catalog IPC,
+  caching, lifetime rules, and settings integration.
+- `m13-candidate-presentation.md` - **planned; blocked on M12.** It begins with
+  a reproducible GDI baseline, which blocks renderer migration. M13 owns the generalized composition lifecycle, complete
+  skin-driven native candidate restyle, opaque/static DirectComposition path,
+  normally redirected GDI fallback, behavior preservation, `頁 n/N`, and cold/
+  warm performance gates.
+
+M10 and M11 may share one approved, hash-pinned deployment, but they receive
+separate verdicts. Both must pass before M12 begins; M13 follows M12 and starts
+with its baseline slice. Their live execution is a paired closeout: if M11 cannot
+make a toolbar eligible in a required host, that M10 host gate is not exercised.
+Legacy plans now live in `docs/plans/history/`, and existing `m11*` evidence/test names
+remain unchanged as implementation provenance.
 
 Later / unplanned, noted so the settings panel is designed for them:
+
 - Server `customize`+`deploy` path to actually apply the deploy-time **engine
   prefs** (completion/correction/sentence/prediction).
 - **Schema import** (bring a new schema; needs the customize/deploy path).
@@ -34,6 +43,6 @@ Later / unplanned, noted so the settings panel is designed for them:
 - Per-user `YuneWindowsUiHost.exe` with a single always-on toolbar + animated skins,
   only if native Direct2D skins prove insufficient.
 
-M01 through M09 are in `docs/plans/history/`; see `docs/roadmap.md` for the
-milestone table and other candidate milestones (cold-start/broker, dogfood
-packaging).
+M01 through M09 and the pre-rebaseline source plans are in
+`docs/plans/history/`; see `docs/roadmap.md` for the product sequence and other
+candidate milestones (cold-start/broker, dogfood packaging).

@@ -32,7 +32,7 @@ $WindowSource = Read-RepoFile "src\candidate_window\yune_windows_candidate_windo
 $SkinManifestText = Read-RepoFile "skins\default\theme.json"
 $Evidence = Read-RepoFile "docs\evidence\m11\summary.md"
 $Roadmap = Read-RepoFile "docs\roadmap.md"
-$M11DPlan = Read-RepoFile "docs\plans\active\m11d-ime-activation-toolbar-visibility.md"
+$M11Plan = Read-RepoFile "docs\plans\active\m11-activation-state-reliability.md"
 
 foreach ($Forbidden in @("WebView2", "Electron", "<html", "IWebBrowser", "msedgewebview2")) {
     if ($SettingsSource -match $Forbidden -or $WindowSource -match $Forbidden) {
@@ -258,16 +258,18 @@ foreach ($Required in @(
     )) {
     Require-Text $Evidence $Required "M11 evidence summary is missing: $Required"
 }
-Require-Text $Roadmap 'M11 .*clone/drag proven; reliability/settings implementation fixed; installed closeout pending' `
-    "roadmap must separate the passed M11 clone gate from the open M11D reliability gate."
+Require-Text $Roadmap 'M10 .*Native UI Presentation Closeout .*installed acceptance pending' `
+    "roadmap must expose the canonical M10 presentation closeout."
+Require-Text $Roadmap 'M11 .*Activation and State Reliability .*installed acceptance pending' `
+    "roadmap must expose the canonical M11 activation/state closeout."
 foreach ($Required in @(
-        'M11D - IME Activation, Toggle, and Toolbar Visibility Reliability',
+        'M11 Activation and State Reliability Plan',
         'exactly one acknowledged',
-        '50 lone-Shift',
-        'M10 (remains|stays) blocked',
+        '50 paced lone-Shift',
+        'M12 and\s+M13 remain blocked',
         'No Yune engine ABI change'
     )) {
-    Require-Text $M11DPlan $Required "M11D reliability plan is missing: $Required"
+    Require-Text $M11Plan $Required "canonical M11 reliability plan is missing: $Required"
 }
 
 Write-Host "M11 UI modernization/Cantonese localization static contract passed."

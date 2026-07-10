@@ -58,6 +58,15 @@ composes 東突厥, with the romanization shown inline at the caret) were confir
 live across the Tier-1 hosts. Evidence: `docs/evidence/m06/` and
 `docs/evidence/m07/`.
 
+The active native-shell work is rebaselined in dependency order. M10 owns the
+implemented Cantonese UI, singular clone-free toolbar presentation, and
+settings-window usability closeout. M11 owns the implemented activation,
+lone-Shift state, and deterministic toolbar-visibility reliability closeout.
+They share the next approval-gated hash-pinned deployment but receive separate
+verdicts. M12 then adds the strict manifest-only skin platform, and M13 applies
+it to the native candidate presentation. See
+`docs/reference/m10-m13-rebaseline.md`.
+
 For dogfood package or production installer work, refresh live evidence under
 the Yune Windows names whenever package inputs or installer behavior change:
 

@@ -1,6 +1,16 @@
 # M11 Slice C Toolbar Stabilization Evidence
 
-Status: the installed clone/drag proof passed in Notepad and Chromium on
+> **Pre-rebaseline provenance (D-21):** This file intentionally retains its
+> original M11C label, path, hashes, counts, test names, and historical verdicts.
+> Canonical **M10** now owns this legacy M11/M11C toolbar-presentation evidence
+> and the settings DPI/resize/scroll portion of M11D. M11D activation,
+> state-transition, and toolbar-visibility reliability is canonical **M11**.
+> References below to “M10 blocked” describe the former combined skin/candidate
+> plan, now split into the **M12 skin platform** and **M13 candidate presentation**
+> milestones. This evidence does not claim installed proof for the current
+> rebaseline hash.
+
+Pre-rebaseline status: the installed clone/drag proof passed in Notepad and Chromium on
 2026-07-09 PT (2026-07-10 UTC). The M11D repair now passes non-elevated gates;
 M11C remains active until the combined installed activation/settings and
 Explorer/Electron breadth gate passes.

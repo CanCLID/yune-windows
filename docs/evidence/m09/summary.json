@@ -7,7 +7,7 @@
   "live_machine_skip_reason": "Elevated install/register/unregister/cleanup, registry mutation, verifier setup, and full live IME loops require explicit current-session approval.",
   "settings_panel": "Native Win32 YuneWindowsSettings.exe with session, appearance, engine, dictionary, and schemas sections.",
   "window_class_isolation": "Candidate-window and language-bar classes are module-scoped to avoid dispatching temp-build smokes into an installed TSF DLL.",
-  "candidate_window": "Unchanged in M09; candidate-window skinning remains M10 scope.",
+  "candidate_window": "Unchanged in M09; pre-D-21 M10 skin breadth and candidate skinning are canonical M12 and M13 scope.",
   "checks": [
     "git diff --check",
     "tools/test-tsf-shell-build.ps1",

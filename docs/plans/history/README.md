@@ -1,6 +1,6 @@
 # Historical Plans
 
-Completed implementation plans live here for auditability.
+Completed and superseded implementation plans live here for auditability.
 
 - `m01-plan-windows-product.md` - Windows product baseline and live
   closeout path.
@@ -25,3 +25,19 @@ Completed implementation plans live here for auditability.
 - `m09-plan-skins-and-picker.md` - toolbar settings segment, native Win32
   settings panel, skin picker, shared-renderer preview, and disabled future
   engine/dictionary/schema sections.
+
+## Pre-rebaseline source plans
+
+D-21 reordered the active work on 2026-07-10. These files preserve their
+original labels and internal scheduling language for auditability; their
+current owners are recorded in `docs/reference/m10-m13-rebaseline.md`.
+
+- `m10-plan-skin-breadth-candidate-window.md` - unstarted former M10 plan, now
+  split between canonical M12 Skin Platform and M13 Candidate Presentation.
+- `m11-plan-ui-modernization-cantonese.md` - former M11 presentation and
+  localization plan, now owned by canonical M10.
+- `m11c-dcomp-glass-toolbar-handoff.md` - former M11C ownership/clone/drag/
+  backdrop handoff, now canonical M10 implementation history.
+- `m11d-ime-activation-toolbar-visibility.md` - former M11D plan; activation,
+  state, and visibility now belong to canonical M11, while its settings
+  DPI/resize/scroll subsection belongs to canonical M10.

@@ -26,8 +26,8 @@ What landed:
 - Added present-but-disabled controls for deploy-time engine preferences,
   candidate display preferences, dictionary import/export, and schema import so
   future milestones can fill in behavior without redesigning the panel.
-- Kept the candidate window visually unchanged; M10 owns candidate-window
-  skinning and skin breadth.
+- Kept the candidate window visually unchanged; the pre-D-21 M10 skin-breadth
+  and candidate-skinning scope is now split between canonical M12 and M13.
 
 Follow-up fixes:
 

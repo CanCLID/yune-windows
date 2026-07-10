@@ -1,5 +1,10 @@
 # M11 UI Modernization + Cantonese Localization Plan
 
+> **Historical pre-rebaseline plan:** D-21 assigns this presentation,
+> localization, and settings-usability work to the canonical M10 plan.
+> Activation/state reliability moved to canonical M11. References below retain
+> their original labels; see `docs/reference/m10-m13-rebaseline.md`.
+
 > **Status:** installed clone/drag proof passed on 2026-07-09 PT
 > (2026-07-10 UTC). M11D and the settings DPI/resize/scroll repair now pass
 > non-elevated gates; their combined installed four-host/usability proof remains

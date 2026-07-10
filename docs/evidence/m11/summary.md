@@ -1,6 +1,16 @@
 # M11 UI Modernization + Cantonese Localization Evidence
 
-Status: installed clone/drag proof passed on 2026-07-09 PT
+> **Pre-rebaseline provenance (D-21):** This file intentionally retains its
+> original M11 label, paths, hashes, counts, test names, and historical verdicts.
+> Under the canonical milestone map, the legacy M11/M11C native presentation and
+> the settings DPI/resize/scroll portion of M11D belong to **M10**; M11D
+> activation, state-transition, and toolbar-visibility reliability belongs to
+> **M11**. References below to “M10 blocked” describe the former combined
+> skin/candidate plan, now split into the **M12 skin platform** and **M13 candidate
+> presentation** milestones. This evidence does not claim installed proof for the
+> current rebaseline hash.
+
+Pre-rebaseline status: installed clone/drag proof passed on 2026-07-09 PT
 (2026-07-10 UTC). The M11D reliability and settings-layout repairs now pass
 non-elevated gates, but their combined installed four-host/usability proof is
 pending. M11/M11C remain active and M10 remains blocked.

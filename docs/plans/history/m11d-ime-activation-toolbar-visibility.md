@@ -1,5 +1,10 @@
 # M11D - IME Activation, Toggle, and Toolbar Visibility Reliability
 
+> **Historical pre-rebaseline plan:** D-21 assigns the activation/state/
+> visibility scope below to canonical M11 and the settings DPI/resize/scroll
+> subsection to canonical M10. References below retain the original M11D/M10
+> scheduling language; see `docs/reference/m10-m13-rebaseline.md`.
+
 > **Status:** implementation fixed; approval-gated installed proof pending. The
 > installed M11C clone/drag sub-gate passed. Boot-ID/revision CAS, bounded
 > operation I/O, token/parity arbitration, identity-authoritative dispatch, and

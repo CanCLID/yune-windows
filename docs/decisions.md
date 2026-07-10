@@ -131,7 +131,7 @@ to enable learning.
 
 M08 keeps the focus-scoped language bar native inside the TSF DLL. M08 first
 landed a `WS_EX_NOACTIVATE | WS_EX_LAYERED` Direct2D/DirectWrite popup presented
-through `UpdateLayeredWindow`; M11 Slice C supersedes that presentation with a
+through `UpdateLayeredWindow`; legacy M11 Slice C supersedes that presentation with a
 `WS_EX_NOREDIRECTIONBITMAP` DirectComposition + Direct2D surface over DWM Desktop
 Acrylic when DWM accepts it, otherwise an opaque static pill. WebView2, Electron,
 HTML, and a session-wide always-on UI host stay out of the toolbar path. The
@@ -139,9 +139,10 @@ toolbar skin loads from `skins/<name>/theme.json` with a
 compiled-in default fallback, and toolbar position plus selected skin remain
 server-owned state via `op=set-toolbar-position` and `op=set-skin`; the TSF DLL
 does not read or write `state\ime-state.json`. The candidate window remains
-visually unchanged for now, but the renderer/skin scaffolding is shared so M10 can
-adopt it deliberately. Manifest segment glyph labels are rendered; SVG/image
-asset rendering is deferred until a renderer path actually consumes those assets.
+visually unchanged for now, but the renderer/skin scaffolding is shared so M13
+can adopt it deliberately after M12 supplies the validated catalog. Manifest
+segment glyph labels are rendered; SVG/image asset rendering is deferred until
+a renderer path actually consumes those assets.
 
 ### D-16 - Settings panel is native Win32 (no WebView2)
 
@@ -157,10 +158,11 @@ the settings executable must not read or write `state\ime-state.json` directly.
 This narrows D-04/D-12's "WebView2 may be evaluated for settings" to "settings
 panel is native"; WebView2 is not adopted for any Yune Windows surface.
 
-### D-17 - M11 localization and glass proof boundary
+### D-17 - Native UI localization and glass proof boundary
 
-M11 localizes the native settings panel and toolbar to Cantonese only for now,
-with user-visible strings centralized in a native `ui_strings` source so a
+Canonical M10 localizes the native settings panel and toolbar to Cantonese only
+for now. This work was implemented and initially evidenced under the legacy M11
+label, with user-visible strings centralized in a native `ui_strings` source so a
 future language toggle can be added without changing server protocol values.
 Settings combo boxes must keep display labels separate from the server IDs sent
 through `op=` payloads. The glass toolbar path uses native DirectComposition +
@@ -187,32 +189,48 @@ During capture, pointer movement changes only the HWND position. State, DPI,
 backdrop, and graphics changes queue until one non-reentrant finalizer persists
 the position at most once and renders at most once. Clone-free correctness
 outranks acrylic: an installed failure demotes the toolbar from acrylic to static
-DirectComposition, then to a normally redirected opaque native D2D HWND. M10 is
-blocked until M11D plus installed settings usability pass the
-combined installed gate and retains ownership of candidate rendering.
+DirectComposition, then to a normally redirected opaque native D2D HWND. This
+presentation and settings-usability scope belongs to canonical M10. Activation,
+state acknowledgement, and deterministic show eligibility belong to canonical
+M11; both installed verdicts must pass before M12 begins.
 
-### D-19 - M10 V1 skins are manifest-only and candidate proof is independent
+### D-19 - M12 V1 skins are manifest-only and M13 candidate proof is independent
 
-After the combined M11 closeout gate passes, M10 introduces shared
-`SkinDefinition` and `SkinCatalog` code for server, TSF, and settings. V1 accepts
-bounded JSON manifests only: no PNG, SVG, executable content, or asset paths. User skins live
-under `%LOCALAPPDATA%\Yune\WindowsIme\skins-user`, are deleted by normal
-uninstall/reinstall, and survive non-elevated dev swaps. Catalog IPC uses
-`list-skins`, `reload-skins`, `set-skin`, and a stable `skin_revision`; invalid or
-deleted active skins fall back atomically to `default`.
+After canonical M10 and M11 pass their installed closeout gates, M12 introduces
+shared `SkinDefinition` and `SkinCatalog` code for server, TSF, and settings. V1
+accepts bounded JSON manifests only: no PNG, SVG, executable content, or asset
+paths. User skins live under `%LOCALAPPDATA%\Yune\WindowsIme\skins-user`, are
+deleted by normal uninstall/reinstall, and survive non-elevated dev swaps.
+Catalog IPC uses `list-skins`, `reload-skins`, `set-skin`, and a stable
+`skin_revision`; invalid or deleted active skins fall back atomically to
+`default`. IDs are ASCII-folded to lowercase for catalog, storage, counting,
+IPC, and active-state identity so Windows case-insensitive paths cannot create
+distinct `Foo`/`foo` entries or bypass `default` reservation.
 
-Candidate rendering remains an M10 gate, not evidence inherited from M11. It
-uses an opaque/static-tint DComp surface, preserves M04 ownership/typing
+User-manifest installation is an explicit transactional M12 operation: validate
+the bounded source before deriving a safe destination, write and flush a
+same-directory temporary file, atomically replace `theme.json`, rebuild the
+catalog, and select only a confirmed ID/revision. A failed import or reload must
+not publish a partial catalog or change the active selection. Validation,
+write, flush, or replacement failure leaves the previous manifest intact. If
+catalog reload fails after a successful atomic replacement, the new manifest
+remains installed while the previous published catalog/active state remains
+authoritative until a later successful reload.
+
+Candidate rendering remains an M13 gate, not evidence inherited from M10, M11,
+or M12. It uses an opaque/static-tint DComp surface, preserves M04 ownership/typing
 semantics, and recreates a normally redirected GDI window if composition fails
 before first show. Cold and warm candidate performance must be compared with a
-recorded GDI baseline before M10 can close.
+recorded GDI baseline before M13 can close.
 
-### D-20 - Clone topology and activation reliability are separate gates
+### D-20 - Presentation and activation reliability are separate gates
 
-The installed M11C clone/drag sub-gate may pass without proving that Windows
-profile activation, the Yune lone-Shift toggle, server-state acknowledgement,
-and toolbar show eligibility are deterministic. M11D owns those activation and
-visibility layers and must preserve every M11C ownership/drag invariant.
+The installed legacy-M11C clone/drag sub-gate may pass without proving that
+Windows profile activation, the Yune lone-Shift toggle, server-state
+acknowledgement, and toolbar show eligibility are deterministic. Canonical M10
+owns presentation, settings usability, and every M11C ownership/drag invariant.
+Canonical M11 owns activation and visibility while regression-testing those M10
+invariants on the same frozen build.
 
 Paced lone-Shift presses require one durably acknowledged transition per
 accepted token under stable foreground ownership. Rapid accepted presses
@@ -225,16 +243,56 @@ I/O runs in a heap-owned worker with no COM/UI/service state; results are consum
 only on the owning service STA. Retired dispatchers become ineligible before
 best-effort cleanup, so late work fails closed.
 
-M11/M11C/M11D archive together only after Notepad, Chromium, Explorer, and one
+M10 and M11 receive separate verdicts from one hash-pinned installed session.
+M10 closes only when its current-build toolbar-presentation and settings-
+usability gates pass. M11 closes only after Notepad, Chromium, Explorer, and one
 Electron host show the toolbar without sacrificial toggles; each paced lone
 Shift causes exactly one acknowledged state transition; rapid bursts end at the
-parity-correct state; previous-host hiding remains within 250 ms; and the clone,
-focus, and position-persistence gates pass. The M11 settings DPI/resize/scroll
-repair is implemented and non-elevated-smoke-covered, but its installed usability
-proof must precede the combined closeout. M10 remains blocked and continues to
-own skin breadth and candidate rendering.
+parity-correct state; and previous-host hiding remains within 250 ms. Neither
+verdict substitutes for the other, and M12 remains blocked until both pass.
+The installed execution is nevertheless coupled: if M11 cannot make a toolbar
+eligible in a required host, that M10 presentation gate is `not_exercised`; an
+observed duplicate or foreground-invalid stale toolbar may fail both verdicts.
+
+### D-21 - Rebaseline active work as M10 through M13
+
+The roadmap must follow dependency order rather than preserve an accidental
+numbering sequence. The unstarted former M10 was drafted before stop-the-line
+M11 work became its prerequisite, producing the permanent contradiction
+"M11 before M10." The canonical sequence is therefore:
+
+1. **M10 Native UI Presentation Closeout** - legacy M11/M11C localization,
+   presentation, ownership/drag/backdrop work plus the settings sizing portion
+   of legacy M11D;
+2. **M11 Activation and State Reliability** - the focus, token/parity, CAS,
+   bounded IPC, tracing, and deterministic visibility portion of legacy M11D;
+3. **M12 Skin Platform** - the former M10 shared catalog, transactional import,
+   revisioned IPC/cache, built-in breadth, lifetime, and settings work; and
+4. **M13 Candidate Presentation** - the former M10 candidate baseline,
+   composition lifecycle, renderer, fallback, behavior, localization, and
+   performance work.
+
+Published legacy plan and evidence labels remain audit provenance. Existing
+`docs/evidence/m11`, `m11c`, and `m11d` directories, JSON milestone values,
+test names, hashes, and observations are not renamed or retroactively claimed
+as current-hash acceptance. The crosswalk is canonical at
+`docs/reference/m10-m13-rebaseline.md`.
+
+M10 and M11 share one approved deployment but receive separate verdicts;
+both must pass before M12 begins. M13 begins after M12 with its GDI baseline
+slice; renderer migration begins only after that baseline is reproducible. This
+decision changes planning ownership only and does not authorize elevated
+installation, registration, holder termination, or cleanup.
 
 ## Last Updated
+
+2026-07-10 - D-21 replaces the historical M11-before-M10 execution order with
+canonical M10 presentation, M11 activation/state reliability, M12 skin
+platform, and M13 candidate presentation. Implementation last changed at
+`4199a09`; pre-rebaseline source/evidence baseline `337b9bd` contains it, and
+this planning/contract rebaseline changes no product build input. Legacy
+evidence paths and milestone fields remain unchanged, and the next machine-state
+step is still one separately approved, hash-pinned M10+M11 installed run.
 
 2026-07-09 PT / 2026-07-10 UTC - Approved installed M11 proof deployed commit
 `1f419837b0575dc1ea47dba2785cbb6949b7e73c` with TSF SHA-256

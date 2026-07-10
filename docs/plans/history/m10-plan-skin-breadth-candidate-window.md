@@ -1,5 +1,10 @@
 # M10 Skin Breadth + Candidate-Window Skinning Plan
 
+> **Historical pre-rebaseline plan:** D-21 split this unstarted scope into the
+> canonical M12 Skin Platform and M13 Candidate Presentation plans. References
+> below to M10/M11 preserve the scheduling language that existed before the
+> 2026-07-10 rebaseline; see `docs/reference/m10-m13-rebaseline.md`.
+
 > **Status:** blocked on the remaining M11 closeout. The installed M11 clone/drag
 > sub-gate passed and the settings DPI/resize/scroll repair passes non-elevated
 > smoke, but no M10 implementation begins until M11D activation/lone-Shift/

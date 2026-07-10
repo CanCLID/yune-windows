@@ -1,8 +1,23 @@
 {
   "milestone": "M11D",
+  "record_epoch": "pre_d21",
   "status": "implementation fixed; approval-gated installed proof pending",
   "evidence": "docs/evidence/m11d/summary.md",
-  "m10_blocked": true,
+  "rebaseline": {
+    "decision": "D-21",
+    "provenance_preserved": true,
+    "original_milestone": "M11D",
+    "current_owners": {
+      "legacy_m11_m11c_native_presentation": "M10",
+      "m11d_settings_dpi_resize_scroll": "M10",
+      "m11d_activation_state_visibility": "M11",
+      "former_m10_skin_platform": "M12",
+      "former_m10_candidate_presentation": "M13"
+    },
+    "legacy_m10_blocked_meaning": "The former combined skin and candidate plan, now split into M12 and M13.",
+    "current_rebaseline_hash_installed_proof_claimed": false
+  },
+  "pre_rebaseline_m10_blocked": true,
   "live_machine_steps_run_for_this_build": false,
   "implemented": {
     "boot_id_revision_cas": true,
@@ -37,6 +52,6 @@
     "hosts": ["Notepad", "Chromium", "Explorer", "Electron"],
     "paced_toggle_count": 50,
     "settings_usability": false,
-    "m11_archived": false
+    "pre_rebaseline_m11_archived": false
   }
 }

@@ -13,3 +13,7 @@ discussions may use the previous Windows phase labels:
 
 Keep new docs, plans, tests, tools, and evidence roots on the `Mxx` naming
 scheme. This file is the only intended place to retain the old labels.
+
+The separate 2026-07-10 reordering of local M10-M13 work is documented in
+`docs/reference/m10-m13-rebaseline.md`; it does not change the P2-WIN mapping
+above.

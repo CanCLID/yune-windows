@@ -24,7 +24,7 @@ $Settings = Read-RepoFile "src\tools\yune_windows_settings.cpp"
 $Core = Read-RepoFile "src\tsf\yune_windows_reliability_core.h"
 $CoreSmoke = Read-RepoFile "src\tsf\yune_windows_reliability_smoke.cpp"
 $Build = Read-RepoFile "tools\build-tsf-shell.ps1"
-$Plan = Read-RepoFile "docs\plans\active\m11d-ime-activation-toolbar-visibility.md"
+$Plan = Read-RepoFile "docs\plans\active\m11-activation-state-reliability.md"
 
 foreach ($Required in @(
         'boot_id',
@@ -158,7 +158,7 @@ foreach ($Required in @(
         'dead dispatcher',
         'approval-gated installed'
     )) {
-    Require-Text $Plan $Required "M11D plan is missing reviewed semantic: $Required"
+    Require-Text $Plan $Required "canonical M11 plan is missing reviewed semantic: $Required"
 }
 
 Write-Host "M11D activation, CAS, token, parity, and visibility contract passed."

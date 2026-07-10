@@ -222,6 +222,9 @@ public:
     bool Update(const LanguageBarState& state, bool show);
     void Hide();
     void HideForSupersededFocus();
+    bool IsVisible() const {
+        return hwnd_ && IsWindow(hwnd_) && IsWindowVisible(hwnd_);
+    }
 #ifdef YUNE_WINDOWS_LANGUAGE_BAR_SMOKE_HOOKS
     HWND native_handle_for_testing() const { return hwnd_; }
     unsigned long render_count_for_testing() const { return render_count_; }

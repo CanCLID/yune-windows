@@ -15,6 +15,7 @@ $PackageDir = Join-Path $YuneRoot "target\yune-windows-native\x86_64-pc-windows-
 $IncludeDir = Join-Path $PackageDir "include"
 $ServerSource = Join-Path $RepoRoot "src\server\yune_windows_server.cpp"
 $TsfSource = Join-Path $RepoRoot "src\tsf\yune_windows_tsf.cpp"
+$ReliabilitySmokeSource = Join-Path $RepoRoot "src\tsf\yune_windows_reliability_smoke.cpp"
 $ProfileToolSource = Join-Path $RepoRoot "src\tools\yune_windows_profile_tool.cpp"
 $SettingsToolSource = Join-Path $RepoRoot "src\tools\yune_windows_settings.cpp"
 $SettingsUiStringsSource = Join-Path $RepoRoot "src\tools\yune_windows_ui_strings.cpp"
@@ -25,12 +26,14 @@ $LanguageBarSmokeSource = Join-Path $RepoRoot "src\candidate_window\yune_windows
 $SkinSourceDir = Join-Path $RepoRoot "skins"
 $ServerExe = Join-Path $OutputDir "YuneWindowsServer.exe"
 $TsfDll = Join-Path $OutputDir "YuneWindowsTSF.dll"
+$ReliabilitySmokeExe = Join-Path $OutputDir "YuneWindowsReliabilitySmoke.exe"
 $ProfileToolExe = Join-Path $OutputDir "YuneWindowsProfileTool.exe"
 $SettingsToolExe = Join-Path $OutputDir "YuneWindowsSettings.exe"
 $CandidateWindowSmokeExe = Join-Path $OutputDir "YuneWindowsCandidateWindowSmoke.exe"
 $LanguageBarSmokeExe = Join-Path $OutputDir "YuneWindowsLanguageBarSmoke.exe"
 $ServerObj = Join-Path $OutputDir "yune_windows_server.obj"
 $TsfObj = Join-Path $OutputDir "yune_windows_tsf.obj"
+$ReliabilitySmokeObj = Join-Path $OutputDir "yune_windows_reliability_smoke.obj"
 $ProfileToolObj = Join-Path $OutputDir "yune_windows_profile_tool.obj"
 $SettingsToolObj = Join-Path $OutputDir "yune_windows_settings.obj"
 $SettingsUiStringsObj = Join-Path $OutputDir "yune_windows_ui_strings.obj"
@@ -89,6 +92,12 @@ if ($LASTEXITCODE -ne 0) {
     throw "TSF DLL build failed with exit code $LASTEXITCODE"
 }
 
+$ReliabilitySmokeCompile = "call `"$VsDevCmd`" -arch=x64 -host_arch=x64 >nul && cl.exe /nologo /std:c++20 /EHsc /W4 /permissive- /utf-8 /Fo`"$ReliabilitySmokeObj`" /Fe`"$ReliabilitySmokeExe`" `"$ReliabilitySmokeSource`""
+cmd.exe /d /s /c "$ReliabilitySmokeCompile"
+if ($LASTEXITCODE -ne 0) {
+    throw "M11D reliability smoke build failed with exit code $LASTEXITCODE"
+}
+
 $CandidateWindowSmokeCompile = "call `"$VsDevCmd`" -arch=x64 -host_arch=x64 >nul && cl.exe /nologo /std:c++20 /EHsc /W4 /permissive- /utf-8 /DUNICODE /D_UNICODE /Fo`"$CandidateWindowSmokeObj`" /Fe`"$CandidateWindowSmokeExe`" `"$CandidateWindowSmokeSource`" `"$CandidateWindowObj`" /link user32.lib gdi32.lib ole32.lib dwmapi.lib d2d1.lib dwrite.lib d3d11.lib dxgi.lib dcomp.lib"
 cmd.exe /d /s /c "$CandidateWindowSmokeCompile"
 if ($LASTEXITCODE -ne 0) {
@@ -127,6 +136,7 @@ Copy-Item -LiteralPath $SkinSourceDir -Destination $SkinDestDir -Recurse -Force
 
 Write-Host "Built TSF shell artifacts:"
 Write-Host "  $TsfDll"
+Write-Host "  $ReliabilitySmokeExe"
 Write-Host "  $ServerExe"
 Write-Host "  $ProfileToolExe"
 Write-Host "  $SettingsToolExe"

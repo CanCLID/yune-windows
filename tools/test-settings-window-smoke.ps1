@@ -43,16 +43,18 @@ if ($Subsystem -ne 2) {
     throw "settings executable PE subsystem is $Subsystem, expected 2 (Windows GUI)."
 }
 
-$Process = Start-Process -FilePath $SettingsExe `
-    -ArgumentList "--self-test" `
-    -WindowStyle Hidden `
-    -PassThru
-if (-not $Process.WaitForExit(5000)) {
-    Stop-Process -Id $Process.Id -Force -ErrorAction SilentlyContinue
-    throw "settings self-test did not exit promptly."
-}
-if ($Process.ExitCode -ne 0) {
-    throw "settings self-test failed with exit code $($Process.ExitCode)."
+foreach ($Mode in @("--self-test", "--layout-smoke")) {
+    $Process = Start-Process -FilePath $SettingsExe `
+        -ArgumentList $Mode `
+        -WindowStyle Hidden `
+        -PassThru
+    if (-not $Process.WaitForExit(5000)) {
+        Stop-Process -Id $Process.Id -Force -ErrorAction SilentlyContinue
+        throw "settings $Mode did not exit promptly."
+    }
+    if ($Process.ExitCode -ne 0) {
+        throw "settings $Mode failed with exit code $($Process.ExitCode)."
+    }
 }
 
-Write-Host "Settings window self-test smoke passed."
+Write-Host "Settings self-test and host-DPI layout smoke passed."

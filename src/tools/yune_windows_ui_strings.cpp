@@ -57,5 +57,7 @@ const wchar_t* kServerUnavailable = L"新韻輸入法伺服器未啟用。";
 const wchar_t* kUpdateStateFailed = L"無法更新輸入法狀態。";
 const wchar_t* kUpdateSchemaFailed = L"無法更新方案。";
 const wchar_t* kUpdateSkinFailed = L"無法更新主題。";
+const wchar_t* kStateChangedConcurrently =
+    L"設定已由另一個視窗更新，請再試一次。";
 
 }  // namespace yune_windows::ui_strings

@@ -441,11 +441,30 @@ bool RunCrossProcessSupersessionSmoke(
         }
         const std::vector<HWND> child_bars =
             LanguageBarWindowsForProcess(process_info.dwProcessId);
-        if (child_bars.size() != 1 || !IsWindowVisible(child_bars.front())) {
-            std::cerr << "supersession helper did not expose one toolbar\n";
+        std::vector<HWND> visible_child_bars;
+        std::copy_if(child_bars.begin(), child_bars.end(),
+                     std::back_inserter(visible_child_bars),
+                     [](HWND hwnd) { return IsWindowVisible(hwnd) != FALSE; });
+        if (visible_child_bars.size() != 1) {
+            std::cerr << "supersession helper did not expose one toolbar"
+                      << " total=" << child_bars.size()
+                      << " visible=" << visible_child_bars.size();
+            std::cerr << " foreground="
+                      << reinterpret_cast<ULONG_PTR>(GetForegroundWindow())
+                      << "\n";
+            for (HWND child_window : child_bars) {
+                wchar_t child_class[128] = {};
+                (void)GetClassNameW(child_window, child_class,
+                                    ARRAYSIZE(child_class));
+                std::wcerr << L"  hwnd="
+                           << reinterpret_cast<ULONG_PTR>(child_window)
+                           << L" visible="
+                           << (IsWindowVisible(child_window) ? 1 : 0)
+                           << L" class=" << child_class << L"\n";
+            }
             break;
         }
-        const HWND child_bar = child_bars.front();
+        const HWND child_bar = visible_child_bars.front();
         const HWND child_owner = GetWindow(child_bar, GW_OWNER);
         if (!child_owner ||
             RootOwner(child_owner) != RootOwner(GetForegroundWindow())) {
@@ -1139,7 +1158,7 @@ int SelfTest() {
     DestroyWindow(bar_hwnd);
     PumpMessages(50);
     if (toolbar.native_handle_for_testing() != nullptr ||
-        !LanguageBarWindowsForCurrentProcess().empty()) {
+        VisibleLanguageBarCountForCurrentProcess() != 0) {
         std::cerr << "WM_NCDESTROY did not clear language-bar state\n";
         DestroyWindow(owner);
         return 1;
@@ -1152,7 +1171,7 @@ int SelfTest() {
     bar_hwnd = toolbar.native_handle_for_testing();
     if (!bar_hwnd || !IsWindowVisible(bar_hwnd) ||
         GetWindow(bar_hwnd, GW_OWNER) != owner ||
-        LanguageBarWindowsForCurrentProcess().size() != 1) {
+        VisibleLanguageBarCountForCurrentProcess() != 1) {
         std::cerr << "recreated language bar was not cleanly owned and unique\n";
         DestroyWindow(owner);
         return 1;

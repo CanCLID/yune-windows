@@ -10,6 +10,7 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "rime_yune_windows_profile_api.h"
@@ -44,6 +45,8 @@ struct Request {
     std::string direction;
     std::string x;
     std::string y;
+    std::string expect_boot_id;
+    std::string expect_revision;
     std::vector<std::string> unknown_fields;
     bool commit = false;
 };
@@ -57,6 +60,8 @@ struct YuneState {
     int toolbar_position_x = 0;
     int toolbar_position_y = 0;
     std::string toolbar_skin = "default";
+    std::string boot_id;
+    unsigned long long revision = 0;
 };
 
 struct SchemaInfo {
@@ -384,6 +389,16 @@ int ParseProtocolInt(std::string_view value, const char* field_name) {
     return static_cast<int>(parsed_value);
 }
 
+unsigned long long ParseProtocolRevision(std::string_view value,
+                                         const char* field_name) {
+    Require(!value.empty(), field_name);
+    size_t parsed = 0;
+    const unsigned long long parsed_value =
+        std::stoull(std::string(value), &parsed, 10);
+    Require(parsed == value.size(), field_name);
+    return parsed_value;
+}
+
 int ParseNonNegativeProtocolInt(std::string_view value, const char* field_name) {
     const int parsed = ParseProtocolInt(value, field_name);
     Require(parsed >= 0, field_name);
@@ -407,6 +422,18 @@ bool ParsePageBackward(std::string_view value) {
         return false;
     }
     throw std::runtime_error("invalid page direction");
+}
+
+std::string NewServerBootId() {
+    FILETIME now = {};
+    GetSystemTimeAsFileTime(&now);
+    ULARGE_INTEGER timestamp = {};
+    timestamp.LowPart = now.dwLowDateTime;
+    timestamp.HighPart = now.dwHighDateTime;
+    std::ostringstream value;
+    value << std::hex << timestamp.QuadPart << "-" << GetCurrentProcessId()
+          << "-" << GetTickCount64();
+    return value.str();
 }
 
 std::filesystem::path StateFilePathForArgs(const Args& args) {
@@ -526,6 +553,46 @@ bool ExtractJsonInt(const std::string& json, std::string_view key, int* value) {
     }
 }
 
+bool ExtractJsonRevision(const std::string& json, std::string_view key,
+                         unsigned long long* value) {
+    if (!value) {
+        return false;
+    }
+    const std::string needle = "\"" + std::string(key) + "\"";
+    const size_t key_pos = json.find(needle);
+    if (key_pos == std::string::npos) {
+        return false;
+    }
+    const size_t colon_pos = json.find(':', key_pos + needle.size());
+    if (colon_pos == std::string::npos) {
+        return false;
+    }
+    size_t value_pos = colon_pos + 1;
+    while (value_pos < json.size() &&
+           static_cast<unsigned char>(json[value_pos]) <= 0x20) {
+        ++value_pos;
+    }
+    size_t end = value_pos;
+    while (end < json.size() && json[end] >= '0' && json[end] <= '9') {
+        ++end;
+    }
+    if (end == value_pos) {
+        return false;
+    }
+    try {
+        size_t parsed = 0;
+        const unsigned long long parsed_value =
+            std::stoull(json.substr(value_pos, end - value_pos), &parsed, 10);
+        if (parsed != end - value_pos) {
+            return false;
+        }
+        *value = parsed_value;
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
 bool IsSafeSkinName(std::string_view value) {
     if (value.empty() || value.size() > 64) {
         return false;
@@ -575,6 +642,10 @@ Request ParseRequest(const std::string& payload) {
             request.x = line.substr(2);
         } else if (line.rfind("y=", 0) == 0) {
             request.y = line.substr(2);
+        } else if (line.rfind("expect_boot_id=", 0) == 0) {
+            request.expect_boot_id = line.substr(15);
+        } else if (line.rfind("expect_revision=", 0) == 0) {
+            request.expect_revision = line.substr(16);
         } else if (line == "commit=1") {
             request.commit = true;
         } else if (line == "commit=0") {
@@ -671,6 +742,7 @@ public:
         }
         (void)deploy_diagnostics;
         LoadState();
+        state_.boot_id = NewServerBootId();
         WarmDictionary();
     }
 
@@ -775,34 +847,74 @@ private:
             IsSafeSkinName(text_value)) {
             state_.toolbar_skin = text_value;
         }
+        unsigned long long revision = 0;
+        if (ExtractJsonRevision(json, "revision", &revision)) {
+            state_.revision = revision;
+        }
     }
 
-    void PersistState() const {
+    void PersistState(const YuneState& state) const {
         std::filesystem::create_directories(state_file_.parent_path());
-        std::ofstream out(state_file_, std::ios::binary | std::ios::trunc);
-        Require(static_cast<bool>(out), "failed to open IME state file");
+        const std::filesystem::path temporary_state_file =
+            state_file_.wstring() + L".tmp";
+        std::ofstream out(temporary_state_file,
+                          std::ios::binary | std::ios::trunc);
+        if (!out) {
+            std::error_code cleanup_error;
+            std::filesystem::remove(temporary_state_file, cleanup_error);
+            throw std::runtime_error("failed to open IME state file");
+        }
         out << "{\n"
-            << "  \"schema_id\": \"" << JsonEscape(state_.schema_id) << "\",\n"
-            << "  \"ascii_mode\": " << (state_.ascii_mode ? "true" : "false")
+            << "  \"schema_id\": \"" << JsonEscape(state.schema_id) << "\",\n"
+            << "  \"ascii_mode\": " << (state.ascii_mode ? "true" : "false")
             << ",\n"
-            << "  \"full_shape\": " << (state_.full_shape ? "true" : "false")
+            << "  \"full_shape\": " << (state.full_shape ? "true" : "false")
             << ",\n"
-            << "  \"output_standard\": \"" << JsonEscape(state_.output_standard)
+            << "  \"output_standard\": \"" << JsonEscape(state.output_standard)
             << "\",\n"
+            << "  \"revision\": " << state.revision << ",\n"
             << "  \"toolbar\": {\n"
             << "    \"position_set\": "
-            << (state_.toolbar_position_set ? "true" : "false") << ",\n"
-            << "    \"x\": " << state_.toolbar_position_x << ",\n"
-            << "    \"y\": " << state_.toolbar_position_y << ",\n"
-            << "    \"skin\": \"" << JsonEscape(state_.toolbar_skin) << "\"\n"
+            << (state.toolbar_position_set ? "true" : "false") << ",\n"
+            << "    \"x\": " << state.toolbar_position_x << ",\n"
+            << "    \"y\": " << state.toolbar_position_y << ",\n"
+            << "    \"skin\": \"" << JsonEscape(state.toolbar_skin) << "\"\n"
             << "  }\n"
             << "}\n";
-        Require(static_cast<bool>(out), "failed to write IME state file");
+        const bool write_succeeded = static_cast<bool>(out);
+        out.close();
+        if (!write_succeeded || !out) {
+            std::error_code cleanup_error;
+            std::filesystem::remove(temporary_state_file, cleanup_error);
+            throw std::runtime_error("failed to write IME state file");
+        }
+        HANDLE flush_file = CreateFileW(
+            temporary_state_file.c_str(), GENERIC_WRITE, FILE_SHARE_READ,
+            nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+        if (flush_file == INVALID_HANDLE_VALUE ||
+            !FlushFileBuffers(flush_file)) {
+            if (flush_file != INVALID_HANDLE_VALUE) {
+                CloseHandle(flush_file);
+            }
+            std::error_code cleanup_error;
+            std::filesystem::remove(temporary_state_file, cleanup_error);
+            throw std::runtime_error("failed to flush IME state file");
+        }
+        CloseHandle(flush_file);
+        if (!MoveFileExW(temporary_state_file.c_str(), state_file_.c_str(),
+                         MOVEFILE_REPLACE_EXISTING |
+                             MOVEFILE_WRITE_THROUGH)) {
+            std::error_code cleanup_error;
+            std::filesystem::remove(temporary_state_file, cleanup_error);
+            throw std::runtime_error("failed to replace IME state file");
+        }
     }
 
     std::string StateJson() const {
         std::ostringstream out;
-        out << "{\"schema_id\":\"" << JsonEscape(state_.schema_id)
+        out << "{\"boot_id\":\"" << JsonEscape(state_.boot_id)
+            << "\",\"revision\":" << state_.revision
+            << ",\"schema_id\":\"" << JsonEscape(state_.schema_id)
             << "\",\"ascii_mode\":" << (state_.ascii_mode ? "true" : "false")
             << ",\"full_shape\":" << (state_.full_shape ? "true" : "false")
             << ",\"output_standard\":\"" << JsonEscape(state_.output_standard)
@@ -820,9 +932,35 @@ private:
         return out.str();
     }
 
-    std::string ErrorResponseJson(std::string_view error) const {
+    std::string MutationResponseJson(
+        bool applied,
+        std::string_view reason = {},
+        std::string_view successful_outcome = {}) const {
+        const std::string_view outcome =
+            applied && !successful_outcome.empty()
+                ? successful_outcome
+                : (applied ? std::string_view("applied")
+                           : std::string_view("rejected"));
         std::ostringstream out;
-        out << "{\"ready\":false,\"error\":\"" << JsonEscape(error)
+        out << "{\"ready\":true,\"applied\":"
+            << (applied ? "true" : "false") << ",\"outcome\":\""
+            << outcome << "\"";
+        if (!reason.empty()) {
+            out << ",\"reason\":\"" << JsonEscape(reason) << "\"";
+        }
+        out << ",\"state\":" << StateJson() << "}\n";
+        return out.str();
+    }
+
+    std::string ErrorResponseJson(std::string_view error) const {
+        const std::string_view outcome =
+            error.find("IME state file") != std::string_view::npos
+                ? std::string_view("persist_failed")
+                : std::string_view("invalid");
+        std::ostringstream out;
+        out << "{\"ready\":false,\"applied\":false,\"outcome\":\""
+            << outcome << "\""
+            << ",\"error\":\"" << JsonEscape(error)
             << "\",\"state\":" << StateJson() << "}\n";
         return out.str();
     }
@@ -913,6 +1051,62 @@ private:
         for (const auto& entry : compose_sessions_) {
             ApplyState(entry.second.session_id);
         }
+    }
+
+    std::string RequestRevisionConflict(const Request& request) const {
+        const bool has_boot_id = !request.expect_boot_id.empty();
+        const bool has_revision = !request.expect_revision.empty();
+        Require(has_boot_id == has_revision,
+                "revision expectation requires boot id and revision");
+        if (!has_boot_id) {
+            // Compatibility for older non-TSF tooling. Product mutation clients
+            // send both fields; only those requests receive CAS protection.
+            return {};
+        }
+        if (request.expect_boot_id != state_.boot_id) {
+            return "epoch_conflict";
+        }
+        if (ParseProtocolRevision(request.expect_revision,
+                                  "invalid expected revision") !=
+            state_.revision) {
+            return "revision_conflict";
+        }
+        return {};
+    }
+
+    static bool StateValuesEqual(const YuneState& left,
+                                 const YuneState& right) {
+        return left.schema_id == right.schema_id &&
+               left.ascii_mode == right.ascii_mode &&
+               left.full_shape == right.full_shape &&
+               left.output_standard == right.output_standard &&
+               left.toolbar_position_set == right.toolbar_position_set &&
+               left.toolbar_position_x == right.toolbar_position_x &&
+               left.toolbar_position_y == right.toolbar_position_y &&
+               left.toolbar_skin == right.toolbar_skin;
+    }
+
+    bool CommitStateMutation(YuneState candidate,
+                             bool apply_to_compose_sessions) {
+        if (StateValuesEqual(candidate, state_)) {
+            return false;
+        }
+        Require(candidate.revision != ~0ull, "IME state revision exhausted");
+        candidate.revision = state_.revision + 1;
+        candidate.boot_id = state_.boot_id;
+        PersistState(candidate);
+        state_ = std::move(candidate);
+        if (apply_to_compose_sessions) {
+            try {
+                ApplyStateToComposeSessions();
+            } catch (...) {
+                // The persisted/server-owned state has committed. Retire any
+                // session that could not be brought to that revision so a new
+                // session starts from the authoritative state.
+                DestroyAllComposeSessions();
+            }
+        }
+        return true;
     }
 
     void DestroyAllComposeSessions() {
@@ -1221,43 +1415,69 @@ private:
             return ListSchemasResponseJson();
         }
         if (request.op == "set-option") {
+            const std::string conflict = RequestRevisionConflict(request);
+            if (!conflict.empty()) {
+                return MutationResponseJson(false, conflict);
+            }
+            YuneState candidate = state_;
             if (request.name == "ascii_mode") {
-                state_.ascii_mode = ParseProtocolBool(request.value);
+                candidate.ascii_mode = ParseProtocolBool(request.value);
             } else if (request.name == "full_shape") {
-                state_.full_shape = ParseProtocolBool(request.value);
+                candidate.full_shape = ParseProtocolBool(request.value);
             } else if (request.name == "output_standard") {
                 Require(IsKnownOutputStandard(request.value),
                         "unknown output standard");
-                state_.output_standard = request.value;
+                candidate.output_standard = request.value;
             } else {
                 throw std::runtime_error("unknown option name");
             }
-            ApplyStateToComposeSessions();
-            PersistState();
-            return StateResponseJson();
+            const bool changed =
+                CommitStateMutation(std::move(candidate), true);
+            return MutationResponseJson(
+                true, {}, changed ? "applied" : "unchanged");
         }
         if (request.op == "select-schema") {
+            const std::string conflict = RequestRevisionConflict(request);
+            if (!conflict.empty()) {
+                return MutationResponseJson(false, conflict);
+            }
             Require(!request.schema.empty(), "missing schema id");
             Require(SchemaExists(request.schema), "unknown schema id");
-            state_.schema_id = request.schema;
-            ApplyStateToComposeSessions();
-            PersistState();
-            return StateResponseJson();
+            YuneState candidate = state_;
+            candidate.schema_id = request.schema;
+            const bool changed =
+                CommitStateMutation(std::move(candidate), true);
+            return MutationResponseJson(
+                true, {}, changed ? "applied" : "unchanged");
         }
         if (request.op == "set-toolbar-position") {
-            state_.toolbar_position_x =
+            const std::string conflict = RequestRevisionConflict(request);
+            if (!conflict.empty()) {
+                return MutationResponseJson(false, conflict);
+            }
+            YuneState candidate = state_;
+            candidate.toolbar_position_x =
                 ParseProtocolInt(request.x, "invalid toolbar x");
-            state_.toolbar_position_y =
+            candidate.toolbar_position_y =
                 ParseProtocolInt(request.y, "invalid toolbar y");
-            state_.toolbar_position_set = true;
-            PersistState();
-            return StateResponseJson();
+            candidate.toolbar_position_set = true;
+            const bool changed =
+                CommitStateMutation(std::move(candidate), false);
+            return MutationResponseJson(
+                true, {}, changed ? "applied" : "unchanged");
         }
         if (request.op == "set-skin") {
+            const std::string conflict = RequestRevisionConflict(request);
+            if (!conflict.empty()) {
+                return MutationResponseJson(false, conflict);
+            }
             Require(IsSafeSkinName(request.name), "invalid skin name");
-            state_.toolbar_skin = request.name;
-            PersistState();
-            return StateResponseJson();
+            YuneState candidate = state_;
+            candidate.toolbar_skin = request.name;
+            const bool changed =
+                CommitStateMutation(std::move(candidate), false);
+            return MutationResponseJson(
+                true, {}, changed ? "applied" : "unchanged");
         }
         throw std::runtime_error("unknown op verb");
     }

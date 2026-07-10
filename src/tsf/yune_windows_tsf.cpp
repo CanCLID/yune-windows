@@ -4,16 +4,18 @@
 #include <strsafe.h>
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <filesystem>
-#include <fstream>
 #include <mutex>
 #include <new>
+#include <sstream>
 #include <string>
 #include <string_view>
 #include <vector>
 
 #include "../candidate_window/yune_windows_candidate_window.h"
+#include "yune_windows_reliability_core.h"
 
 namespace {
 
@@ -62,10 +64,12 @@ constexpr DWORD kServerLaunchReadyWaitMs = 15000;
 constexpr DWORD kServerLaunchMutexWaitMs = 250;
 constexpr DWORD kServerPipeMissingRetrySleepMs = 15;
 constexpr ULONGLONG kServerLaunchCooldownMs = 1500;
-constexpr ULONGLONG kLoneShiftDoubleToggleGuardMs = 250;
 constexpr UINT kShiftHookToggleMessage = WM_APP + 0x5a;
-constexpr const wchar_t* kShiftHookWindowClass = L"YuneWindowsShiftHookWindow";
 constexpr UINT kFocusedServiceSupersededMessage = WM_APP + 0x5b;
+constexpr UINT_PTR kFocusedServiceWatchdogTimer = 1;
+constexpr UINT kFocusedServiceWatchdogIntervalMs = 250;
+constexpr unsigned int kMaxAsciiToggleCasAttempts = 2;
+constexpr ULONGLONG kPendingAsciiToggleDeadlineMs = 1500;
 constexpr const wchar_t* kFocusedServiceWindowClass =
     L"YuneWindowsFocusedServiceWindow";
 constexpr int kCandidatePageSize = 5;
@@ -85,15 +89,129 @@ std::atomic<unsigned long> g_structural_event_sequence = 0;
 std::atomic<bool> g_server_warmup_inflight = false;
 std::atomic<bool> g_hook_shift_down = false;
 std::atomic<bool> g_hook_shift_consumed = false;
-std::atomic<unsigned long long> g_last_lone_shift_toggle_ms = 0;
+std::atomic<unsigned long long> g_shift_sequence = 0;
+std::atomic<unsigned long long> g_hook_shift_snapshot = 0;
 std::atomic<unsigned long long> g_focused_service_generation = 0;
+std::atomic<unsigned long long> g_published_focus_generation = 0;
+std::atomic<unsigned long long> g_shift_hook_active_generation = 0;
+unsigned long long g_committed_focus_generation = 0;
 std::mutex g_structural_log_mutex;
 std::mutex g_shift_hook_mutex;
 HHOOK g_shift_hook = nullptr;
 DWORD g_shift_hook_thread_id = 0;
-HWND g_shift_hook_window = nullptr;
-DWORD g_shift_hook_window_thread_id = 0;
+std::atomic<HWND> g_shift_hook_dispatcher{nullptr};
+std::atomic<DWORD> g_shift_hook_dispatcher_thread_id{0};
 TextService* g_focused_text_service = nullptr;
+constexpr size_t kShiftCorrelationCapacity = 256;
+std::array<std::atomic<unsigned long long>, kShiftCorrelationCapacity>
+    g_hook_shift_history = {};
+std::array<std::atomic<DWORD>, kShiftCorrelationCapacity>
+    g_hook_shift_history_time = {};
+std::array<std::atomic<bool>, kShiftCorrelationCapacity>
+    g_hook_shift_history_consumed = {};
+
+constexpr unsigned long long PackShiftSnapshot(unsigned long token,
+                                               unsigned long generation) {
+    return (static_cast<unsigned long long>(generation) << 32) |
+           static_cast<unsigned long long>(token);
+}
+
+constexpr unsigned long ShiftSnapshotToken(unsigned long long snapshot) {
+    return static_cast<unsigned long>(snapshot & 0xffffffffull);
+}
+
+constexpr unsigned long ShiftSnapshotGeneration(
+    unsigned long long snapshot) {
+    return static_cast<unsigned long>(snapshot >> 32);
+}
+
+unsigned long NextNonzeroSequence(
+    std::atomic<unsigned long long>* sequence) {
+    if (!sequence) {
+        return 0;
+    }
+    for (;;) {
+        const unsigned long value =
+            static_cast<unsigned long>(++(*sequence));
+        if (value != 0) {
+            return value;
+        }
+    }
+}
+
+void ResetShiftCorrelationHistory() {
+    for (auto& snapshot : g_hook_shift_history) {
+        snapshot.store(0, std::memory_order_release);
+    }
+    for (auto& event_time : g_hook_shift_history_time) {
+        event_time.store(0, std::memory_order_release);
+    }
+    for (auto& consumed : g_hook_shift_history_consumed) {
+        consumed.store(false, std::memory_order_release);
+    }
+}
+
+unsigned long long FindShiftHookSnapshot(unsigned long generation,
+                                         unsigned long after_token,
+                                         DWORD message_time) {
+    unsigned long best_token = 0;
+    unsigned long long best_snapshot = 0;
+    for (size_t index = 0; index < g_hook_shift_history.size(); ++index) {
+        const unsigned long long snapshot =
+            g_hook_shift_history[index].load(std::memory_order_acquire);
+        const DWORD event_time = g_hook_shift_history_time[index].load(
+            std::memory_order_relaxed);
+        if (g_hook_shift_history[index].load(std::memory_order_acquire) !=
+            snapshot) {
+            continue;
+        }
+        const unsigned long token = ShiftSnapshotToken(snapshot);
+        if (ShiftSnapshotGeneration(snapshot) != generation ||
+            event_time != message_time ||
+            token <= after_token ||
+            (best_token != 0 && token >= best_token)) {
+            continue;
+        }
+        best_token = token;
+        best_snapshot = snapshot;
+    }
+    return best_snapshot;
+}
+
+bool ShiftHookTokenWasConsumed(unsigned long token,
+                               unsigned long generation) {
+    if (token == 0 || generation == 0) {
+        return false;
+    }
+    const size_t index = token % kShiftCorrelationCapacity;
+    const unsigned long long expected =
+        PackShiftSnapshot(token, generation);
+    const unsigned long long before =
+        g_hook_shift_history[index].load(std::memory_order_acquire);
+    const bool consumed = g_hook_shift_history_consumed[index].load(
+        std::memory_order_acquire);
+    const unsigned long long after =
+        g_hook_shift_history[index].load(std::memory_order_acquire);
+    return before == expected && after == expected && consumed;
+}
+
+void MarkShiftHookSnapshotConsumed(unsigned long long snapshot) {
+    const unsigned long token = ShiftSnapshotToken(snapshot);
+    if (token == 0) {
+        return;
+    }
+    const size_t index = token % kShiftCorrelationCapacity;
+    if (g_hook_shift_history[index].load(std::memory_order_acquire) ==
+        snapshot) {
+        g_hook_shift_history_consumed[index].store(
+            true, std::memory_order_release);
+    }
+}
+
+void MarkCurrentShiftHookTokenConsumed() {
+    MarkShiftHookSnapshotConsumed(
+        g_hook_shift_snapshot.load(std::memory_order_acquire));
+}
 
 void DllAddRef() {
     ++g_dll_refs;
@@ -126,6 +244,18 @@ bool IsShortcutModifierDown() {
 }
 
 bool IsMouseButtonDown() {
+    return (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0 ||
+           (GetAsyncKeyState(VK_RBUTTON) & 0x8000) != 0 ||
+           (GetAsyncKeyState(VK_MBUTTON) & 0x8000) != 0;
+}
+
+void ClearMouseButtonTransitionBits() {
+    (void)GetAsyncKeyState(VK_LBUTTON);
+    (void)GetAsyncKeyState(VK_RBUTTON);
+    (void)GetAsyncKeyState(VK_MBUTTON);
+}
+
+bool MouseButtonTransitionOrDown() {
     return (GetAsyncKeyState(VK_LBUTTON) & 0x8001) != 0 ||
            (GetAsyncKeyState(VK_RBUTTON) & 0x8001) != 0 ||
            (GetAsyncKeyState(VK_MBUTTON) & 0x8001) != 0;
@@ -236,18 +366,19 @@ bool WaitForSharedServerPipe(DWORD timeout_ms);
 bool CanLaunchSharedServerFromCurrentHost();
 bool RequestSharedServerLaunch();
 void RequestSharedServerWarmupAsync();
-bool TryAcquireLoneShiftToggle();
 bool ActivateFocusedTextService(TextService* service);
 void DeactivateFocusedTextService(TextService* service);
-LRESULT CALLBACK ShiftHookWindowProc(HWND hwnd, UINT message, WPARAM wparam,
-                                     LPARAM lparam);
+bool IsCurrentFocusedTextService(TextService* service,
+                                 unsigned long long generation);
+bool RefreshShiftHookForFocusedService(TextService* service);
 LRESULT CALLBACK FocusedServiceWindowProc(HWND hwnd, UINT message,
                                           WPARAM wparam, LPARAM lparam);
 LRESULT CALLBACK LowLevelKeyboardProc(int code, WPARAM wparam, LPARAM lparam);
 
 void WriteStructuralEvent(const char* event_name, int buffer_length = -1,
                           int candidate_count = -1,
-                          DWORD error_code = ERROR_SUCCESS) {
+                          DWORD error_code = ERROR_SUCCESS,
+                          std::string_view attributes = {}) {
     try {
         const std::filesystem::path module_dir = ModuleDirectory();
         if (module_dir.empty()) {
@@ -256,23 +387,49 @@ void WriteStructuralEvent(const char* event_name, int buffer_length = -1,
         const std::filesystem::path log_dir = module_dir / L"logs";
         std::filesystem::create_directories(log_dir);
 
+        static const unsigned long long process_start_nonce =
+            (GetTickCount64() << 16) ^ GetCurrentProcessId();
         std::lock_guard<std::mutex> lock(g_structural_log_mutex);
-        std::ofstream log(log_dir / L"tsf-events.log", std::ios::app);
-        if (!log) {
-            return;
-        }
-        log << "event=" << event_name
-            << " sequence=" << ++g_structural_event_sequence;
+        FILETIME utc = {};
+        GetSystemTimePreciseAsFileTime(&utc);
+        ULARGE_INTEGER utc_value = {};
+        utc_value.LowPart = utc.dwLowDateTime;
+        utc_value.HighPart = utc.dwHighDateTime;
+
+        std::ostringstream line;
+        line << "event=" << event_name
+             << " sequence=" << ++g_structural_event_sequence
+             << " utc_filetime=" << utc_value.QuadPart
+             << " monotonic_ms=" << GetTickCount64()
+             << " pid=" << GetCurrentProcessId()
+             << " tid=" << GetCurrentThreadId()
+             << " process_nonce=" << process_start_nonce;
         if (buffer_length >= 0) {
-            log << " buffer_length=" << buffer_length;
+            line << " buffer_length=" << buffer_length;
         }
         if (candidate_count >= 0) {
-            log << " candidate_count=" << candidate_count;
+            line << " candidate_count=" << candidate_count;
         }
         if (error_code != ERROR_SUCCESS) {
-            log << " error_code=" << error_code;
+            line << " error_code=" << error_code;
         }
-        log << "\n";
+        if (!attributes.empty()) {
+            line << " " << attributes;
+        }
+        line << "\r\n";
+        const std::string encoded = line.str();
+
+        HANDLE log = CreateFileW(
+            (log_dir / L"tsf-events.log").c_str(), FILE_APPEND_DATA,
+            FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr,
+            OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+        if (log == INVALID_HANDLE_VALUE) {
+            return;
+        }
+        DWORD written = 0;
+        (void)WriteFile(log, encoded.data(), static_cast<DWORD>(encoded.size()),
+                        &written, nullptr);
+        CloseHandle(log);
     } catch (...) {
     }
 }
@@ -577,10 +734,55 @@ bool JsonIntValue(std::string_view json, std::string_view key, int* value) {
     if (end == pos) {
         return false;
     }
+    size_t delimiter = end;
+    while (delimiter < json.size() &&
+           static_cast<unsigned char>(json[delimiter]) <= 0x20) {
+        ++delimiter;
+    }
+    if (delimiter >= json.size() ||
+        (json[delimiter] != ',' && json[delimiter] != '}')) {
+        return false;
+    }
     try {
         size_t parsed = 0;
         const int parsed_value = std::stoi(std::string(json.substr(pos, end - pos)),
                                            &parsed, 10);
+        if (parsed != end - pos) {
+            return false;
+        }
+        *value = parsed_value;
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+bool JsonRevisionValue(std::string_view json, std::string_view key,
+                       unsigned long long* value) {
+    if (!value) {
+        return false;
+    }
+    const std::string needle = "\"" + std::string(key) + "\":";
+    const size_t start = json.find(needle);
+    if (start == std::string::npos) {
+        return false;
+    }
+    size_t pos = start + needle.size();
+    while (pos < json.size() &&
+           static_cast<unsigned char>(json[pos]) <= 0x20) {
+        ++pos;
+    }
+    size_t end = pos;
+    while (end < json.size() && json[end] >= '0' && json[end] <= '9') {
+        ++end;
+    }
+    if (end == pos) {
+        return false;
+    }
+    try {
+        size_t parsed = 0;
+        const unsigned long long parsed_value =
+            std::stoull(std::string(json.substr(pos, end - pos)), &parsed, 10);
         if (parsed != end - pos) {
             return false;
         }
@@ -598,6 +800,8 @@ bool JsonHasArrayValue(std::string_view json, std::string_view key) {
 
 struct ImeState {
     bool present = false;
+    std::wstring boot_id;
+    unsigned long long revision = 0;
     std::wstring schema_id;
     bool ascii_mode = false;
     bool full_shape = false;
@@ -608,6 +812,12 @@ struct ImeState {
 
 struct ServerResponse {
     bool ok = false;
+    bool mutation_response = false;
+    bool applied = false;
+    bool rejected = false;
+    bool transport_unknown = false;
+    std::wstring outcome;
+    std::wstring reason;
     ImeState state;
     std::wstring session;
     std::wstring raw_input;
@@ -654,16 +864,22 @@ std::vector<yune_windows::CandidateWindowCandidate> JsonCandidates(std::string_v
 
 ImeState JsonImeState(std::string_view json) {
     ImeState state;
+    const std::string boot_id = JsonStringValue(json, "boot_id");
     const std::string schema_id = JsonStringValue(json, "schema_id");
     const std::string output_standard = JsonStringValue(json, "output_standard");
     bool ascii_mode = false;
     bool full_shape = false;
-    if (schema_id.empty() || output_standard.empty() ||
+    unsigned long long revision = 0;
+    if (boot_id.empty() ||
+        !JsonRevisionValue(json, "revision", &revision) ||
+        schema_id.empty() || output_standard.empty() ||
         !JsonBoolValue(json, "ascii_mode", &ascii_mode) ||
         !JsonBoolValue(json, "full_shape", &full_shape)) {
         return state;
     }
     state.present = true;
+    state.boot_id = Widen(boot_id);
+    state.revision = revision;
     state.schema_id = Widen(schema_id);
     state.ascii_mode = ascii_mode;
     state.full_shape = full_shape;
@@ -714,122 +930,33 @@ std::vector<std::wstring> JsonSchemaIds(std::string_view json) {
     return schemas;
 }
 
+struct PipeExchangeResult {
+    bool ok = false;
+    DWORD error = ERROR_SUCCESS;
+    std::string response;
+};
+
+PipeExchangeResult ExchangeOperationPipe(const std::string& request,
+                                         DWORD timeout_ms);
+
 ServerResponse QueryServer(
     const std::wstring& input, bool commit,
     RefreshStateMode mode = RefreshStateMode::AllowLaunch,
     DWORD timeout_ms = kServerQueryTimeoutMs) {
-    auto wait_for_pipe_io = [](HANDLE pipe, OVERLAPPED& overlapped,
-                               DWORD& transferred,
-                               DWORD timeout_ms) -> bool {
-        const DWORD wait = WaitForSingleObject(overlapped.hEvent,
-                                               timeout_ms);
-        if (wait != WAIT_OBJECT_0) {
-            CancelIo(pipe);
-            WaitForSingleObject(overlapped.hEvent, 1000);
-            return false;
-        }
-        return GetOverlappedResult(pipe, &overlapped, &transferred, FALSE) == TRUE;
-    };
-
-    auto write_pipe = [&](HANDLE pipe, const std::string& request,
-                          DWORD& written) -> bool {
-        HANDLE event = CreateEventW(nullptr, TRUE, FALSE, nullptr);
-        if (!event) {
-            return false;
-        }
-        OVERLAPPED overlapped = {};
-        overlapped.hEvent = event;
-        const DWORD request_size = static_cast<DWORD>(request.size());
-        const BOOL started =
-            WriteFile(pipe, request.data(), request_size, nullptr, &overlapped);
-        bool ok = false;
-        if (started) {
-            ok = GetOverlappedResult(pipe, &overlapped, &written, FALSE) == TRUE;
-        } else if (GetLastError() == ERROR_IO_PENDING) {
-            ok = wait_for_pipe_io(pipe, overlapped, written, timeout_ms);
-        }
-        CloseHandle(event);
-        return ok && written == request_size;
-    };
-
-    auto read_pipe = [&](HANDLE pipe, char* response, DWORD response_size,
-                         DWORD& read) -> bool {
-        HANDLE event = CreateEventW(nullptr, TRUE, FALSE, nullptr);
-        if (!event) {
-            return false;
-        }
-        OVERLAPPED overlapped = {};
-        overlapped.hEvent = event;
-        const BOOL started =
-            ReadFile(pipe, response, response_size, nullptr, &overlapped);
-        bool ok = false;
-        if (started) {
-            ok = GetOverlappedResult(pipe, &overlapped, &read, FALSE) == TRUE;
-        } else if (GetLastError() == ERROR_IO_PENDING) {
-            ok = wait_for_pipe_io(pipe, overlapped, read, timeout_ms);
-        }
-        CloseHandle(event);
-        return ok && read > 0;
-    };
-
-    auto connect_pipe = []() -> HANDLE {
-        return CreateFileW(kPipeName, GENERIC_READ | GENERIC_WRITE, 0, nullptr,
-                           OPEN_EXISTING, FILE_FLAG_OVERLAPPED, nullptr);
-    };
-
-    HANDLE pipe = connect_pipe();
-    const DWORD reconnect_wait_ms =
-        timeout_ms < kServerPipeReconnectWaitMs ? timeout_ms
-                                                : kServerPipeReconnectWaitMs;
-    if (pipe == INVALID_HANDLE_VALUE) {
-        const DWORD connect_error = GetLastError();
-        if (connect_error == ERROR_PIPE_BUSY) {
-            WriteStructuralEvent("server_query_pipe_busy");
-            if (WaitForSharedServerPipe(reconnect_wait_ms)) {
-                pipe = connect_pipe();
-            }
-        } else if (connect_error == ERROR_FILE_NOT_FOUND) {
-            if (WaitForSharedServerPipe(reconnect_wait_ms)) {
-                pipe = connect_pipe();
-            }
-            if (pipe == INVALID_HANDLE_VALUE &&
-                mode == RefreshStateMode::AllowLaunch &&
-                RequestSharedServerLaunch()) {
-                pipe = connect_pipe();
-            }
-        }
-    }
-    if (pipe == INVALID_HANDLE_VALUE) {
-        WriteStructuralEvent("server_query_connect_failed");
-        return ServerQueryFailure(input);
-    }
-
-    DWORD pipe_mode = PIPE_READMODE_MESSAGE;
-    if (!SetNamedPipeHandleState(pipe, &pipe_mode, nullptr, nullptr)) {
-        CloseHandle(pipe);
-        WriteStructuralEvent("server_query_connect_failed");
-        return ServerQueryFailure(input);
-    }
-
     std::string request = "input=" + Narrow(input) + "\n";
     request += commit ? "commit=1\n.\n" : "commit=0\n.\n";
-    DWORD written = 0;
-    if (!write_pipe(pipe, request, written)) {
-        CloseHandle(pipe);
-        WriteStructuralEvent("server_query_write_failed");
+    const PipeExchangeResult exchange =
+        ExchangeOperationPipe(request, timeout_ms);
+    if (!exchange.ok) {
+        WriteStructuralEvent("server_query_call_failed", -1, -1,
+                             exchange.error);
+        if (mode == RefreshStateMode::AllowLaunch) {
+            RequestSharedServerWarmupAsync();
+        }
         return ServerQueryFailure(input);
     }
 
-    char response[65536] = {};
-    DWORD read = 0;
-    if (!read_pipe(pipe, response, sizeof(response) - 1, read)) {
-        CloseHandle(pipe);
-        WriteStructuralEvent("server_query_read_timeout");
-        return ServerQueryFailure(input);
-    }
-    CloseHandle(pipe);
-
-    const std::string json(response, read);
+    const std::string& json = exchange.response;
     if (!JsonBoolTrueValue(json, "ready") ||
         JsonStringValue(json, "schema_id").empty() ||
         !JsonHasArrayValue(json, "candidates")) {
@@ -848,63 +975,318 @@ ServerResponse QueryServer(
     return result;
 }
 
-ServerResponse QueryServerOperation(
-    const std::string& request,
-    RefreshStateMode mode = RefreshStateMode::AllowLaunch,
-    DWORD timeout_ms = kServerQueryTimeoutMs) {
-    char response[65536] = {};
-    DWORD read = 0;
-    const int max_attempts = mode == RefreshStateMode::AllowLaunch ? 3 : 1;
-    DWORD last_error = ERROR_SUCCESS;
-    const DWORD reconnect_wait_ms =
-        timeout_ms < kServerPipeReconnectWaitMs ? timeout_ms
-                                                : kServerPipeReconnectWaitMs;
-    for (int attempt = 0; attempt < max_attempts; ++attempt) {
-        if (CallNamedPipeW(kPipeName, const_cast<char*>(request.data()),
-                           static_cast<DWORD>(request.size()), response,
-                           sizeof(response) - 1, &read, timeout_ms)) {
-            const std::string json(response, read);
-            if (!JsonBoolTrueValue(json, "ready")) {
-                WriteStructuralEvent("server_query_invalid_response");
-                return {};
-            }
-            ServerResponse result;
-            result.ok = true;
-            result.state = JsonImeState(json);
-            result.session = Widen(JsonStringValue(json, "session"));
-            result.raw_input = Widen(JsonStringValue(json, "raw_input"));
-            result.composition_preedit = Widen(JsonStringValue(json, "preedit"));
-            result.commit_text = Widen(JsonStringValue(json, "commit_text"));
-            result.schemas = JsonSchemaIds(json);
-            result.candidates = JsonCandidates(json);
-            return result;
-        }
+struct PipeCall {
+    std::atomic<unsigned long> refs{1};
+    HANDLE done = nullptr;
+    HANDLE cancel = nullptr;
+    HMODULE module_hold = nullptr;
+    ULONGLONG deadline = 0;
+    std::string request;
+    PipeExchangeResult result;
+    std::atomic<bool> published{false};
 
-        const DWORD error = GetLastError();
-        last_error = error;
-        if (error == ERROR_FILE_NOT_FOUND) {
-            if (mode == RefreshStateMode::ExistingServerOnly) {
-                break;
+    void AddRef() {
+        ++refs;
+    }
+
+    void Release() {
+        if (--refs == 0) {
+            if (done) {
+                CloseHandle(done);
             }
-            if (!WaitForSharedServerPipe(reconnect_wait_ms) &&
-                !RequestSharedServerLaunch()) {
+            if (cancel) {
+                CloseHandle(cancel);
+            }
+            delete this;
+        }
+    }
+};
+
+constexpr long kMaxPipeWorkers = 4;
+std::atomic<long> g_pipe_workers = 0;
+
+DWORD RemainingPipeDeadline(ULONGLONG deadline) {
+    const ULONGLONG now = GetTickCount64();
+    if (now >= deadline) {
+        return 0;
+    }
+    const ULONGLONG remaining = deadline - now;
+    return remaining > MAXDWORD ? MAXDWORD
+                                : static_cast<DWORD>(remaining);
+}
+
+bool CompletePipeIoWithinDeadline(PipeCall* call, HANDLE pipe,
+                                  OVERLAPPED* overlapped, BOOL started,
+                                  DWORD start_error, DWORD* transferred,
+                                  DWORD* error) {
+    if (!call || !overlapped || !transferred || !error) {
+        return false;
+    }
+    if (!started && start_error != ERROR_IO_PENDING) {
+        *error = start_error;
+        return false;
+    }
+    if (!started) {
+        HANDLE waits[] = {overlapped->hEvent, call->cancel};
+        const DWORD wait = WaitForMultipleObjects(
+            ARRAYSIZE(waits), waits, FALSE,
+            RemainingPipeDeadline(call->deadline));
+        if (wait != WAIT_OBJECT_0) {
+            (void)CancelIoEx(pipe, overlapped);
+            DWORD ignored = 0;
+            // The worker owns every buffer/handle touched by this OVERLAPPED.
+            // Drain cancellation here even after the STA has returned.
+            (void)GetOverlappedResult(pipe, overlapped, &ignored, TRUE);
+            *error = wait == WAIT_TIMEOUT ? ERROR_SEM_TIMEOUT
+                                         : ERROR_OPERATION_ABORTED;
+            return false;
+        }
+    }
+    if (!GetOverlappedResult(pipe, overlapped, transferred, FALSE)) {
+        *error = GetLastError();
+        return false;
+    }
+    return true;
+}
+
+PipeExchangeResult RunPipeExchangeOnWorker(PipeCall* call) {
+    PipeExchangeResult result;
+    if (!call) {
+        result.error = ERROR_INVALID_PARAMETER;
+        return result;
+    }
+    // Allocate every throwing buffer before acquiring raw pipe/event handles.
+    std::vector<char> response(65536);
+
+    HANDLE pipe = INVALID_HANDLE_VALUE;
+    while (RemainingPipeDeadline(call->deadline) > 0 &&
+           WaitForSingleObject(call->cancel, 0) != WAIT_OBJECT_0) {
+        pipe = CreateFileW(kPipeName, GENERIC_READ | GENERIC_WRITE, 0,
+                           nullptr, OPEN_EXISTING, FILE_FLAG_OVERLAPPED,
+                           nullptr);
+        if (pipe != INVALID_HANDLE_VALUE) {
+            break;
+        }
+        result.error = GetLastError();
+        const DWORD wait_slice =
+            std::min<DWORD>(RemainingPipeDeadline(call->deadline),
+                            kServerPipeMissingRetrySleepMs);
+        if (result.error == ERROR_PIPE_BUSY) {
+            (void)WaitNamedPipeW(kPipeName, wait_slice);
+            continue;
+        }
+        if (result.error == ERROR_FILE_NOT_FOUND) {
+            if (wait_slice == 0 ||
+                WaitForSingleObject(call->cancel, wait_slice) ==
+                    WAIT_OBJECT_0) {
                 break;
             }
             continue;
         }
-        if (error == ERROR_PIPE_BUSY) {
-            WriteStructuralEvent("server_query_pipe_busy");
-            if (WaitForSharedServerPipe(reconnect_wait_ms)) {
-                continue;
-            }
-        }
         break;
     }
-    if (last_error != ERROR_SUCCESS) {
-        WriteStructuralEvent("server_query_call_failed", -1, -1, last_error);
+    if (pipe == INVALID_HANDLE_VALUE) {
+        if (WaitForSingleObject(call->cancel, 0) == WAIT_OBJECT_0) {
+            result.error = ERROR_OPERATION_ABORTED;
+        } else if (RemainingPipeDeadline(call->deadline) == 0) {
+            result.error = ERROR_SEM_TIMEOUT;
+        }
+        return result;
     }
-    WriteStructuralEvent("server_query_failed");
-    return {};
+
+    DWORD pipe_mode = PIPE_READMODE_MESSAGE;
+    if (!SetNamedPipeHandleState(pipe, &pipe_mode, nullptr, nullptr)) {
+        result.error = GetLastError();
+        CloseHandle(pipe);
+        return result;
+    }
+
+    HANDLE io_event = CreateEventW(nullptr, TRUE, FALSE, nullptr);
+    if (!io_event) {
+        result.error = GetLastError();
+        CloseHandle(pipe);
+        return result;
+    }
+    OVERLAPPED overlapped = {};
+    overlapped.hEvent = io_event;
+    DWORD written = 0;
+    const BOOL write_started = WriteFile(
+        pipe, call->request.data(), static_cast<DWORD>(call->request.size()),
+        nullptr, &overlapped);
+    const DWORD write_error = write_started ? ERROR_SUCCESS : GetLastError();
+    bool ok = CompletePipeIoWithinDeadline(
+        call, pipe, &overlapped, write_started, write_error, &written,
+        &result.error);
+    if (ok && written != static_cast<DWORD>(call->request.size())) {
+        result.error = ERROR_WRITE_FAULT;
+        ok = false;
+    }
+
+    DWORD bytes_read = 0;
+    if (ok) {
+        ResetEvent(io_event);
+        overlapped = {};
+        overlapped.hEvent = io_event;
+        const BOOL read_started = ReadFile(
+            pipe, response.data(), static_cast<DWORD>(response.size() - 1),
+            nullptr, &overlapped);
+        const DWORD read_error = read_started ? ERROR_SUCCESS : GetLastError();
+        ok = CompletePipeIoWithinDeadline(
+            call, pipe, &overlapped, read_started, read_error, &bytes_read,
+            &result.error);
+        if (ok && bytes_read == 0) {
+            result.error = ERROR_HANDLE_EOF;
+            ok = false;
+        }
+    }
+
+    CloseHandle(io_event);
+    CloseHandle(pipe);
+    if (ok) {
+        result.ok = true;
+        result.error = ERROR_SUCCESS;
+        result.response.assign(response.data(), bytes_read);
+    }
+    return result;
+}
+
+DWORD WINAPI PipeWorkerProc(void* context) {
+    auto* call = static_cast<PipeCall*>(context);
+    try {
+        call->result = RunPipeExchangeOnWorker(call);
+    } catch (...) {
+        call->result.ok = false;
+        call->result.error = ERROR_NOT_ENOUGH_MEMORY;
+        call->result.response.clear();
+    }
+    call->published.store(true, std::memory_order_release);
+    (void)SetEvent(call->done);
+    const HMODULE module_hold = call->module_hold;
+    --g_pipe_workers;
+    call->Release();
+    DllRelease();
+    // This is the exit-safe final release. The OS module reference prevents
+    // unloading while the worker drains I/O, publishes, and tears down.
+    FreeLibraryAndExitThread(module_hold, 0);
+}
+
+PipeExchangeResult ExchangeOperationPipe(const std::string& request,
+                                         DWORD timeout_ms) {
+    PipeExchangeResult failure;
+    failure.error = ERROR_NOT_ENOUGH_MEMORY;
+    auto* call = new (std::nothrow) PipeCall;
+    if (!call) {
+        return failure;
+    }
+    call->deadline = GetTickCount64() + timeout_ms;
+    try {
+        call->request = request;
+    } catch (...) {
+        call->Release();
+        return failure;
+    }
+    call->done = CreateEventW(nullptr, TRUE, FALSE, nullptr);
+    if (!call->done) {
+        failure.error = GetLastError();
+        call->Release();
+        return failure;
+    }
+    call->cancel = CreateEventW(nullptr, TRUE, FALSE, nullptr);
+    if (!call->cancel) {
+        failure.error = GetLastError();
+        call->Release();
+        return failure;
+    }
+
+    long active = g_pipe_workers.load();
+    while (active < kMaxPipeWorkers &&
+           !g_pipe_workers.compare_exchange_weak(active, active + 1)) {
+    }
+    if (active >= kMaxPipeWorkers) {
+        failure.error = ERROR_TOO_MANY_TCBS;
+        call->Release();
+        return failure;
+    }
+
+    if (!GetModuleHandleExW(
+            GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS,
+            reinterpret_cast<LPCWSTR>(&PipeWorkerProc),
+            &call->module_hold)) {
+        failure.error = GetLastError();
+        --g_pipe_workers;
+        call->Release();
+        return failure;
+    }
+    call->AddRef();
+    DllAddRef();
+    HANDLE worker =
+        CreateThread(nullptr, 0, PipeWorkerProc, call, 0, nullptr);
+    if (!worker) {
+        failure.error = GetLastError();
+        DllRelease();
+        FreeLibrary(call->module_hold);
+        --g_pipe_workers;
+        call->Release();
+        call->Release();
+        return failure;
+    }
+    CloseHandle(worker);
+
+    const DWORD wait = WaitForSingleObject(
+        call->done, RemainingPipeDeadline(call->deadline));
+    PipeExchangeResult result;
+    if (wait == WAIT_OBJECT_0 &&
+        call->published.load(std::memory_order_acquire)) {
+        result = call->result;
+    } else {
+        result.error = wait == WAIT_TIMEOUT ? ERROR_SEM_TIMEOUT
+                                            : GetLastError();
+        (void)SetEvent(call->cancel);
+    }
+    call->Release();
+    return result;
+}
+
+ServerResponse QueryServerOperation(
+    const std::string& request,
+    RefreshStateMode mode = RefreshStateMode::AllowLaunch,
+    DWORD timeout_ms = kServerQueryTimeoutMs) {
+    const PipeExchangeResult exchange =
+        ExchangeOperationPipe(request, timeout_ms);
+    if (!exchange.ok) {
+        WriteStructuralEvent("server_query_call_failed", -1, -1,
+                             exchange.error);
+        WriteStructuralEvent("server_query_failed");
+        if (mode == RefreshStateMode::AllowLaunch) {
+            RequestSharedServerWarmupAsync();
+        }
+        ServerResponse failure;
+        failure.transport_unknown = true;
+        return failure;
+    }
+
+    const std::string& json = exchange.response;
+    ServerResponse result;
+    result.state = JsonImeState(json);
+    result.outcome = Widen(JsonStringValue(json, "outcome"));
+    result.reason = Widen(JsonStringValue(json, "reason"));
+    bool applied = false;
+    result.mutation_response = JsonBoolValue(json, "applied", &applied);
+    result.applied = result.mutation_response && applied;
+    if (!JsonBoolTrueValue(json, "ready")) {
+        WriteStructuralEvent("server_query_invalid_response");
+        result.rejected = true;
+        return result;
+    }
+    result.ok = true;
+    result.rejected = result.mutation_response && !result.applied;
+    result.session = Widen(JsonStringValue(json, "session"));
+    result.raw_input = Widen(JsonStringValue(json, "raw_input"));
+    result.composition_preedit = Widen(JsonStringValue(json, "preedit"));
+    result.commit_text = Widen(JsonStringValue(json, "commit_text"));
+    result.schemas = JsonSchemaIds(json);
+    result.candidates = JsonCandidates(json);
+    return result;
 }
 
 class InsertTextEditSession final : public ITfEditSession {
@@ -1349,6 +1731,7 @@ public:
     ~TextService() {
         Deactivate();
         const HWND dispatcher = focused_service_window_.exchange(nullptr);
+        focused_service_window_thread_id_.store(0);
         if (dispatcher) {
             SetWindowLongPtrW(dispatcher, GWLP_USERDATA, 0);
             if (GetWindowThreadProcessId(dispatcher, nullptr) ==
@@ -1467,6 +1850,7 @@ public:
         }
         client_id_ = TF_CLIENTID_NULL;
         focused_ = false;
+        CancelPendingAsciiToggle("cancelled_deactivation");
         DeactivateFocusedTextService(this);
         ClearToolbarAnchorCache();
         ClearShiftState();
@@ -1477,6 +1861,8 @@ public:
     STDMETHODIMP OnSetFocus(BOOL focused) override {
         if (!focused) {
             focused_ = false;
+            acknowledged_state_generation_ = 0;
+            CancelPendingAsciiToggle("cancelled_focus_loss");
             DeactivateFocusedTextService(this);
             ClearToolbarAnchorCache();
             ClearShiftState();
@@ -1485,6 +1871,7 @@ public:
             ClearCompositionState(true);
             language_bar_.Hide();
         } else {
+            acknowledged_state_generation_ = 0;
             focused_ = ActivateFocusedTextService(this);
             if (!focused_) {
                 ClearToolbarAnchorCache();
@@ -1515,6 +1902,43 @@ public:
             if ((lparam & kKeyWasDownMask) == 0) {
                 shift_down_ = true;
                 shift_consumed_ = IsShortcutModifierDown() || IsMouseButtonDown();
+                const unsigned long current_generation =
+                    static_cast<unsigned long>(
+                        focused_service_generation_.load());
+                const bool hook_authoritative =
+                    g_shift_hook_active_generation.load(
+                        std::memory_order_acquire) == current_generation;
+                if (!hook_authoritative) {
+                    ClearMouseButtonTransitionBits();
+                }
+                // The hook can post key-up before a busy host delivers the TSF
+                // key-down. Correlate from bounded history rather than relying
+                // on the transient "currently down" snapshot.
+                const unsigned long long hook_snapshot =
+                    FindShiftHookSnapshot(
+                        current_generation,
+                        last_hook_shift_token_adopted_,
+                        static_cast<DWORD>(GetMessageTime()));
+                const unsigned long hook_token =
+                    ShiftSnapshotToken(hook_snapshot);
+                const unsigned long hook_generation =
+                    ShiftSnapshotGeneration(hook_snapshot);
+                if (hook_token != 0 && hook_generation == current_generation) {
+                    shift_token_ = hook_token;
+                    shift_token_generation_ = hook_generation;
+                    last_hook_shift_token_adopted_ = hook_token;
+                } else {
+                    if (hook_authoritative) {
+                        // A healthy hook is authoritative when the TSF message
+                        // cannot be correlated exactly; its posted token will
+                        // settle the physical event without a second identity.
+                        shift_token_ = 0;
+                        shift_token_generation_ = 0;
+                    } else {
+                        shift_token_ = NextNonzeroSequence(&g_shift_sequence);
+                        shift_token_generation_ = current_generation;
+                    }
+                }
             }
             return S_OK;
         }
@@ -1673,9 +2097,21 @@ public:
         }
         *eaten = FALSE;
         if (IsShiftKey(key)) {
+            if (shift_down_ &&
+                (MouseButtonTransitionOrDown() ||
+                 ShiftHookTokenWasConsumed(
+                     static_cast<unsigned long>(shift_token_),
+                     static_cast<unsigned long>(shift_token_generation_)))) {
+                shift_consumed_ = true;
+            }
             if (shift_down_ && !shift_consumed_ &&
                 !IsShortcutModifierDown() && !IsMouseButtonDown()) {
-                PerformLoneShiftToggle(context);
+                HandleDeferredLoneShiftToggle(
+                    shift_token_, shift_token_generation_, context);
+            } else if (shift_down_ && shift_token_ != 0) {
+                SettleRejectedShiftToken(
+                    shift_token_, shift_token_generation_,
+                    "rejected_modified_mouse_or_capture");
             }
             ClearShiftState();
         }
@@ -1707,24 +2143,74 @@ public:
         return S_OK;
     }
 
-    void HandleDeferredLoneShiftToggle() {
-        PerformLoneShiftToggle(nullptr);
+    void HandleDeferredLoneShiftToggle(unsigned long long token,
+                                       unsigned long long generation,
+                                       ITfContext* context = nullptr) {
+        using yune_windows::reliability::ShiftClaimDisposition;
+        const ShiftClaimDisposition disposition =
+            shift_token_arbiter_.Claim(token, generation);
+        switch (disposition) {
+            case ShiftClaimDisposition::InvalidToken:
+                RecordShiftDisposition(token, generation,
+                                       "rejected_invalid_token");
+                return;
+            case ShiftClaimDisposition::StaleGeneration:
+                RecordShiftDisposition(token, generation,
+                                       "rejected_stale_generation");
+                return;
+            case ShiftClaimDisposition::Duplicate:
+                RecordShiftDisposition(token, generation,
+                                       "rejected_duplicate");
+                return;
+            case ShiftClaimDisposition::ExpiredToken:
+                RecordShiftDisposition(token, generation,
+                                       "rejected_capacity_expired");
+                return;
+            case ShiftClaimDisposition::Accepted:
+                break;
+        }
+        RecordShiftDisposition(token, generation, "accepted");
+        PerformLoneShiftToggle(token, context);
     }
 
-    // Single entry point for a detected lone-Shift; both the TSF key sink and the
-    // low-level keyboard hook route here. Consumes the double-toggle guard ONLY
-    // when a toggle actually fires, so a no-op path (not focused, or the other
-    // detector already toggled) can never spend the guard and suppress the real
-    // toggle -- the cause of "press Shift, nothing happens, press again".
-    void PerformLoneShiftToggle(ITfContext* context) {
-        if (!focused_) {
-            return;
+    void RecordShiftDisposition(unsigned long long token,
+                                unsigned long long generation,
+                                const char* disposition) {
+        std::ostringstream attributes;
+        attributes << "toggle_token=" << token
+                   << " generation=" << generation
+                   << " disposition="
+                   << (disposition ? disposition : "unknown")
+                   << " state_revision=" << state_.revision;
+        const std::string fields = attributes.str();
+        WriteStructuralEvent("shift_disposition", -1, -1, ERROR_SUCCESS,
+                             fields);
+    }
+
+    void SettleRejectedShiftToken(unsigned long long token,
+                                  unsigned long long generation,
+                                  const char* disposition) {
+        if (token != 0 && generation != 0) {
+            (void)shift_token_arbiter_.Claim(token, generation);
         }
-        if (!TryAcquireLoneShiftToggle()) {
+        RecordShiftDisposition(token, generation, disposition);
+    }
+
+    // The TSF sink and low-level-hook fallback carry the same physical token
+    // when both observe a press. The first delivery claims it; token and
+    // generation identity replace the old 250 ms time suppression window.
+    void PerformLoneShiftToggle(unsigned long long token,
+                                ITfContext* context) {
+        if (!IsCurrentFocusedTextService(
+                this, focused_service_generation_.load()) ||
+            !CachedToolbarOwnerMatchesForeground()) {
+            RecordShiftDisposition(
+                token, focused_service_generation_.load(),
+                "rejected_background_or_noncurrent");
             return;
         }
         ClearShiftState();
-        ToggleBoolState("ascii_mode", context);
+        QueueAsciiToggle(token, context);
     }
 
     void HideLanguageBarForSupersededFocus() {
@@ -1736,10 +2222,54 @@ public:
     unsigned long long FocusedServiceGeneration() const {
         return focused_service_generation_.load();
     }
+    HWND FocusedServiceWindow() const {
+        return focused_service_window_.load();
+    }
+    DWORD FocusedServiceWindowThreadId() const {
+        return focused_service_window_thread_id_.load();
+    }
     void HandleSupersededFocus(HWND dispatcher,
                                unsigned long long generation);
+    void HandleFocusedServiceWatchdog(HWND dispatcher) {
+        if (dispatcher != focused_service_window_.load() ||
+            !IsCurrentFocusedTextService(
+                this, focused_service_generation_.load())) {
+            CancelPendingAsciiToggle("cancelled_noncurrent_watchdog");
+            language_bar_.Hide();
+            return;
+        }
+        (void)RefreshShiftHookForFocusedService(this);
+        if (!StateAcknowledgedForCurrentGeneration()) {
+            RefreshStateFromServer(nullptr,
+                                   RefreshStateMode::ExistingServerOnly);
+            if (!StateAcknowledgedForCurrentGeneration()) {
+                if (pending_ascii_intent_.active()) {
+                    DrivePendingAsciiToggle(nullptr);
+                }
+                return;
+            }
+        }
+        if (pending_ascii_intent_.active()) {
+            DrivePendingAsciiToggle(nullptr);
+            if (!StateAcknowledgedForCurrentGeneration() ||
+                pending_ascii_intent_.active()) {
+                return;
+            }
+        }
+        if (!CachedToolbarOwnerMatchesForeground() ||
+            last_toolbar_visibility_reason_ != "eligible_show" ||
+            !language_bar_.IsVisible()) {
+            UpdateLanguageBar(nullptr);
+        }
+    }
     bool DetachFocusedServiceWindow(HWND dispatcher,
                                     unsigned long* pending_references);
+    void RetainOrphanedFocusReference() {
+        ++orphaned_focus_references_;
+    }
+    unsigned long TakeOrphanedFocusReferences() {
+        return orphaned_focus_references_.exchange(0);
+    }
 
 private:
     static void LanguageBarClickThunk(yune_windows::LanguageBarSegment segment,
@@ -1865,10 +2395,24 @@ private:
     }
 
     void ReconcileState(const ServerResponse& response, ITfContext* context) {
-        if (!response.ok || !response.state.present) {
+        if (!response.state.present) {
+            return;
+        }
+        const unsigned long long generation =
+            focused_service_generation_.load();
+        if (!focused_ ||
+            !IsCurrentFocusedTextService(this, generation)) {
+            WriteStructuralEvent("server_state_noncurrent_reply");
+            return;
+        }
+        if (state_.present && !state_.boot_id.empty() &&
+            response.state.boot_id == state_.boot_id &&
+            response.state.revision < state_.revision) {
+            WriteStructuralEvent("server_state_stale_reply");
             return;
         }
         state_ = response.state;
+        acknowledged_state_generation_ = generation;
         UpdateInputModeCompartment();
         UpdateLanguageBar(context);
     }
@@ -1876,6 +2420,7 @@ private:
     void RefreshStateFromServer(
         ITfContext* context,
         RefreshStateMode mode = RefreshStateMode::AllowLaunch) {
+        acknowledged_state_generation_ = 0;
         const DWORD timeout_ms = mode == RefreshStateMode::ExistingServerOnly
                                      ? kServerFocusRefreshTimeoutMs
                                      : kServerQueryTimeoutMs;
@@ -1914,12 +2459,74 @@ private:
         has_toolbar_anchor_ = false;
     }
 
+    bool CachedToolbarOwnerMatchesForeground() const {
+        if (!last_toolbar_owner_ || !IsWindow(last_toolbar_owner_)) {
+            return false;
+        }
+        HWND foreground = GetForegroundWindow();
+        if (!foreground || !IsWindow(foreground)) {
+            return false;
+        }
+        HWND foreground_root = GetAncestor(foreground, GA_ROOTOWNER);
+        if (!foreground_root) {
+            foreground_root = foreground;
+        }
+        HWND owner_root = GetAncestor(last_toolbar_owner_, GA_ROOTOWNER);
+        if (!owner_root) {
+            owner_root = last_toolbar_owner_;
+        }
+        return owner_root == foreground_root;
+    }
+
+    bool StateAcknowledgedForCurrentGeneration() const {
+        const unsigned long long generation =
+            focused_service_generation_.load();
+        return state_.present && !state_.boot_id.empty() && generation != 0 &&
+               acknowledged_state_generation_ == generation;
+    }
+
+    void RecordToolbarVisibilityReason(const char* reason) {
+        if (!reason || last_toolbar_visibility_reason_ == reason) {
+            return;
+        }
+        last_toolbar_visibility_reason_ = reason;
+        const HWND foreground = GetForegroundWindow();
+        std::ostringstream attributes;
+        attributes << "reason=" << reason
+                   << " generation="
+                   << focused_service_generation_.load()
+                   << " owner="
+                   << static_cast<unsigned long long>(
+                          reinterpret_cast<ULONG_PTR>(last_toolbar_owner_))
+                   << " foreground="
+                   << static_cast<unsigned long long>(
+                          reinterpret_cast<ULONG_PTR>(foreground))
+                   << " foreground_match="
+                   << (CachedToolbarOwnerMatchesForeground() ? 1 : 0)
+                   << " state_revision=" << state_.revision;
+        const std::string fields = attributes.str();
+        WriteStructuralEvent("toolbar_visibility", -1, -1, ERROR_SUCCESS,
+                             fields);
+    }
+
     void UpdateLanguageBar(ITfContext* context) {
+        ReconcileLanguageBarVisibility(context);
+    }
+
+    void ReconcileLanguageBarVisibility(ITfContext* context) {
         if (!focused_) {
+            RecordToolbarVisibilityReason("not_focused");
             language_bar_.Hide();
             return;
         }
-        if (!state_.present) {
+        if (!IsCurrentFocusedTextService(
+                this, focused_service_generation_.load())) {
+            RecordToolbarVisibilityReason("not_current_generation");
+            language_bar_.Hide();
+            return;
+        }
+        if (!StateAcknowledgedForCurrentGeneration()) {
+            RecordToolbarVisibilityReason("state_unacknowledged");
             language_bar_.Hide();
             return;
         }
@@ -1977,11 +2584,18 @@ private:
             // A concrete context must establish its own owner. Reusing the
             // previous context's cache here can expose a bar over the wrong host.
             ClearToolbarAnchorCache();
+            RecordToolbarVisibilityReason("no_owner_for_context");
             language_bar_.Hide();
             return;
         }
         if (!last_toolbar_owner_ || !IsWindow(last_toolbar_owner_)) {
             ClearToolbarAnchorCache();
+            RecordToolbarVisibilityReason("owner_invalid");
+            language_bar_.Hide();
+            return;
+        }
+        if (!CachedToolbarOwnerMatchesForeground()) {
+            RecordToolbarVisibilityReason("foreground_mismatch");
             language_bar_.Hide();
             return;
         }
@@ -2001,7 +2615,32 @@ private:
                 bar_state.anchor.top > 40 ? bar_state.anchor.top - 40 : 0;
             bar_state.anchor.bottom = bar_state.anchor.top + 34;
         }
-        (void)language_bar_.Update(bar_state, true);
+        const unsigned long long show_generation =
+            focused_service_generation_.load();
+        bool still_current = false;
+        bool update_succeeded = false;
+        {
+            // Serialize the final show claim with process-global focus
+            // publication. A superseded STA cannot pass the early checks, lose
+            // focus during anchor lookup, then show after the new service.
+            std::lock_guard<std::mutex> lock(g_shift_hook_mutex);
+            still_current =
+                g_focused_text_service == this &&
+                g_committed_focus_generation == show_generation &&
+                acknowledged_state_generation_ == show_generation &&
+                CachedToolbarOwnerMatchesForeground();
+            if (still_current) {
+                update_succeeded = language_bar_.Update(bar_state, true);
+            }
+        }
+        if (!still_current) {
+            RecordToolbarVisibilityReason("superseded_before_show");
+            language_bar_.Hide();
+        } else if (update_succeeded) {
+            RecordToolbarVisibilityReason("eligible_show");
+        } else {
+            RecordToolbarVisibilityReason("window_update_failed");
+        }
     }
 
     void ReleaseInlineCompositionRefs() {
@@ -2114,10 +2753,36 @@ private:
     void ClearShiftState() {
         shift_down_ = false;
         shift_consumed_ = false;
+        shift_token_ = 0;
+        shift_token_generation_ = 0;
+    }
+
+    void ClearPendingAsciiToggle() {
+        pending_ascii_intent_.Reset();
+        pending_ascii_deadline_ms_ = 0;
+    }
+
+    void CancelPendingAsciiToggle(const char* outcome) {
+        if (pending_ascii_intent_.active()) {
+            WritePendingAsciiOutcome(outcome);
+        }
+        ClearPendingAsciiToggle();
     }
 
     void CancelLoneShiftToggle() {
         shift_consumed_ = true;
+    }
+
+    bool AppendStateExpectation(std::string* payload) const {
+        if (!payload || !StateAcknowledgedForCurrentGeneration()) {
+            return false;
+        }
+        *payload += "expect_boot_id=";
+        *payload += Narrow(state_.boot_id);
+        *payload += "\nexpect_revision=";
+        *payload += std::to_string(state_.revision);
+        *payload += "\n";
+        return true;
     }
 
     bool CommitOrClearCompositionBeforeStateChange(ITfContext* context) {
@@ -2154,13 +2819,145 @@ private:
         payload += name;
         payload += "\nvalue=";
         payload += current ? "0" : "1";
-        payload += "\n.\n";
+        payload += "\n";
+        if (!AppendStateExpectation(&payload)) {
+            RequestSharedServerWarmupAsync();
+            return;
+        }
+        payload += ".\n";
         ServerResponse response =
             QueryOperation(payload, context, RefreshStateMode::ExistingServerOnly,
                            kServerKeyPathQueryTimeoutMs);
-        if (!response.ok) {
+        if (response.transport_unknown) {
+            state_.present = false;
+            acknowledged_state_generation_ = 0;
+            language_bar_.Hide();
             RequestSharedServerWarmupAsync();
         }
+    }
+
+    void DrivePendingAsciiToggle(ITfContext* context) {
+        if (!pending_ascii_intent_.active()) {
+            return;
+        }
+        const ULONGLONG now = GetTickCount64();
+        if (pending_ascii_deadline_ms_ == 0 ||
+            now >= pending_ascii_deadline_ms_) {
+            CancelPendingAsciiToggle("deadline_expired");
+            return;
+        }
+        const unsigned long long generation =
+            focused_service_generation_.load();
+        if (pending_ascii_intent_.generation() != generation ||
+            !IsCurrentFocusedTextService(this, generation)) {
+            CancelPendingAsciiToggle("cancelled_noncurrent");
+            return;
+        }
+        if (!CachedToolbarOwnerMatchesForeground()) {
+            CancelPendingAsciiToggle("cancelled_foreground_mismatch");
+            return;
+        }
+        if (!StateAcknowledgedForCurrentGeneration()) {
+            return;
+        }
+        (void)pending_ascii_intent_.ResolveDesired(state_.ascii_mode);
+        if (state_.ascii_mode == pending_ascii_intent_.desired()) {
+            WritePendingAsciiOutcome("converged");
+            ClearPendingAsciiToggle();
+            return;
+        }
+        if (pending_ascii_intent_.attempts() >=
+            kMaxAsciiToggleCasAttempts) {
+            WriteStructuralEvent("shift_toggle_retry_exhausted");
+            WritePendingAsciiOutcome("retry_exhausted");
+            ClearPendingAsciiToggle();
+            return;
+        }
+
+        std::string payload =
+            "op=set-option\nname=ascii_mode\nvalue=";
+        payload += pending_ascii_intent_.desired() ? "1\n" : "0\n";
+        if (!AppendStateExpectation(&payload)) {
+            return;
+        }
+        payload += ".\n";
+        pending_ascii_intent_.RecordAttempt();
+        ServerResponse response =
+            QueryOperation(payload, context,
+                           RefreshStateMode::ExistingServerOnly,
+                           kServerKeyPathQueryTimeoutMs);
+        if (response.transport_unknown) {
+            WritePendingAsciiOutcome("outcome_unknown");
+            state_.present = false;
+            acknowledged_state_generation_ = 0;
+            language_bar_.Hide();
+            RequestSharedServerWarmupAsync();
+            return;
+        }
+        if (StateAcknowledgedForCurrentGeneration() &&
+            state_.ascii_mode == pending_ascii_intent_.desired()) {
+            WritePendingAsciiOutcome(response.applied ? "applied"
+                                                      : "converged");
+            ClearPendingAsciiToggle();
+            return;
+        }
+        if (response.rejected &&
+            response.reason != L"revision_conflict" &&
+            response.reason != L"epoch_conflict") {
+            WritePendingAsciiOutcome("server_rejected");
+            ClearPendingAsciiToggle();
+            return;
+        }
+        if (!response.ok) {
+            WritePendingAsciiOutcome("invalid_response");
+            ClearPendingAsciiToggle();
+            return;
+        }
+        if (pending_ascii_intent_.attempts() >=
+            kMaxAsciiToggleCasAttempts) {
+            WriteStructuralEvent("shift_toggle_retry_exhausted");
+            WritePendingAsciiOutcome("retry_exhausted");
+            ClearPendingAsciiToggle();
+        }
+    }
+
+    void WritePendingAsciiOutcome(const char* outcome) {
+        std::ostringstream attributes;
+        attributes << "generation=" << pending_ascii_intent_.generation()
+                   << " outcome=" << (outcome ? outcome : "unknown")
+                   << " press_count=" << pending_ascii_intent_.press_count()
+                   << " desired=" << (pending_ascii_intent_.desired() ? 1 : 0)
+                   << " attempts=" << pending_ascii_intent_.attempts()
+                   << " state_revision=" << state_.revision;
+        const std::string fields = attributes.str();
+        WriteStructuralEvent("shift_toggle_outcome", -1, -1,
+                             ERROR_SUCCESS, fields);
+    }
+
+    void QueueAsciiToggle(unsigned long long token, ITfContext* context) {
+        CommitOrClearCompositionBeforeStateChange(context);
+        const unsigned long long generation =
+            focused_service_generation_.load();
+        const bool same_pending_generation =
+            pending_ascii_intent_.active() &&
+            pending_ascii_intent_.generation() == generation;
+        const bool coalesced = same_pending_generation;
+        pending_ascii_intent_.AcceptPress(
+            generation, StateAcknowledgedForCurrentGeneration(),
+            state_.ascii_mode);
+        if (!same_pending_generation) {
+            pending_ascii_deadline_ms_ =
+                GetTickCount64() + kPendingAsciiToggleDeadlineMs;
+        }
+        if (coalesced) {
+            RecordShiftDisposition(token, generation, "parity_coalesced");
+        }
+
+        if (!StateAcknowledgedForCurrentGeneration()) {
+            RequestSharedServerWarmupAsync();
+            return;
+        }
+        DrivePendingAsciiToggle(context);
     }
 
     std::wstring NextSchemaId() const {
@@ -2196,11 +2993,19 @@ private:
         CommitOrClearCompositionBeforeStateChange(context);
         std::string payload = "op=select-schema\nschema=";
         payload += Narrow(schema_id);
-        payload += "\n.\n";
+        payload += "\n";
+        if (!AppendStateExpectation(&payload)) {
+            RequestSharedServerWarmupAsync();
+            return;
+        }
+        payload += ".\n";
         ServerResponse response =
             QueryOperation(payload, context, RefreshStateMode::ExistingServerOnly,
                            kServerKeyPathQueryTimeoutMs);
-        if (!response.ok) {
+        if (response.transport_unknown) {
+            state_.present = false;
+            acknowledged_state_generation_ = 0;
+            language_bar_.Hide();
             RequestSharedServerWarmupAsync();
         }
     }
@@ -2209,11 +3014,19 @@ private:
         CommitOrClearCompositionBeforeStateChange(context);
         std::string payload =
             "op=set-option\nname=output_standard\nvalue=" + Narrow(standard) +
-            "\n.\n";
+            "\n";
+        if (!AppendStateExpectation(&payload)) {
+            RequestSharedServerWarmupAsync();
+            return;
+        }
+        payload += ".\n";
         ServerResponse response =
             QueryOperation(payload, context, RefreshStateMode::ExistingServerOnly,
                            kServerKeyPathQueryTimeoutMs);
-        if (!response.ok) {
+        if (response.transport_unknown) {
+            state_.present = false;
+            acknowledged_state_generation_ = 0;
+            language_bar_.Hide();
             RequestSharedServerWarmupAsync();
         }
     }
@@ -2263,7 +3076,7 @@ private:
     void HandleLanguageBarClick(yune_windows::LanguageBarSegment segment) {
         switch (segment) {
             case yune_windows::LanguageBarSegment::AsciiMode:
-                ToggleBoolState("ascii_mode", nullptr);
+                QueueAsciiToggle(++g_shift_sequence, nullptr);
                 break;
             case yune_windows::LanguageBarSegment::FullShape:
                 ToggleBoolState("full_shape", nullptr);
@@ -2281,17 +3094,41 @@ private:
     }
 
     void HandleLanguageBarPositionChanged(int x, int y) {
-        std::string payload = "op=set-toolbar-position\nx=";
-        payload += std::to_string(x);
-        payload += "\ny=";
-        payload += std::to_string(y);
-        payload += "\n.\n";
-        ServerResponse response =
-            QueryOperation(payload, nullptr, RefreshStateMode::ExistingServerOnly,
-                           kServerKeyPathQueryTimeoutMs);
-        if (!response.ok) {
-            RequestSharedServerWarmupAsync();
+        for (int attempt = 0; attempt < 2; ++attempt) {
+            std::string payload = "op=set-toolbar-position\nx=";
+            payload += std::to_string(x);
+            payload += "\ny=";
+            payload += std::to_string(y);
+            payload += "\n";
+            if (!AppendStateExpectation(&payload)) {
+                return;
+            }
+            payload += ".\n";
+            ServerResponse response = QueryOperation(
+                payload, nullptr, RefreshStateMode::ExistingServerOnly,
+                kServerKeyPathQueryTimeoutMs);
+            if (response.transport_unknown) {
+                state_.present = false;
+                acknowledged_state_generation_ = 0;
+                language_bar_.Hide();
+                RequestSharedServerWarmupAsync();
+                return;
+            }
+            if (response.applied) {
+                return;
+            }
+            const bool retryable_conflict =
+                response.rejected &&
+                (response.reason == L"revision_conflict" ||
+                 response.reason == L"epoch_conflict");
+            if (!retryable_conflict ||
+                !IsCurrentFocusedTextService(
+                    this, focused_service_generation_.load()) ||
+                !CachedToolbarOwnerMatchesForeground()) {
+                return;
+            }
         }
+        WriteStructuralEvent("toolbar_position_retry_exhausted");
     }
 
     bool ShouldHandleKeyDown(WPARAM key, bool shift_pressed) const {
@@ -2529,15 +3366,25 @@ private:
     ITfRange* composition_range_ = nullptr;
     ITfContext* composition_context_ = nullptr;
     ImeState state_;
+    unsigned long long acknowledged_state_generation_ = 0;
     bool shift_down_ = false;
     bool shift_consumed_ = false;
+    unsigned long long shift_token_ = 0;
+    unsigned long long shift_token_generation_ = 0;
+    unsigned long last_hook_shift_token_adopted_ = 0;
     bool focused_ = false;
+    yune_windows::reliability::ShiftTokenArbiter shift_token_arbiter_;
+    yune_windows::reliability::ToggleParityIntent pending_ascii_intent_;
+    ULONGLONG pending_ascii_deadline_ms_ = 0;
     std::atomic<HWND> focused_service_window_{nullptr};
     std::atomic<unsigned long long> focused_service_generation_{0};
+    std::atomic<unsigned long> orphaned_focus_references_{0};
+    std::atomic<DWORD> focused_service_window_thread_id_{0};
     std::mutex focused_service_handoff_mutex_;
     std::vector<unsigned long long> pending_focused_service_handoffs_;
     bool retire_focused_service_window_ = false;
     HWND last_toolbar_owner_ = nullptr;
+    std::string last_toolbar_visibility_reason_;
     RECT last_toolbar_anchor_ = {};
     UINT last_toolbar_dpi_ = 96;
     bool has_toolbar_anchor_ = false;
@@ -2555,25 +3402,75 @@ bool EnsureFocusedServiceWindowClassRegistered() {
            GetLastError() == ERROR_CLASS_ALREADY_EXISTS;
 }
 
+bool IsFocusedServiceWindow(HWND hwnd, DWORD expected_thread = 0,
+                            TextService* expected_service = nullptr) {
+    if (!hwnd || !IsWindow(hwnd)) {
+        return false;
+    }
+    const DWORD window_thread = GetWindowThreadProcessId(hwnd, nullptr);
+    if ((expected_thread != 0 && window_thread != expected_thread) ||
+        window_thread == 0) {
+        return false;
+    }
+    wchar_t class_name[64] = {};
+    return GetClassNameW(hwnd, class_name, ARRAYSIZE(class_name)) != 0 &&
+           lstrcmpW(class_name, kFocusedServiceWindowClass) == 0 &&
+           (!expected_service ||
+            reinterpret_cast<TextService*>(
+                GetWindowLongPtrW(hwnd, GWLP_USERDATA)) == expected_service);
+}
+
 bool TextService::PrepareFocusedServiceActivation(
     unsigned long long generation) {
+    const DWORD current_thread = GetCurrentThreadId();
     HWND dispatcher = focused_service_window_.load();
-    if ((!dispatcher || !IsWindow(dispatcher)) &&
+    if (dispatcher) {
+        const DWORD owner_thread =
+            GetWindowThreadProcessId(dispatcher, nullptr);
+        const bool still_bound =
+            IsFocusedServiceWindow(dispatcher, owner_thread, this);
+        if (still_bound && owner_thread != current_thread) {
+            // Never abandon a live service-bound HWND or create a second
+            // dispatcher on another apartment. The caller fails activation and
+            // the owning STA remains responsible for retirement.
+            WriteStructuralEvent("focused_service_wrong_apartment");
+            return false;
+        }
+        if (!still_bound) {
+            HWND expected = dispatcher;
+            (void)focused_service_window_.compare_exchange_strong(expected,
+                                                                  nullptr);
+            dispatcher = nullptr;
+            focused_service_window_thread_id_.store(0);
+        } else {
+            focused_service_window_thread_id_.store(current_thread);
+        }
+    }
+    if (!dispatcher &&
         EnsureFocusedServiceWindowClassRegistered()) {
         dispatcher = CreateWindowExW(
             0, kFocusedServiceWindowClass, L"Yune Windows Focus Handoff", 0,
             0, 0, 0, 0, HWND_MESSAGE, nullptr, g_instance, this);
         focused_service_window_.store(dispatcher);
+        focused_service_window_thread_id_.store(dispatcher ? current_thread : 0);
     }
     focused_service_generation_.store(generation);
+    shift_token_arbiter_.Reset(generation);
+    last_hook_shift_token_adopted_ = 0;
+    CancelPendingAsciiToggle("cancelled_generation_change");
     retire_focused_service_window_ = false;
+    if (dispatcher) {
+        (void)SetTimer(dispatcher, kFocusedServiceWatchdogTimer,
+                       kFocusedServiceWatchdogIntervalMs, nullptr);
+    }
     return dispatcher != nullptr;
 }
 
 bool TextService::QueueSupersededFocus(unsigned long long generation) {
     std::lock_guard<std::mutex> lock(focused_service_handoff_mutex_);
     const HWND dispatcher = focused_service_window_.load();
-    if (!dispatcher || !IsWindow(dispatcher)) {
+    if (!IsFocusedServiceWindow(
+            dispatcher, focused_service_window_thread_id_.load(), this)) {
         return false;
     }
     pending_focused_service_handoffs_.push_back(generation);
@@ -2606,10 +3503,12 @@ void TextService::HandleSupersededFocus(
     {
         std::lock_guard<std::mutex> lock(g_shift_hook_mutex);
     }
-    if (focused_service_generation_.load() == generation) {
+    if (focused_service_generation_.load() == generation &&
+        !IsCurrentFocusedTextService(this, generation)) {
         // This callback runs on the superseded service's apartment/window
         // thread. A later activation on the same thread changes the generation
         // before a stale callback can run, so A -> B -> A cannot hide current A.
+        CancelPendingAsciiToggle("cancelled_superseded");
         HideLanguageBarForSupersededFocus();
         retire_focused_service_window_ = true;
     }
@@ -2637,6 +3536,8 @@ bool TextService::DetachFocusedServiceWindow(
     if (!focused_service_window_.compare_exchange_strong(expected, nullptr)) {
         return false;
     }
+    (void)KillTimer(dispatcher, kFocusedServiceWatchdogTimer);
+    focused_service_window_thread_id_.store(0);
     std::lock_guard<std::mutex> lock(focused_service_handoff_mutex_);
     *pending_references = static_cast<unsigned long>(
         pending_focused_service_handoffs_.size());
@@ -2662,36 +3563,54 @@ LRESULT CALLBACK FocusedServiceWindowProc(HWND hwnd, UINT message,
             hwnd, static_cast<unsigned long long>(wparam));
         return 0;
     }
+    if (message == kShiftHookToggleMessage && service) {
+        service->HandleDeferredLoneShiftToggle(
+            static_cast<unsigned long long>(wparam),
+            static_cast<unsigned long long>(lparam));
+        return 0;
+    }
+    if (message == WM_TIMER &&
+        wparam == kFocusedServiceWatchdogTimer && service) {
+        service->HandleFocusedServiceWatchdog(hwnd);
+        return 0;
+    }
     if (message == WM_NCDESTROY) {
+        (void)KillTimer(hwnd, kFocusedServiceWatchdogTimer);
         SetWindowLongPtrW(hwnd, GWLP_USERDATA, 0);
         unsigned long references_to_release = 0;
         const bool detached =
             service && service->DetachFocusedServiceWindow(
                            hwnd, &references_to_release);
-        HWND shift_hook_window_to_close = nullptr;
         if (detached) {
             std::lock_guard<std::mutex> lock(g_shift_hook_mutex);
             if (g_focused_text_service == service) {
                 g_focused_text_service = nullptr;
+                g_committed_focus_generation = 0;
                 ++references_to_release;
-                g_hook_shift_down.store(false);
-                g_hook_shift_consumed.store(false);
+                g_published_focus_generation.store(
+                    0, std::memory_order_release);
+                g_shift_hook_active_generation.store(
+                    0, std::memory_order_release);
+                g_shift_hook_dispatcher.store(nullptr,
+                                              std::memory_order_release);
+                g_shift_hook_dispatcher_thread_id.store(
+                    0, std::memory_order_release);
+                g_hook_shift_down.store(false, std::memory_order_release);
+                g_hook_shift_consumed.store(false,
+                                            std::memory_order_release);
+                g_hook_shift_snapshot.store(0, std::memory_order_release);
+                ResetShiftCorrelationHistory();
                 if (g_shift_hook) {
                     UnhookWindowsHookEx(g_shift_hook);
                     g_shift_hook = nullptr;
                     g_shift_hook_thread_id = 0;
                     WriteStructuralEvent("shift_hook_uninstalled");
                 }
-                shift_hook_window_to_close = g_shift_hook_window;
-                g_shift_hook_window = nullptr;
-                g_shift_hook_window_thread_id = 0;
             }
+            references_to_release += service->TakeOrphanedFocusReferences();
         }
         const LRESULT result =
             DefWindowProcW(hwnd, message, wparam, lparam);
-        if (shift_hook_window_to_close) {
-            (void)PostMessageW(shift_hook_window_to_close, WM_CLOSE, 0, 0);
-        }
         while (service && references_to_release > 0) {
             --references_to_release;
             service->Release();
@@ -2701,86 +3620,15 @@ LRESULT CALLBACK FocusedServiceWindowProc(HWND hwnd, UINT message,
     return DefWindowProcW(hwnd, message, wparam, lparam);
 }
 
-bool TryAcquireLoneShiftToggle() {
-    const ULONGLONG now = GetTickCount64();
-    unsigned long long last = g_last_lone_shift_toggle_ms.load();
-    while (true) {
-        if (last != 0 && now - last < kLoneShiftDoubleToggleGuardMs) {
-            return false;
-        }
-        if (g_last_lone_shift_toggle_ms.compare_exchange_weak(last, now)) {
-            return true;
-        }
+bool IsCurrentFocusedTextService(TextService* service,
+                                 unsigned long long generation) {
+    if (!service || generation == 0) {
+        return false;
     }
-}
-
-TextService* AddRefFocusedTextService() {
     std::lock_guard<std::mutex> lock(g_shift_hook_mutex);
-    if (!g_focused_text_service) {
-        return nullptr;
-    }
-    g_focused_text_service->AddRef();
-    return g_focused_text_service;
-}
-
-bool EnsureShiftHookWindowClassRegistered() {
-    WNDCLASSEXW wc = {};
-    wc.cbSize = sizeof(wc);
-    wc.lpfnWndProc = ShiftHookWindowProc;
-    wc.hInstance = g_instance;
-    wc.lpszClassName = kShiftHookWindowClass;
-    if (RegisterClassExW(&wc) || GetLastError() == ERROR_CLASS_ALREADY_EXISTS) {
-        return true;
-    }
-    WriteStructuralEvent("shift_hook_window_failed");
-    return false;
-}
-
-bool IsShiftHookWindow(HWND hwnd, DWORD expected_thread = 0) {
-    if (!hwnd || !IsWindow(hwnd)) {
-        return false;
-    }
-    const DWORD window_thread = GetWindowThreadProcessId(hwnd, nullptr);
-    if (expected_thread != 0 && window_thread != expected_thread) {
-        return false;
-    }
-    wchar_t class_name[64] = {};
-    return GetClassNameW(hwnd, class_name, ARRAYSIZE(class_name)) != 0 &&
-           lstrcmpW(class_name, kShiftHookWindowClass) == 0;
-}
-
-bool EnsureShiftHookWindowForCurrentThreadLocked() {
-    const DWORD current_thread = GetCurrentThreadId();
-    if (g_shift_hook_window) {
-        if (g_shift_hook_window_thread_id == current_thread &&
-            IsShiftHookWindow(g_shift_hook_window, current_thread)) {
-            return true;
-        }
-        const HWND old_window = g_shift_hook_window;
-        const bool old_window_is_ours = IsShiftHookWindow(old_window);
-        g_shift_hook_window = nullptr;
-        g_shift_hook_window_thread_id = 0;
-        // The old message-only window belongs to another apartment thread.
-        // Ask that thread to destroy it instead of overwriting/leaking the HWND
-        // or calling DestroyWindow cross-thread.
-        if (old_window_is_ours) {
-            (void)PostMessageW(old_window, WM_CLOSE, 0, 0);
-        }
-    }
-    if (!EnsureShiftHookWindowClassRegistered()) {
-        return false;
-    }
-    HWND window = CreateWindowExW(0, kShiftHookWindowClass,
-                                  L"Yune Windows Shift Hook",
-                                  0, 0, 0, 0, 0, HWND_MESSAGE, nullptr,
-                                  g_instance, nullptr);
-    if (!window) {
-        WriteStructuralEvent("shift_hook_window_failed");
-        return false;
-    }
-    g_shift_hook_window = window;
-    g_shift_hook_window_thread_id = current_thread;
-    return true;
+    return g_focused_text_service == service &&
+           g_committed_focus_generation == generation &&
+           service->FocusedServiceGeneration() == generation;
 }
 
 bool EnsureShiftHookInstalledLocked() {
@@ -2804,12 +3652,58 @@ bool EnsureShiftHookInstalledLocked() {
     return true;
 }
 
+bool PublishShiftHookDispatcherLocked(TextService* service) {
+    const HWND dispatcher = service ? service->FocusedServiceWindow() : nullptr;
+    const DWORD dispatcher_thread =
+        service ? service->FocusedServiceWindowThreadId() : 0;
+    if (!service ||
+        !IsFocusedServiceWindow(dispatcher, dispatcher_thread, service)) {
+        g_shift_hook_dispatcher.store(nullptr, std::memory_order_release);
+        g_shift_hook_dispatcher_thread_id.store(0,
+                                                std::memory_order_release);
+        g_published_focus_generation.store(0, std::memory_order_release);
+        g_shift_hook_active_generation.store(0,
+                                             std::memory_order_release);
+        return false;
+    }
+    g_shift_hook_dispatcher.store(dispatcher, std::memory_order_release);
+    g_shift_hook_dispatcher_thread_id.store(dispatcher_thread,
+                                            std::memory_order_release);
+    if (g_focused_text_service != service ||
+        g_committed_focus_generation !=
+            service->FocusedServiceGeneration()) {
+        g_shift_hook_dispatcher.store(nullptr, std::memory_order_release);
+        g_shift_hook_dispatcher_thread_id.store(0,
+                                                std::memory_order_release);
+        g_published_focus_generation.store(0, std::memory_order_release);
+        g_shift_hook_active_generation.store(0,
+                                             std::memory_order_release);
+        return false;
+    }
+    g_published_focus_generation.store(g_committed_focus_generation,
+                                       std::memory_order_release);
+    return true;
+}
+
+bool RefreshShiftHookForFocusedService(TextService* service) {
+    std::lock_guard<std::mutex> lock(g_shift_hook_mutex);
+    if (!service || g_focused_text_service != service ||
+        !PublishShiftHookDispatcherLocked(service)) {
+        return false;
+    }
+    const bool installed = EnsureShiftHookInstalledLocked();
+    g_shift_hook_active_generation.store(
+        installed ? g_committed_focus_generation : 0,
+        std::memory_order_release);
+    return installed;
+}
+
 bool ActivateFocusedTextService(TextService* service) {
     if (!service) {
         return false;
     }
     const unsigned long long generation =
-        ++g_focused_service_generation;
+        NextNonzeroSequence(&g_focused_service_generation);
     if (!service->PrepareFocusedServiceActivation(generation)) {
         return false;
     }
@@ -2818,28 +3712,47 @@ bool ActivateFocusedTextService(TextService* service) {
     {
         std::lock_guard<std::mutex> lock(g_shift_hook_mutex);
         if (service == g_focused_text_service) {
-            (void)EnsureShiftHookWindowForCurrentThreadLocked();
-            (void)EnsureShiftHookInstalledLocked();
+            g_committed_focus_generation = generation;
+            g_hook_shift_down.store(false, std::memory_order_release);
+            g_hook_shift_consumed.store(false, std::memory_order_release);
+            g_hook_shift_snapshot.store(0, std::memory_order_release);
+            ResetShiftCorrelationHistory();
+            if (PublishShiftHookDispatcherLocked(service)) {
+                const bool installed = EnsureShiftHookInstalledLocked();
+                g_shift_hook_active_generation.store(
+                    installed ? generation : 0,
+                    std::memory_order_release);
+            }
             return true;
         }
         old_service = g_focused_text_service;
-        old_generation = old_service
-                             ? old_service->FocusedServiceGeneration()
-                             : 0;
-        if (old_service &&
-            !old_service->QueueSupersededFocus(old_generation)) {
-            // Fail closed. The previous service remains registered until its
-            // own focus-loss/deactivation runs on its apartment thread; the new
-            // service must not show a toolbar without a safe handoff path.
-            return false;
-        }
+        old_generation = old_service ? g_committed_focus_generation : 0;
         service->AddRef();
         g_focused_text_service = service;
+        g_committed_focus_generation = generation;
+        g_hook_shift_down.store(false, std::memory_order_release);
+        g_hook_shift_consumed.store(false, std::memory_order_release);
+        g_hook_shift_snapshot.store(0, std::memory_order_release);
+        ResetShiftCorrelationHistory();
         // Focus identity is authoritative even when the optional lone-Shift
-        // hook cannot be created. Move its message target only after the safe
-        // service handoff has committed.
-        (void)EnsureShiftHookWindowForCurrentThreadLocked();
-        (void)EnsureShiftHookInstalledLocked();
+        // hook cannot be created. Publish the service-bound dispatcher only
+        // after the safe service handoff has committed.
+        if (PublishShiftHookDispatcherLocked(service)) {
+            const bool installed = EnsureShiftHookInstalledLocked();
+            g_shift_hook_active_generation.store(
+                installed ? generation : 0,
+                std::memory_order_release);
+        }
+    }
+    if (old_service &&
+        !old_service->QueueSupersededFocus(old_generation)) {
+        // The new registration is already authoritative, so a dead apartment
+        // cannot permanently block focus in hosts with short-lived apartments.
+        // Keep the old
+        // global reference for release if that apartment later deactivates;
+        // otherwise the process reclaims it at exit without cross-STA teardown.
+        old_service->RetainOrphanedFocusReference();
+        WriteStructuralEvent("focused_service_dispatcher_dead");
     }
     return true;
 }
@@ -2849,59 +3762,49 @@ void DeactivateFocusedTextService(TextService* service) {
         return;
     }
     TextService* released_service = nullptr;
-    HWND shift_hook_window_to_close = nullptr;
+    bool was_current = false;
     {
         std::lock_guard<std::mutex> lock(g_shift_hook_mutex);
         // A late focus-loss from an older TSF service must not clear the newer
         // focused service in this process.
         if (g_focused_text_service != service) {
-            return;
-        }
-        released_service = g_focused_text_service;
-        g_focused_text_service = nullptr;
-        g_hook_shift_down.store(false);
-        g_hook_shift_consumed.store(false);
-        if (g_shift_hook) {
-            UnhookWindowsHookEx(g_shift_hook);
-            g_shift_hook = nullptr;
-            g_shift_hook_thread_id = 0;
-            WriteStructuralEvent("shift_hook_uninstalled");
-        }
-        if (g_shift_hook_window) {
-            shift_hook_window_to_close = g_shift_hook_window;
-            g_shift_hook_window = nullptr;
-            g_shift_hook_window_thread_id = 0;
+            was_current = false;
+        } else {
+            was_current = true;
+            released_service = g_focused_text_service;
+            g_focused_text_service = nullptr;
+            g_committed_focus_generation = 0;
+            g_published_focus_generation.store(0,
+                                               std::memory_order_release);
+            g_shift_hook_active_generation.store(
+                0, std::memory_order_release);
+            g_shift_hook_dispatcher.store(nullptr,
+                                          std::memory_order_release);
+            g_shift_hook_dispatcher_thread_id.store(
+                0, std::memory_order_release);
+            g_hook_shift_down.store(false, std::memory_order_release);
+            g_hook_shift_consumed.store(false, std::memory_order_release);
+            g_hook_shift_snapshot.store(0, std::memory_order_release);
+            ResetShiftCorrelationHistory();
+            if (g_shift_hook) {
+                UnhookWindowsHookEx(g_shift_hook);
+                g_shift_hook = nullptr;
+                g_shift_hook_thread_id = 0;
+                WriteStructuralEvent("shift_hook_uninstalled");
+            }
         }
     }
-    if (shift_hook_window_to_close) {
-        (void)PostMessageW(shift_hook_window_to_close, WM_CLOSE, 0, 0);
+    if (was_current && released_service) {
+        released_service->HideLanguageBarForSupersededFocus();
+    }
+    unsigned long orphaned_references = service->TakeOrphanedFocusReferences();
+    while (orphaned_references > 0) {
+        --orphaned_references;
+        service->Release();
     }
     if (released_service) {
-        released_service->HideLanguageBarForSupersededFocus();
         released_service->Release();
     }
-}
-
-LRESULT CALLBACK ShiftHookWindowProc(HWND hwnd, UINT message, WPARAM wparam,
-                                     LPARAM lparam) {
-    if (message == kShiftHookToggleMessage) {
-        TextService* service = AddRefFocusedTextService();
-        if (service) {
-            // PerformLoneShiftToggle (via HandleDeferredLoneShiftToggle) acquires
-            // the double-toggle guard itself, only when it actually toggles.
-            service->HandleDeferredLoneShiftToggle();
-            service->Release();
-        }
-        return 0;
-    }
-    if (message == WM_NCDESTROY) {
-        std::lock_guard<std::mutex> lock(g_shift_hook_mutex);
-        if (g_shift_hook_window == hwnd) {
-            g_shift_hook_window = nullptr;
-            g_shift_hook_window_thread_id = 0;
-        }
-    }
-    return DefWindowProcW(hwnd, message, wparam, lparam);
 }
 
 LRESULT CALLBACK LowLevelKeyboardProc(int code, WPARAM wparam, LPARAM lparam) {
@@ -2912,28 +3815,75 @@ LRESULT CALLBACK LowLevelKeyboardProc(int code, WPARAM wparam, LPARAM lparam) {
         const bool key_up = wparam == WM_KEYUP || wparam == WM_SYSKEYUP;
         if (IsShiftKey(info->vkCode)) {
             if (key_down) {
-                const bool was_down = g_hook_shift_down.exchange(true);
+                const bool was_down =
+                    g_hook_shift_down.load(std::memory_order_acquire);
                 if (!was_down) {
-                    g_hook_shift_consumed.store(IsShortcutModifierDown() ||
-                                                IsMouseButtonDown());
+                    ClearMouseButtonTransitionBits();
+                    const unsigned long generation =
+                        static_cast<unsigned long>(
+                            g_published_focus_generation.load(
+                                std::memory_order_acquire));
+                    const unsigned long token = generation == 0
+                                                    ? 0
+                                                    : NextNonzeroSequence(
+                                                          &g_shift_sequence);
+                    const bool initially_consumed =
+                        IsShortcutModifierDown() || IsMouseButtonDown();
+                    const unsigned long long snapshot =
+                        PackShiftSnapshot(token, generation);
+                    if (token != 0) {
+                        const size_t history_index =
+                            token % kShiftCorrelationCapacity;
+                        g_hook_shift_history[history_index].store(
+                            0, std::memory_order_release);
+                        g_hook_shift_history_time[history_index].store(
+                            info->time, std::memory_order_relaxed);
+                        g_hook_shift_history_consumed[history_index].store(
+                            initially_consumed,
+                            std::memory_order_relaxed);
+                        g_hook_shift_history[history_index].store(
+                            snapshot, std::memory_order_release);
+                    }
+                    g_hook_shift_snapshot.store(snapshot,
+                                                std::memory_order_release);
+                    g_hook_shift_consumed.store(initially_consumed,
+                                                std::memory_order_release);
+                    // Publish "down" last so TSF cannot observe a pressed
+                    // state paired with an uninitialized token/generation.
+                    g_hook_shift_down.store(true, std::memory_order_release);
                 }
             } else if (key_up) {
-                const bool was_down = g_hook_shift_down.exchange(false);
-                const bool consumed = g_hook_shift_consumed.exchange(false);
-                if (was_down && !consumed && !IsShortcutModifierDown() &&
-                    !IsMouseButtonDown()) {
-                    HWND target = nullptr;
-                    {
-                        std::lock_guard<std::mutex> lock(g_shift_hook_mutex);
-                        target = g_shift_hook_window;
-                    }
+                const bool was_down = g_hook_shift_down.exchange(
+                    false, std::memory_order_acq_rel);
+                const bool consumed = g_hook_shift_consumed.exchange(
+                    false, std::memory_order_acq_rel);
+                const unsigned long long snapshot =
+                    g_hook_shift_snapshot.exchange(0,
+                                                   std::memory_order_acq_rel);
+                const unsigned long token = ShiftSnapshotToken(snapshot);
+                const unsigned long generation =
+                    ShiftSnapshotGeneration(snapshot);
+                const bool mouse_gesture = MouseButtonTransitionOrDown();
+                if (consumed || mouse_gesture) {
+                    MarkShiftHookSnapshotConsumed(snapshot);
+                }
+                if (was_down && !consumed && !mouse_gesture &&
+                    !IsShortcutModifierDown() &&
+                    !IsMouseButtonDown() && token != 0 && generation != 0) {
+                    const HWND target = g_shift_hook_dispatcher.load(
+                        std::memory_order_acquire);
                     if (target) {
-                        PostMessageW(target, kShiftHookToggleMessage, 0, 0);
+                        (void)PostMessageW(
+                            target, kShiftHookToggleMessage,
+                            static_cast<WPARAM>(token),
+                            static_cast<LPARAM>(generation));
                     }
                 }
             }
-        } else if (key_down && g_hook_shift_down.load()) {
-            g_hook_shift_consumed.store(true);
+        } else if (key_down &&
+                   g_hook_shift_down.load(std::memory_order_acquire)) {
+            g_hook_shift_consumed.store(true, std::memory_order_release);
+            MarkCurrentShiftHookTokenConsumed();
         }
     }
     return CallNextHookEx(nullptr, code, wparam, lparam);

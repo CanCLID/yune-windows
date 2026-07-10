@@ -57,5 +57,6 @@ extern const wchar_t* kServerUnavailable;
 extern const wchar_t* kUpdateStateFailed;
 extern const wchar_t* kUpdateSchemaFailed;
 extern const wchar_t* kUpdateSkinFailed;
+extern const wchar_t* kStateChangedConcurrently;
 
 }  // namespace yune_windows::ui_strings

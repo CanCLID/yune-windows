@@ -84,7 +84,9 @@ foreach ($Required in @(
         'PostMessageW',
         'WM_APP',
         'g_focused_text_service',
-        'TryAcquireLoneShiftToggle',
+        'ShiftTokenArbiter',
+        'ToggleParityIntent',
+        'g_shift_sequence',
         'ActivateFocusedTextService\(this\)',
         'DeactivateFocusedTextService\(this\)',
         'g_focused_text_service != service',
@@ -96,8 +98,15 @@ foreach ($Required in @(
         'pending_focused_service_handoffs_\.push_back',
         'DetachFocusedServiceWindow',
         'PostMessageW\(dispatcher, kFocusedServiceSupersededMessage',
-        'IsShiftHookWindow',
-        'PostMessageW\(old_window, WM_CLOSE'
+        'g_shift_hook_dispatcher',
+        'PublishShiftHookDispatcherLocked',
+        'g_hook_shift_snapshot',
+        'g_hook_shift_history_time',
+        'g_hook_shift_history_consumed',
+        'g_published_focus_generation',
+        'g_committed_focus_generation',
+        'IsFocusedServiceWindow\(dispatcher, dispatcher_thread, service\)',
+        'target, kShiftHookToggleMessage'
     )) {
     if ($Source -notmatch $Required) {
         throw "F5 low-level Shift hook contract missing pattern: $Required"
@@ -116,24 +125,37 @@ if ($Source -match 'SendNotifyMessageW\(dispatcher, kFocusedServiceSupersededMes
     throw "focused-service handoff must not synchronously re-enter its apartment dispatcher."
 }
 
+$HookSnapshotIndex = $Source.IndexOf('g_hook_shift_snapshot.store(')
+$HookDownIndex = -1
+if ($HookSnapshotIndex -ge 0) {
+    $HookDownIndex = $Source.IndexOf(
+        'g_hook_shift_down.store(true, std::memory_order_release)',
+        $HookSnapshotIndex)
+}
+if ($HookSnapshotIndex -lt 0 -or $HookDownIndex -lt $HookSnapshotIndex) {
+    throw "F5 low-level hook must publish the coherent token/generation snapshot before Shift-down."
+}
+
 $KeyUpBody = [regex]::Match(
     $Source,
     'STDMETHODIMP OnKeyUp\(ITfContext\* context, WPARAM key, LPARAM, BOOL\* eaten\) override \{(?s:.*?)\n    \}').Value
-if ($KeyUpBody -notmatch 'PerformLoneShiftToggle\(context\)') {
-    throw "F5 OnKeyUp must route the lone-Shift toggle through PerformLoneShiftToggle."
+if ($KeyUpBody -notmatch 'HandleDeferredLoneShiftToggle' -or
+    $KeyUpBody -notmatch 'shift_token_') {
+    throw "F5 OnKeyUp must route the lone-Shift token through the shared arbiter."
 }
 
-# The double-toggle guard must live in the single toggle entry point, and it must
-# be acquired only after the not-focused early-out so a no-op path cannot spend
-# the guard and suppress a real toggle.
+# M11D supersedes the time guard with a physical token/generation arbiter so a
+# legitimate fast second press is not discarded.
 $PerformBody = [regex]::Match(
     $Source,
-    'void PerformLoneShiftToggle\(ITfContext\* context\) \{(?s:.*?)\n    \}').Value
-if ($PerformBody -notmatch 'TryAcquireLoneShiftToggle\(\)') {
-    throw "F5 PerformLoneShiftToggle must use the shared double-toggle guard."
+    'void PerformLoneShiftToggle\(unsigned long long token,\s*ITfContext\* context\) \{(?s:.*?)\n    \}').Value
+if (-not $PerformBody -or
+    $PerformBody -notmatch 'IsCurrentFocusedTextService' -or
+    $PerformBody -notmatch 'CachedToolbarOwnerMatchesForeground') {
+    throw "F5 lone-Shift dispatch must fail closed on current generation and foreground owner."
 }
-if ($PerformBody -notmatch '(?s)!focused_(?:.*?)TryAcquireLoneShiftToggle\(\)') {
-    throw "F5 PerformLoneShiftToggle must check focus before spending the toggle guard."
+if ($Source -match 'kLoneShiftDoubleToggleGuardMs|TryAcquireLoneShiftToggle|g_last_lone_shift_toggle_ms') {
+    throw "F5 lone-Shift dispatch must not retain the retired time-based guard."
 }
 
 Write-Host "M06 key-path source contract covers F1/F2b/F5/F6."

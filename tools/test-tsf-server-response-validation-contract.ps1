@@ -30,7 +30,8 @@ foreach ($Required in @(
     }
 }
 
-$JsonCreatedIndex = $QueryServer.IndexOf("const std::string json(response, read);")
+$JsonCreatedIndex = $QueryServer.IndexOf(
+    "const std::string& json = exchange.response;")
 $ReadyCheckIndex = $QueryServer.IndexOf('JsonBoolTrueValue(json, "ready")')
 $SchemaCheckIndex = $QueryServer.IndexOf('JsonStringValue(json, "schema_id").empty()')
 $CandidateArrayCheckIndex = $QueryServer.IndexOf('JsonHasArrayValue(json, "candidates")')

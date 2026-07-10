@@ -9,8 +9,10 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <filesystem>
 #include <iostream>
+#include <new>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -28,9 +30,18 @@ constexpr const wchar_t* kWindowClassName = L"YuneWindowsSettingsWindow";
 constexpr const wchar_t* kPreviewClassName = L"YuneWindowsSettingsPreview";
 constexpr const wchar_t* kInstanceMutexName =
     L"Local\\YuneWindowsSettingsInstance";
-constexpr int kWindowWidth = 720;
-constexpr int kWindowHeight = 580;
 constexpr int kDesignDpi = 96;
+// Controls keep their 96-DPI design coordinates at the top-left. Their current
+// bounds end at x=684/y=524; this client floor preserves the intended margins.
+constexpr int kDesignClientWidth = 704;
+constexpr int kDesignClientHeight = 542;
+constexpr int kMinimumDesignClientWidth = 420;
+constexpr int kMinimumDesignClientHeight = 320;
+constexpr DWORD kSettingsServerTimeoutMs = 750;
+constexpr DWORD kSettingsWindowStyle =
+    WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX |
+    WS_MAXIMIZEBOX | WS_THICKFRAME | WS_HSCROLL | WS_VSCROLL;
+constexpr DWORD kSettingsWindowExStyle = WS_EX_APPWINDOW;
 constexpr COLORREF kSettingsAccentColor = RGB(8, 117, 190);
 
 #ifndef DWMWA_USE_IMMERSIVE_DARK_MODE
@@ -70,8 +81,23 @@ struct LayoutEntry {
     int height = 0;
 };
 
+struct SettingsLayoutMetrics {
+    int client_width = 0;
+    int client_height = 0;
+};
+
+struct InitialWindowPlacement {
+    int x = CW_USEDEFAULT;
+    int y = CW_USEDEFAULT;
+    int width = 0;
+    int height = 0;
+    UINT dpi = kDesignDpi;
+};
+
 struct SettingsState {
     bool ready = false;
+    std::wstring boot_id;
+    unsigned long long revision = 0;
     std::wstring schema_id = L"jyut6ping3";
     bool ascii_mode = false;
     bool full_shape = false;
@@ -87,6 +113,8 @@ struct SettingsState {
     HWND preview_window = nullptr;
     HWND status_label = nullptr;
     UINT dpi = kDesignDpi;
+    int scroll_x = 0;
+    int scroll_y = 0;
     HFONT ui_font = nullptr;
     std::vector<HWND> controls;
     std::vector<LayoutEntry> layout_entries;
@@ -97,18 +125,144 @@ struct SettingsState {
 };
 
 SettingsState g_state;
+bool g_layout_smoke = false;
 
 int Scale(int value, UINT dpi) {
     return MulDiv(value, static_cast<int>(dpi == 0 ? kDesignDpi : dpi),
                   kDesignDpi);
 }
 
-int UnscaledWindowWidth(UINT dpi) {
-    return Scale(kWindowWidth, dpi);
+SettingsLayoutMetrics CalculateSettingsLayoutMetrics(UINT dpi) {
+    return {Scale(kDesignClientWidth, dpi), Scale(kDesignClientHeight, dpi)};
 }
 
-int UnscaledWindowHeight(UINT dpi) {
-    return Scale(kWindowHeight, dpi);
+bool CalculateWindowSizeForDesignClient(UINT dpi, int design_width,
+                                        int design_height, DWORD style,
+                                        DWORD ex_style, SIZE* size) {
+    if (!size) {
+        return false;
+    }
+    const UINT effective_dpi = dpi == 0 ? kDesignDpi : dpi;
+    const SettingsLayoutMetrics layout = {
+        Scale(design_width, effective_dpi),
+        Scale(design_height, effective_dpi),
+    };
+    RECT window_rect = {0, 0, layout.client_width, layout.client_height};
+    if (!AdjustWindowRectExForDpi(&window_rect, style, FALSE, ex_style,
+                                  effective_dpi)) {
+        window_rect = {0, 0, layout.client_width, layout.client_height};
+        if (!AdjustWindowRectEx(&window_rect, style, FALSE, ex_style)) {
+            return false;
+        }
+    }
+    size->cx = window_rect.right - window_rect.left;
+    size->cy = window_rect.bottom - window_rect.top;
+    // AdjustWindowRectExForDpi does not include scrollbar dimensions.
+    if ((style & WS_VSCROLL) != 0) {
+        size->cx += GetSystemMetricsForDpi(SM_CXVSCROLL, effective_dpi);
+    }
+    if ((style & WS_HSCROLL) != 0) {
+        size->cy += GetSystemMetricsForDpi(SM_CYHSCROLL, effective_dpi);
+    }
+    return size->cx > 0 && size->cy > 0;
+}
+
+bool CalculateSettingsWindowSize(UINT dpi, DWORD style, DWORD ex_style,
+                                 SIZE* size) {
+    return CalculateWindowSizeForDesignClient(
+        dpi, kDesignClientWidth, kDesignClientHeight, style, ex_style, size);
+}
+
+bool CalculateSettingsMinimumWindowSize(UINT dpi, DWORD style,
+                                        DWORD ex_style, SIZE* size) {
+    return CalculateWindowSizeForDesignClient(
+        dpi, kMinimumDesignClientWidth, kMinimumDesignClientHeight, style,
+        ex_style, size);
+}
+
+UINT DpiForInitialMonitor(HMONITOR monitor, HWND reference_window) {
+    if (reference_window && IsWindow(reference_window) &&
+        MonitorFromWindow(reference_window, MONITOR_DEFAULTTONEAREST) ==
+            monitor) {
+        const UINT reference_dpi = GetDpiForWindow(reference_window);
+        if (reference_dpi != 0) {
+            return reference_dpi;
+        }
+    }
+    const UINT system_dpi = GetDpiForSystem();
+    return system_dpi == 0 ? kDesignDpi : system_dpi;
+}
+
+RECT ClampWindowRectToWorkArea(const RECT& requested,
+                               const RECT& work_area) {
+    const LONG work_width =
+        std::max(1L, work_area.right - work_area.left);
+    const LONG work_height =
+        std::max(1L, work_area.bottom - work_area.top);
+    const LONG width = std::min(
+        std::max(1L, requested.right - requested.left), work_width);
+    const LONG height = std::min(
+        std::max(1L, requested.bottom - requested.top), work_height);
+    RECT clamped = {};
+    clamped.left = std::clamp(
+        requested.left, work_area.left, work_area.right - width);
+    clamped.top = std::clamp(
+        requested.top, work_area.top, work_area.bottom - height);
+    clamped.right = clamped.left + width;
+    clamped.bottom = clamped.top + height;
+    return clamped;
+}
+
+RECT ClampWindowRectToMonitorWorkArea(const RECT& requested) {
+    const HMONITOR monitor = MonitorFromRect(
+        &requested, MONITOR_DEFAULTTONEAREST);
+    MONITORINFO monitor_info = {};
+    monitor_info.cbSize = sizeof(monitor_info);
+    if (!monitor || !GetMonitorInfoW(monitor, &monitor_info)) {
+        return requested;
+    }
+    return ClampWindowRectToWorkArea(requested, monitor_info.rcWork);
+}
+
+InitialWindowPlacement CalculateInitialWindowPlacement() {
+    InitialWindowPlacement placement;
+    HWND reference_window = GetForegroundWindow();
+    HMONITOR monitor = reference_window
+                           ? MonitorFromWindow(reference_window,
+                                               MONITOR_DEFAULTTONEAREST)
+                           : nullptr;
+    if (!monitor) {
+        POINT origin = {};
+        monitor = MonitorFromPoint(origin, MONITOR_DEFAULTTOPRIMARY);
+    }
+
+    placement.dpi = DpiForInitialMonitor(monitor, reference_window);
+    SIZE window_size = {};
+    if (!CalculateSettingsWindowSize(placement.dpi, kSettingsWindowStyle,
+                                     kSettingsWindowExStyle, &window_size)) {
+        const SettingsLayoutMetrics layout =
+            CalculateSettingsLayoutMetrics(placement.dpi);
+        window_size.cx = layout.client_width;
+        window_size.cy = layout.client_height;
+    }
+    placement.width = window_size.cx;
+    placement.height = window_size.cy;
+
+    MONITORINFO monitor_info = {};
+    monitor_info.cbSize = sizeof(monitor_info);
+    if (monitor && GetMonitorInfoW(monitor, &monitor_info)) {
+        const int work_width =
+            monitor_info.rcWork.right - monitor_info.rcWork.left;
+        const int work_height =
+            monitor_info.rcWork.bottom - monitor_info.rcWork.top;
+        placement.width = std::min(placement.width, work_width);
+        placement.height = std::min(placement.height, work_height);
+        placement.x = monitor_info.rcWork.left +
+                      std::max(0, (work_width - placement.width) / 2);
+        placement.y = monitor_info.rcWork.top +
+                      std::max(0, (work_height - placement.height) / 2);
+    }
+    return placement;
 }
 
 std::filesystem::path ModuleDirectory() {
@@ -187,8 +341,181 @@ bool JsonBoolValue(std::string_view json, std::string_view key, bool* value) {
     return false;
 }
 
+bool JsonRevisionValue(std::string_view json, std::string_view key,
+                       unsigned long long* value) {
+    if (!value) {
+        return false;
+    }
+    const std::string needle = "\"" + std::string(key) + "\":";
+    const size_t start = json.find(needle);
+    if (start == std::string::npos) {
+        return false;
+    }
+    size_t pos = start + needle.size();
+    while (pos < json.size() &&
+           static_cast<unsigned char>(json[pos]) <= 0x20) {
+        ++pos;
+    }
+    size_t end = pos;
+    while (end < json.size() && json[end] >= '0' && json[end] <= '9') {
+        ++end;
+    }
+    if (end == pos) {
+        return false;
+    }
+    size_t delimiter = end;
+    while (delimiter < json.size() &&
+           static_cast<unsigned char>(json[delimiter]) <= 0x20) {
+        ++delimiter;
+    }
+    if (delimiter >= json.size() ||
+        (json[delimiter] != ',' && json[delimiter] != '}')) {
+        return false;
+    }
+    try {
+        size_t parsed = 0;
+        const unsigned long long parsed_value =
+            std::stoull(std::string(json.substr(pos, end - pos)), &parsed, 10);
+        if (parsed != end - pos) {
+            return false;
+        }
+        *value = parsed_value;
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
 bool JsonReady(std::string_view json) {
     return json.find("\"ready\":true") != std::string::npos;
+}
+
+enum class ServerRequestStatus {
+    Success,
+    Conflict,
+    Failure,
+};
+
+ServerRequestStatus ClassifyMutationEnvelope(std::string_view json) {
+    bool mutation_applied = false;
+    const std::string outcome = JsonStringValue(json, "outcome");
+    if (!JsonBoolValue(json, "applied", &mutation_applied)) {
+        return ServerRequestStatus::Failure;
+    }
+    if (mutation_applied) {
+        return outcome == "applied" || outcome == "unchanged"
+                   ? ServerRequestStatus::Success
+                   : ServerRequestStatus::Failure;
+    }
+    const std::string reason = JsonStringValue(json, "reason");
+    return outcome == "rejected" &&
+                   (reason == "revision_conflict" ||
+                    reason == "epoch_conflict")
+               ? ServerRequestStatus::Conflict
+               : ServerRequestStatus::Failure;
+}
+
+struct SettingsPipeCall {
+    std::atomic<unsigned long> refs{1};
+    HANDLE done = nullptr;
+    std::string payload;
+    std::string response;
+    bool succeeded = false;
+    std::atomic<bool> published{false};
+
+    void AddRef() { ++refs; }
+    void Release() {
+        if (--refs == 0) {
+            if (done) {
+                CloseHandle(done);
+            }
+            delete this;
+        }
+    }
+};
+
+constexpr long kMaxSettingsPipeWorkers = 2;
+std::atomic<long> g_settings_pipe_workers = 0;
+
+DWORD WINAPI SettingsPipeWorkerProc(void* context) {
+    auto* call = static_cast<SettingsPipeCall*>(context);
+    try {
+        char response[65536] = {};
+        DWORD read = 0;
+        if (CallNamedPipeW(kPipeName,
+                           const_cast<char*>(call->payload.data()),
+                           static_cast<DWORD>(call->payload.size()), response,
+                           sizeof(response) - 1, &read,
+                           kSettingsServerTimeoutMs)) {
+            call->response.assign(response, read);
+            call->succeeded = true;
+        }
+    } catch (...) {
+        call->response.clear();
+        call->succeeded = false;
+    }
+    call->published.store(true, std::memory_order_release);
+    (void)SetEvent(call->done);
+    --g_settings_pipe_workers;
+    call->Release();
+    return 0;
+}
+
+bool ExchangeSettingsPipe(const std::string& payload, std::string* response) {
+    if (!response) {
+        return false;
+    }
+    auto* call = new (std::nothrow) SettingsPipeCall;
+    if (!call) {
+        return false;
+    }
+    try {
+        call->payload = payload;
+    } catch (...) {
+        call->Release();
+        return false;
+    }
+    call->done = CreateEventW(nullptr, TRUE, FALSE, nullptr);
+    if (!call->done) {
+        call->Release();
+        return false;
+    }
+
+    long active = g_settings_pipe_workers.load();
+    while (active < kMaxSettingsPipeWorkers &&
+           !g_settings_pipe_workers.compare_exchange_weak(active,
+                                                          active + 1)) {
+    }
+    if (active >= kMaxSettingsPipeWorkers) {
+        call->Release();
+        return false;
+    }
+    call->AddRef();
+    HANDLE worker = CreateThread(nullptr, 0, SettingsPipeWorkerProc, call, 0,
+                                 nullptr);
+    if (!worker) {
+        --g_settings_pipe_workers;
+        call->Release();
+        call->Release();
+        return false;
+    }
+    CloseHandle(worker);
+
+    const DWORD wait = WaitForSingleObject(call->done,
+                                           kSettingsServerTimeoutMs);
+    bool succeeded = false;
+    if (wait == WAIT_OBJECT_0 &&
+        call->published.load(std::memory_order_acquire) &&
+        call->succeeded) {
+        try {
+            *response = call->response;
+            succeeded = true;
+        } catch (...) {
+            succeeded = false;
+        }
+    }
+    call->Release();
+    return succeeded;
 }
 
 std::vector<std::wstring> JsonSchemaIds(std::string_view json) {
@@ -220,16 +547,22 @@ bool ApplyStateJson(std::string_view json) {
         return false;
     }
     const std::string schema_id = JsonStringValue(json, "schema_id");
+    const std::string boot_id = JsonStringValue(json, "boot_id");
     const std::string output_standard = JsonStringValue(json, "output_standard");
     const std::string toolbar_skin = JsonStringValue(json, "skin");
     bool ascii_mode = false;
     bool full_shape = false;
-    if (schema_id.empty() || output_standard.empty() ||
+    unsigned long long revision = 0;
+    if (boot_id.empty() ||
+        !JsonRevisionValue(json, "revision", &revision) ||
+        schema_id.empty() || output_standard.empty() ||
         !JsonBoolValue(json, "ascii_mode", &ascii_mode) ||
         !JsonBoolValue(json, "full_shape", &full_shape)) {
         return false;
     }
     g_state.ready = true;
+    g_state.boot_id = Widen(boot_id);
+    g_state.revision = revision;
     g_state.schema_id = Widen(schema_id);
     g_state.output_standard = Widen(output_standard);
     g_state.ascii_mode = ascii_mode;
@@ -244,15 +577,20 @@ bool ApplyStateJson(std::string_view json) {
     return true;
 }
 
-bool SendServerRequest(const std::string& payload) {
-    char response[65536] = {};
-    DWORD read = 0;
-    if (!CallNamedPipeW(kPipeName, const_cast<char*>(payload.data()),
-                        static_cast<DWORD>(payload.size()), response,
-                        sizeof(response) - 1, &read, 5000)) {
-        return false;
+ServerRequestStatus SendServerRequest(const std::string& payload,
+                                      bool expect_mutation = false) {
+    std::string response;
+    if (!ExchangeSettingsPipe(payload, &response)) {
+        return ServerRequestStatus::Failure;
     }
-    return ApplyStateJson(std::string_view(response, read));
+    const std::string_view json(response);
+    if (!ApplyStateJson(json)) {
+        return ServerRequestStatus::Failure;
+    }
+    if (expect_mutation) {
+        return ClassifyMutationEnvelope(json);
+    }
+    return ServerRequestStatus::Success;
 }
 
 std::vector<std::wstring> EnumerateInstalledSkins(
@@ -455,7 +793,8 @@ void RefreshSkinList() {
 
 void RefreshState(HWND hwnd, bool show_error = true) {
     RefreshSkinList();
-    if (!SendServerRequest("op=get-state\n.\n")) {
+    if (SendServerRequest("op=get-state\n.\n") !=
+        ServerRequestStatus::Success) {
         g_state.ready = false;
         if (show_error) {
             MessageBoxW(hwnd, ui_strings::kServerUnavailable,
@@ -469,11 +808,27 @@ void RefreshState(HWND hwnd, bool show_error = true) {
     UpdateControls();
 }
 
+bool AppendStateExpectation(std::string* payload) {
+    if (!payload || !g_state.ready || g_state.boot_id.empty()) {
+        return false;
+    }
+    *payload += "expect_boot_id=" + Narrow(g_state.boot_id) + "\n";
+    *payload += "expect_revision=" + std::to_string(g_state.revision) + "\n";
+    return true;
+}
+
 void ApplyOption(HWND hwnd, std::string_view name, std::string_view value) {
     std::string payload = "op=set-option\nname=" + std::string(name) +
-                          "\nvalue=" + std::string(value) + "\n.\n";
-    if (!SendServerRequest(payload)) {
-        MessageBoxW(hwnd, ui_strings::kUpdateStateFailed,
+                          "\nvalue=" + std::string(value) + "\n";
+    const ServerRequestStatus result =
+        AppendStateExpectation(&payload)
+            ? SendServerRequest(payload + ".\n", true)
+            : ServerRequestStatus::Failure;
+    if (result != ServerRequestStatus::Success) {
+        MessageBoxW(hwnd,
+                    result == ServerRequestStatus::Conflict
+                        ? ui_strings::kStateChangedConcurrently
+                        : ui_strings::kUpdateStateFailed,
                     ui_strings::kSettingsWindowTitle,
                     MB_OK | MB_ICONWARNING);
     }
@@ -484,9 +839,16 @@ void ApplySchema(HWND hwnd, const std::wstring& schema_id) {
     if (schema_id.empty()) {
         return;
     }
-    std::string payload = "op=select-schema\nschema=" + Narrow(schema_id) + "\n.\n";
-    if (!SendServerRequest(payload)) {
-        MessageBoxW(hwnd, ui_strings::kUpdateSchemaFailed,
+    std::string payload = "op=select-schema\nschema=" + Narrow(schema_id) + "\n";
+    const ServerRequestStatus result =
+        AppendStateExpectation(&payload)
+            ? SendServerRequest(payload + ".\n", true)
+            : ServerRequestStatus::Failure;
+    if (result != ServerRequestStatus::Success) {
+        MessageBoxW(hwnd,
+                    result == ServerRequestStatus::Conflict
+                        ? ui_strings::kStateChangedConcurrently
+                        : ui_strings::kUpdateSchemaFailed,
                     ui_strings::kSettingsWindowTitle,
                     MB_OK | MB_ICONWARNING);
     }
@@ -497,9 +859,16 @@ void ApplySkin(HWND hwnd, const std::wstring& skin_name) {
     if (skin_name.empty()) {
         return;
     }
-    std::string payload = "op=set-skin\nname=" + Narrow(skin_name) + "\n.\n";
-    if (!SendServerRequest(payload)) {
-        MessageBoxW(hwnd, ui_strings::kUpdateSkinFailed,
+    std::string payload = "op=set-skin\nname=" + Narrow(skin_name) + "\n";
+    const ServerRequestStatus result =
+        AppendStateExpectation(&payload)
+            ? SendServerRequest(payload + ".\n", true)
+            : ServerRequestStatus::Failure;
+    if (result != ServerRequestStatus::Success) {
+        MessageBoxW(hwnd,
+                    result == ServerRequestStatus::Conflict
+                        ? ui_strings::kStateChangedConcurrently
+                        : ui_strings::kUpdateSkinFailed,
                     ui_strings::kSettingsWindowTitle,
                     MB_OK | MB_ICONWARNING);
         UpdateControls();
@@ -579,10 +948,101 @@ void RegisterControlForLayout(HWND control, int x, int y, int width, int height)
 void RelayoutControls(UINT dpi) {
     for (const LayoutEntry& entry : g_state.layout_entries) {
         if (entry.hwnd && IsWindow(entry.hwnd)) {
-            MoveWindow(entry.hwnd, Scale(entry.x, dpi), Scale(entry.y, dpi),
+            MoveWindow(entry.hwnd,
+                       Scale(entry.x, dpi) - g_state.scroll_x,
+                       Scale(entry.y, dpi) - g_state.scroll_y,
                        Scale(entry.width, dpi), Scale(entry.height, dpi), TRUE);
         }
     }
+}
+
+void UpdateScrollBars(HWND hwnd) {
+    RECT client = {};
+    if (!hwnd || !GetClientRect(hwnd, &client)) {
+        return;
+    }
+    const SettingsLayoutMetrics content =
+        CalculateSettingsLayoutMetrics(g_state.dpi);
+    const int client_width =
+        std::max(1, static_cast<int>(client.right - client.left));
+    const int client_height =
+        std::max(1, static_cast<int>(client.bottom - client.top));
+
+    SCROLLINFO horizontal = {};
+    horizontal.cbSize = sizeof(horizontal);
+    horizontal.fMask = SIF_RANGE | SIF_PAGE | SIF_POS;
+    horizontal.nMin = 0;
+    horizontal.nMax = std::max(0, content.client_width - 1);
+    horizontal.nPage = static_cast<UINT>(client_width);
+    horizontal.nPos = g_state.scroll_x;
+    (void)SetScrollInfo(hwnd, SB_HORZ, &horizontal, TRUE);
+
+    SCROLLINFO vertical = {};
+    vertical.cbSize = sizeof(vertical);
+    vertical.fMask = SIF_RANGE | SIF_PAGE | SIF_POS;
+    vertical.nMin = 0;
+    vertical.nMax = std::max(0, content.client_height - 1);
+    vertical.nPage = static_cast<UINT>(client_height);
+    vertical.nPos = g_state.scroll_y;
+    (void)SetScrollInfo(hwnd, SB_VERT, &vertical, TRUE);
+
+    horizontal.fMask = SIF_POS;
+    vertical.fMask = SIF_POS;
+    (void)GetScrollInfo(hwnd, SB_HORZ, &horizontal);
+    (void)GetScrollInfo(hwnd, SB_VERT, &vertical);
+    g_state.scroll_x = horizontal.nPos;
+    g_state.scroll_y = vertical.nPos;
+    RelayoutControls(g_state.dpi);
+}
+
+void ScrollSettingsWindow(HWND hwnd, int bar, int request,
+                          int thumb_position = 0) {
+    SCROLLINFO info = {};
+    info.cbSize = sizeof(info);
+    info.fMask = SIF_ALL;
+    if (!GetScrollInfo(hwnd, bar, &info)) {
+        return;
+    }
+    int next = info.nPos;
+    const int line = Scale(24, g_state.dpi);
+    const int page = static_cast<int>(std::max<UINT>(1, info.nPage));
+    switch (request) {
+        case SB_LINEUP:
+            next -= line;
+            break;
+        case SB_LINEDOWN:
+            next += line;
+            break;
+        case SB_PAGEUP:
+            next -= page;
+            break;
+        case SB_PAGEDOWN:
+            next += page;
+            break;
+        case SB_THUMBPOSITION:
+        case SB_THUMBTRACK:
+            next = thumb_position;
+            break;
+        case SB_TOP:
+            next = info.nMin;
+            break;
+        case SB_BOTTOM:
+            next = info.nMax;
+            break;
+        default:
+            return;
+    }
+    info.fMask = SIF_POS;
+    info.nPos = next;
+    (void)SetScrollInfo(hwnd, bar, &info, TRUE);
+    info.fMask = SIF_POS;
+    (void)GetScrollInfo(hwnd, bar, &info);
+    if (bar == SB_HORZ) {
+        g_state.scroll_x = info.nPos;
+    } else {
+        g_state.scroll_y = info.nPos;
+    }
+    RelayoutControls(g_state.dpi);
 }
 
 DWORD WindowsBuildNumber() {
@@ -793,24 +1253,87 @@ LRESULT CALLBACK PreviewProc(HWND hwnd, UINT message, WPARAM wparam,
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM wparam,
                             LPARAM lparam) {
     switch (message) {
+        case WM_GETMINMAXINFO: {
+            auto* minmax = reinterpret_cast<MINMAXINFO*>(lparam);
+            if (!minmax) {
+                return 0;
+            }
+            const UINT dpi = GetDpiForWindow(hwnd);
+            const LONG_PTR current_style = GetWindowLongPtrW(hwnd, GWL_STYLE);
+            const LONG_PTR current_ex_style =
+                GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
+            SIZE minimum = {};
+            if (CalculateSettingsMinimumWindowSize(
+                    dpi,
+                    current_style == 0 ? kSettingsWindowStyle
+                                       : static_cast<DWORD>(current_style),
+                    current_ex_style == 0
+                        ? kSettingsWindowExStyle
+                        : static_cast<DWORD>(current_ex_style),
+                    &minimum)) {
+                MONITORINFO monitor_info = {};
+                monitor_info.cbSize = sizeof(monitor_info);
+                const HMONITOR monitor = MonitorFromWindow(
+                    hwnd, MONITOR_DEFAULTTONEAREST);
+                if (monitor && GetMonitorInfoW(monitor, &monitor_info)) {
+                    minimum.cx = std::min(
+                        minimum.cx,
+                        static_cast<LONG>(monitor_info.rcWork.right -
+                                          monitor_info.rcWork.left));
+                    minimum.cy = std::min(
+                        minimum.cy,
+                        static_cast<LONG>(monitor_info.rcWork.bottom -
+                                          monitor_info.rcWork.top));
+                }
+                minmax->ptMinTrackSize.x =
+                    std::max(minmax->ptMinTrackSize.x, minimum.cx);
+                minmax->ptMinTrackSize.y =
+                    std::max(minmax->ptMinTrackSize.y, minimum.cy);
+            }
+            return 0;
+        }
         case WM_CREATE:
             g_state.dpi = GetDpiForWindow(hwnd);
             RefreshUIFont(g_state.dpi);
             ApplyDwmPolish(hwnd);
             CreatePanelControls(hwnd);
-            RefreshState(hwnd, false);
+            UpdateScrollBars(hwnd);
+            if (!g_layout_smoke) {
+                RefreshState(hwnd, false);
+            }
+            return 0;
+        case WM_SIZE:
+            UpdateScrollBars(hwnd);
+            return 0;
+        case WM_HSCROLL:
+            ScrollSettingsWindow(hwnd, SB_HORZ, LOWORD(wparam),
+                                 HIWORD(wparam));
+            return 0;
+        case WM_VSCROLL:
+            ScrollSettingsWindow(hwnd, SB_VERT, LOWORD(wparam),
+                                 HIWORD(wparam));
+            return 0;
+        case WM_MOUSEWHEEL:
+            ScrollSettingsWindow(
+                hwnd, SB_VERT,
+                GET_WHEEL_DELTA_WPARAM(wparam) > 0 ? SB_LINEUP : SB_LINEDOWN);
             return 0;
         case WM_DPICHANGED:
             g_state.dpi = HIWORD(wparam);
+            g_state.scroll_x = 0;
+            g_state.scroll_y = 0;
             if (lparam) {
-                const RECT* suggested = reinterpret_cast<const RECT*>(lparam);
-                SetWindowPos(hwnd, nullptr, suggested->left, suggested->top,
-                             suggested->right - suggested->left,
-                             suggested->bottom - suggested->top,
+                const RECT suggested =
+                    *reinterpret_cast<const RECT*>(lparam);
+                const RECT clamped =
+                    ClampWindowRectToMonitorWorkArea(suggested);
+                SetWindowPos(hwnd, nullptr, clamped.left, clamped.top,
+                             clamped.right - clamped.left,
+                             clamped.bottom - clamped.top,
                              SWP_NOZORDER | SWP_NOACTIVATE);
             }
             RefreshUIFont(g_state.dpi);
-            RelayoutControls(g_state.dpi);
+            UpdateScrollBars(hwnd);
             UpdatePreview();
             return 0;
         case WM_CTLCOLORSTATIC:
@@ -898,6 +1421,47 @@ bool RegisterWindowClasses(HINSTANCE instance) {
 }
 
 int SelfTest() {
+    struct LayoutExpectation {
+        UINT dpi;
+        int client_width;
+        int client_height;
+    };
+    constexpr std::array<LayoutExpectation, 4> layout_expectations = {{
+        {96, 704, 542},
+        {120, 880, 678},
+        {144, 1056, 813},
+        {192, 1408, 1084},
+    }};
+    for (const LayoutExpectation& expected : layout_expectations) {
+        const SettingsLayoutMetrics layout =
+            CalculateSettingsLayoutMetrics(expected.dpi);
+        SIZE window_size = {};
+        if (layout.client_width != expected.client_width ||
+            layout.client_height != expected.client_height ||
+            !CalculateSettingsWindowSize(
+                expected.dpi, kSettingsWindowStyle,
+                kSettingsWindowExStyle, &window_size) ||
+            window_size.cx < layout.client_width ||
+            window_size.cy < layout.client_height) {
+            std::cerr << "settings DPI layout self-test failed at "
+                      << expected.dpi << " DPI\n";
+            return 1;
+        }
+    }
+    const RECT constrained_work = {0, 0, 1000, 700};
+    const RECT oversized_transition = {-80, -40, 1500, 1200};
+    const RECT clamped_transition = ClampWindowRectToWorkArea(
+        oversized_transition, constrained_work);
+    if (clamped_transition.left < constrained_work.left ||
+        clamped_transition.top < constrained_work.top ||
+        clamped_transition.right > constrained_work.right ||
+        clamped_transition.bottom > constrained_work.bottom ||
+        clamped_transition.right - clamped_transition.left != 1000 ||
+        clamped_transition.bottom - clamped_transition.top != 700) {
+        std::cerr << "settings DPI transition clamp self-test failed\n";
+        return 1;
+    }
+
     g_state.skins = EnumerateInstalledSkins(ModuleDirectory());
     if (std::find(g_state.skins.begin(), g_state.skins.end(), L"default") ==
         g_state.skins.end()) {
@@ -905,7 +1469,8 @@ int SelfTest() {
         return 1;
     }
     const char* state_json =
-        "{\"ready\":true,\"state\":{\"schema_id\":\"jyut6ping3\","
+        "{\"ready\":true,\"state\":{\"boot_id\":\"self-test\","
+        "\"revision\":0,\"schema_id\":\"jyut6ping3\","
         "\"ascii_mode\":false,\"full_shape\":true,"
         "\"output_standard\":\"hong_kong_traditional\","
         "\"toolbar\":{\"position_set\":false,\"x\":0,\"y\":0,"
@@ -913,6 +1478,36 @@ int SelfTest() {
     if (!ApplyStateJson(state_json) || g_state.toolbar_skin != L"default" ||
         g_state.schemas.empty()) {
         std::cerr << "settings state JSON self-test failed\n";
+        return 1;
+    }
+    const char* malformed_revision_json =
+        "{\"ready\":true,\"state\":{\"boot_id\":\"self-test\","
+        "\"revision\":12junk,\"schema_id\":\"jyut6ping3\","
+        "\"ascii_mode\":false,\"full_shape\":false,"
+        "\"output_standard\":\"hong_kong_traditional\"}}";
+    if (ApplyStateJson(malformed_revision_json)) {
+        std::cerr << "settings accepted malformed state revision\n";
+        return 1;
+    }
+    if (ClassifyMutationEnvelope(
+            R"({"applied":true,"outcome":"unchanged"})") !=
+            ServerRequestStatus::Success ||
+        ClassifyMutationEnvelope(
+            R"({"applied":true,"outcome":"unknown"})") !=
+            ServerRequestStatus::Failure ||
+        ClassifyMutationEnvelope(
+            R"({"outcome":"applied"})") !=
+            ServerRequestStatus::Failure ||
+        ClassifyMutationEnvelope(
+            R"({"applied":false,"outcome":"rejected","reason":"revision_conflict"})") !=
+            ServerRequestStatus::Conflict ||
+        ClassifyMutationEnvelope(
+            R"({"applied":false,"outcome":"rejected","reason":"epoch_conflict"})") !=
+            ServerRequestStatus::Conflict ||
+        ClassifyMutationEnvelope(
+            R"({"applied":false,"outcome":"rejected","reason":"invalid"})") !=
+            ServerRequestStatus::Failure) {
+        std::cerr << "settings mutation envelope self-test failed\n";
         return 1;
     }
     if (OutputStandardDisplayLabel(L"opencc_traditional") !=
@@ -972,6 +1567,123 @@ int SelfTest() {
     return 0;
 }
 
+int LayoutWindowSmoke(HWND hwnd) {
+    if (!hwnd) {
+        return 1;
+    }
+    const LONG_PTR style = GetWindowLongPtrW(hwnd, GWL_STYLE);
+    if ((style & WS_THICKFRAME) == 0 || (style & WS_MAXIMIZEBOX) == 0) {
+        std::cerr << "settings layout smoke window is not resizable\n";
+        return 1;
+    }
+
+    MINMAXINFO minmax = {};
+    (void)SendMessageW(hwnd, WM_GETMINMAXINFO, 0,
+                       reinterpret_cast<LPARAM>(&minmax));
+    SIZE expected_minimum = {};
+    if (!CalculateSettingsMinimumWindowSize(
+            GetDpiForWindow(hwnd), static_cast<DWORD>(style),
+            static_cast<DWORD>(GetWindowLongPtrW(hwnd, GWL_EXSTYLE)),
+            &expected_minimum)) {
+        std::cerr << "settings layout smoke minimum calculation failed\n";
+        return 1;
+    }
+    MONITORINFO monitor_info = {};
+    monitor_info.cbSize = sizeof(monitor_info);
+    const HMONITOR monitor =
+        MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+    if (monitor && GetMonitorInfoW(monitor, &monitor_info)) {
+        expected_minimum.cx = std::min(
+            expected_minimum.cx,
+            monitor_info.rcWork.right - monitor_info.rcWork.left);
+        expected_minimum.cy = std::min(
+            expected_minimum.cy,
+            monitor_info.rcWork.bottom - monitor_info.rcWork.top);
+    }
+    if (minmax.ptMinTrackSize.x < expected_minimum.cx ||
+        minmax.ptMinTrackSize.y < expected_minimum.cy) {
+        std::cerr << "settings layout smoke minimum tracking is invalid\n";
+        return 1;
+    }
+
+    (void)SetWindowPos(hwnd, nullptr, 0, 0, expected_minimum.cx,
+                       expected_minimum.cy,
+                       SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
+    UpdateScrollBars(hwnd);
+    RECT client = {};
+    if (!GetClientRect(hwnd, &client)) {
+        return 1;
+    }
+    SCROLLINFO horizontal = {};
+    horizontal.cbSize = sizeof(horizontal);
+    horizontal.fMask = SIF_ALL;
+    SCROLLINFO vertical = horizontal;
+    if (!GetScrollInfo(hwnd, SB_HORZ, &horizontal) ||
+        !GetScrollInfo(hwnd, SB_VERT, &vertical) ||
+        horizontal.nMax + 1 <= static_cast<int>(horizontal.nPage) ||
+        vertical.nMax + 1 <= static_cast<int>(vertical.nPage)) {
+        std::cerr << "settings layout smoke minimum has no scroll access\n";
+        return 1;
+    }
+    ScrollSettingsWindow(hwnd, SB_HORZ, SB_RIGHT);
+    ScrollSettingsWindow(hwnd, SB_VERT, SB_BOTTOM);
+    if (g_state.scroll_x <= 0 || g_state.scroll_y <= 0) {
+        std::cerr << "settings layout smoke could not reach content end\n";
+        return 1;
+    }
+    if (!GetClientRect(hwnd, &client)) {
+        return 1;
+    }
+    const SettingsLayoutMetrics content =
+        CalculateSettingsLayoutMetrics(g_state.dpi);
+    if (content.client_width - g_state.scroll_x > client.right - client.left ||
+        content.client_height - g_state.scroll_y >
+            client.bottom - client.top) {
+        std::cerr << "settings layout smoke scroll range stops before canvas end\n";
+        return 1;
+    }
+
+    SIZE design_window = {};
+    if (!CalculateSettingsWindowSize(
+            GetDpiForWindow(hwnd), static_cast<DWORD>(style),
+            static_cast<DWORD>(GetWindowLongPtrW(hwnd, GWL_EXSTYLE)),
+            &design_window)) {
+        return 1;
+    }
+    (void)SetWindowPos(hwnd, nullptr, 0, 0,
+                       design_window.cx + Scale(64, g_state.dpi),
+                       design_window.cy + Scale(64, g_state.dpi),
+                       SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
+    ScrollSettingsWindow(hwnd, SB_HORZ, SB_LEFT);
+    ScrollSettingsWindow(hwnd, SB_VERT, SB_TOP);
+    UpdateScrollBars(hwnd);
+    if (!GetClientRect(hwnd, &client)) {
+        return 1;
+    }
+    for (HWND control : g_state.controls) {
+        if (!control || !IsWindow(control) ||
+            (GetWindowLongPtrW(control, GWL_STYLE) & WS_VISIBLE) == 0) {
+            continue;
+        }
+        RECT bounds = {};
+        if (!GetWindowRect(control, &bounds)) {
+            return 1;
+        }
+        POINT corners[2] = {{bounds.left, bounds.top},
+                            {bounds.right, bounds.bottom}};
+        SetLastError(ERROR_SUCCESS);
+        if ((MapWindowPoints(nullptr, hwnd, corners, 2) == 0 &&
+             GetLastError() != ERROR_SUCCESS) ||
+            corners[0].x < client.left || corners[0].y < client.top ||
+            corners[1].x > client.right || corners[1].y > client.bottom) {
+            std::cerr << "settings layout smoke larger window clipped a child\n";
+            return 1;
+        }
+    }
+    std::cout << "settings host-DPI layout smoke passed\n";
+    return 0;
+}
+
 }  // namespace
 
 int wmain(int argc, wchar_t** argv) {
@@ -988,8 +1700,13 @@ int wmain(int argc, wchar_t** argv) {
         }
         return result;
     }
+    g_layout_smoke =
+        argc == 2 && std::wstring(argv[1]) == L"--layout-smoke";
 
-    HANDLE instance_mutex = CreateMutexW(nullptr, TRUE, kInstanceMutexName);
+    HANDLE instance_mutex = g_layout_smoke
+                                ? nullptr
+                                : CreateMutexW(nullptr, TRUE,
+                                               kInstanceMutexName);
     const DWORD mutex_error = GetLastError();
     if (instance_mutex && mutex_error == ERROR_ALREADY_EXISTS) {
         FocusSettingsWindow(WaitForSettingsWindow(1500));
@@ -1000,8 +1717,8 @@ int wmain(int argc, wchar_t** argv) {
         return 0;
     }
 
-    HWND existing = WaitForSettingsWindow(0);
-    if (existing && IsWindow(existing)) {
+    HWND existing = g_layout_smoke ? nullptr : WaitForSettingsWindow(0);
+    if (!g_layout_smoke && existing && IsWindow(existing)) {
         FocusSettingsWindow(existing);
         if (instance_mutex) {
             ReleaseMutex(instance_mutex);
@@ -1025,13 +1742,11 @@ int wmain(int argc, wchar_t** argv) {
         return 1;
     }
 
-    HWND hwnd = CreateWindowExW(WS_EX_APPWINDOW, kWindowClassName,
+    const InitialWindowPlacement initial = CalculateInitialWindowPlacement();
+    HWND hwnd = CreateWindowExW(kSettingsWindowExStyle, kWindowClassName,
                                 ui_strings::kSettingsWindowTitle,
-                                WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU |
-                                    WS_MINIMIZEBOX,
-                                CW_USEDEFAULT, CW_USEDEFAULT,
-                                UnscaledWindowWidth(kDesignDpi),
-                                UnscaledWindowHeight(kDesignDpi), nullptr,
+                                kSettingsWindowStyle, initial.x, initial.y,
+                                initial.width, initial.height, nullptr,
                                 nullptr, instance, nullptr);
     if (!hwnd) {
         if (instance_mutex) {
@@ -1042,6 +1757,14 @@ int wmain(int argc, wchar_t** argv) {
             CoUninitialize();
         }
         return 1;
+    }
+    if (g_layout_smoke) {
+        const int result = LayoutWindowSmoke(hwnd);
+        DestroyWindow(hwnd);
+        if (should_uninit) {
+            CoUninitialize();
+        }
+        return result;
     }
     ShowWindow(hwnd, SW_SHOW);
     UpdateWindow(hwnd);

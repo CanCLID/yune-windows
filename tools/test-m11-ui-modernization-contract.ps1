@@ -65,7 +65,18 @@ foreach ($Required in @(
         'CreateFontW',
         'WM_SETFONT',
         'WM_DPICHANGED',
+        'WM_GETMINMAXINFO',
         'LayoutEntry',
+        'CalculateSettingsLayoutMetrics',
+        'CalculateSettingsWindowSize',
+        'AdjustWindowRectExForDpi',
+        'DpiForInitialMonitor',
+        'CalculateInitialWindowPlacement',
+        'WS_THICKFRAME',
+        'WS_MAXIMIZEBOX',
+        'ptMinTrackSize',
+        'LayoutWindowSmoke',
+        '--layout-smoke',
         'ApplyUIFontToControls',
         'InitCommonControlsEx',
         'ApplyDwmPolish',
@@ -80,6 +91,20 @@ foreach ($Required in @(
     )) {
     Require-Text $SettingsSource $Required "settings source is missing M11 theming/DPI/DWM pattern: $Required"
 }
+
+foreach ($ExpectedLayout in @(
+        '{96, 704, 542}',
+        '{120, 880, 678}',
+        '{144, 1056, 813}',
+        '{192, 1408, 1084}'
+    )) {
+    Require-Text $SettingsSource ([regex]::Escape($ExpectedLayout)) `
+        "settings DPI layout self-test is missing: $ExpectedLayout"
+}
+
+Require-Text $SettingsSource `
+    'const InitialWindowPlacement initial = CalculateInitialWindowPlacement\(\);\s*HWND hwnd = CreateWindowExW' `
+    'settings must determine its initial monitor DPI and dimensions before CreateWindowExW.'
 
 foreach ($Required in @(
         'struct ComboItem',
@@ -233,13 +258,13 @@ foreach ($Required in @(
     )) {
     Require-Text $Evidence $Required "M11 evidence summary is missing: $Required"
 }
-Require-Text $Roadmap 'M11 .*installed clone/drag proof passed; M11D pending' `
+Require-Text $Roadmap 'M11 .*clone/drag proven; reliability/settings implementation fixed; installed closeout pending' `
     "roadmap must separate the passed M11 clone gate from the open M11D reliability gate."
 foreach ($Required in @(
         'M11D - IME Activation, Toggle, and Toolbar Visibility Reliability',
         'exactly one acknowledged',
         '50 lone-Shift',
-        'M10 remains blocked',
+        'M10 (remains|stays) blocked',
         'No Yune engine ABI change'
     )) {
     Require-Text $M11DPlan $Required "M11D reliability plan is missing: $Required"

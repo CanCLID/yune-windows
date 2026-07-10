@@ -100,6 +100,13 @@ function Assert-State {
     if ($null -eq $Response.state) {
         throw "server response is missing state block"
     }
+    if ([string]::IsNullOrWhiteSpace([string]$Response.state.boot_id)) {
+        throw "server response state is missing boot_id"
+    }
+    if ($null -eq $Response.state.revision -or
+        [long]$Response.state.revision -lt 0) {
+        throw "server response state has an invalid revision"
+    }
 
     Assert-Equal ([string]$Response.state.schema_id) $SchemaId "state.schema_id mismatch."
     Assert-Equal ([bool]$Response.state.ascii_mode) $AsciiMode "state.ascii_mode mismatch."
@@ -180,6 +187,8 @@ try {
         -TimeoutMs $TimeoutMs
     Assert-Equal ([bool]$Initial.ready) $true "get-state response readiness mismatch."
     Assert-State $Initial "jyut6ping3" $false $false "hong_kong_traditional"
+    $InitialBootId = [string]$Initial.state.boot_id
+    $InitialRevision = [long]$Initial.state.revision
 
     $NormalInput = Invoke-RawYuneWindowsServerRequest `
         -PipeLeaf $PipeLeaf `
@@ -203,10 +212,35 @@ try {
 
     $Ascii = Invoke-RawYuneWindowsServerRequest `
         -PipeLeaf $PipeLeaf `
-        -Payload "op=set-option`nname=ascii_mode`nvalue=1`n.`n" `
+        -Payload "op=set-option`nname=ascii_mode`nvalue=1`nexpect_boot_id=$InitialBootId`nexpect_revision=$InitialRevision`n.`n" `
         -Process $Process `
         -TimeoutMs $TimeoutMs
     Assert-State $Ascii "jyut6ping3" $true $false "hong_kong_traditional"
+    Assert-Equal ([bool]$Ascii.applied) $true "CAS ascii mutation application mismatch."
+    Assert-Equal ([string]$Ascii.outcome) "applied" "CAS ascii mutation outcome mismatch."
+    Assert-Equal ([long]$Ascii.state.revision) ($InitialRevision + 1) "CAS ascii mutation revision mismatch."
+    $AsciiRevision = [long]$Ascii.state.revision
+
+    $AsciiNoOp = Invoke-RawYuneWindowsServerRequest `
+        -PipeLeaf $PipeLeaf `
+        -Payload "op=set-option`nname=ascii_mode`nvalue=1`nexpect_boot_id=$InitialBootId`nexpect_revision=$AsciiRevision`n.`n" `
+        -Process $Process `
+        -TimeoutMs $TimeoutMs
+    Assert-State $AsciiNoOp "jyut6ping3" $true $false "hong_kong_traditional"
+    Assert-Equal ([bool]$AsciiNoOp.ready) $true "CAS no-op readiness mismatch."
+    Assert-Equal ([bool]$AsciiNoOp.applied) $true "CAS no-op must be a successful mutation response."
+    Assert-Equal ([string]$AsciiNoOp.outcome) "unchanged" "CAS no-op outcome mismatch."
+    Assert-Equal ([long]$AsciiNoOp.state.revision) $AsciiRevision "CAS no-op advanced revision."
+
+    $Replay = Invoke-RawYuneWindowsServerRequest `
+        -PipeLeaf $PipeLeaf `
+        -Payload "op=set-option`nname=ascii_mode`nvalue=1`nexpect_boot_id=$InitialBootId`nexpect_revision=$InitialRevision`n.`n" `
+        -Process $Process `
+        -TimeoutMs $TimeoutMs
+    Assert-Equal ([bool]$Replay.ready) $true "CAS replay readiness mismatch."
+    Assert-Equal ([bool]$Replay.applied) $false "CAS replay must not apply twice."
+    Assert-Equal ([string]$Replay.reason) "revision_conflict" "CAS replay reason mismatch."
+    Assert-Equal ([long]$Replay.state.revision) ($InitialRevision + 1) "CAS replay advanced revision."
 
     $AsciiInput = Invoke-RawYuneWindowsServerRequest `
         -PipeLeaf $PipeLeaf `
@@ -223,6 +257,18 @@ try {
         -Process $Process `
         -TimeoutMs $TimeoutMs
     Assert-State $ToolbarPosition "jyut6ping3" $true $false "hong_kong_traditional" $true -120 240 "default"
+    Assert-Equal ([string]$ToolbarPosition.outcome) "applied" "toolbar position mutation outcome mismatch."
+    $ToolbarPositionRevision = [long]$ToolbarPosition.state.revision
+
+    $ToolbarPositionNoOp = Invoke-RawYuneWindowsServerRequest `
+        -PipeLeaf $PipeLeaf `
+        -Payload "op=set-toolbar-position`nx=-120`ny=240`n.`n" `
+        -Process $Process `
+        -TimeoutMs $TimeoutMs
+    Assert-State $ToolbarPositionNoOp "jyut6ping3" $true $false "hong_kong_traditional" $true -120 240 "default"
+    Assert-Equal ([bool]$ToolbarPositionNoOp.applied) $true "toolbar position no-op must be successful."
+    Assert-Equal ([string]$ToolbarPositionNoOp.outcome) "unchanged" "toolbar position no-op outcome mismatch."
+    Assert-Equal ([long]$ToolbarPositionNoOp.state.revision) $ToolbarPositionRevision "toolbar position no-op advanced revision."
 
     $ToolbarSkin = Invoke-RawYuneWindowsServerRequest `
         -PipeLeaf $PipeLeaf `
@@ -230,6 +276,9 @@ try {
         -Process $Process `
         -TimeoutMs $TimeoutMs
     Assert-State $ToolbarSkin "jyut6ping3" $true $false "hong_kong_traditional" $true -120 240 "default"
+    Assert-Equal ([bool]$ToolbarSkin.applied) $true "toolbar skin no-op must be successful."
+    Assert-Equal ([string]$ToolbarSkin.outcome) "unchanged" "toolbar skin no-op outcome mismatch."
+    Assert-Equal ([long]$ToolbarSkin.state.revision) $ToolbarPositionRevision "toolbar skin no-op advanced revision."
 
     Stop-Process -Id $Process.Id -Force
     $Process.WaitForExit(10000) | Out-Null
@@ -243,6 +292,31 @@ try {
     Assert-Equal ([bool]$PersistedAsciiInput.ready) $true "persisted ascii-on non-empty input readiness mismatch."
     Assert-State $PersistedAsciiInput "jyut6ping3" $true $false "hong_kong_traditional" $true -120 240 "default"
     Assert-ServerAlive $Process "persisted ascii_mode=true non-empty input"
+    if ([string]$PersistedAsciiInput.state.boot_id -eq $InitialBootId) {
+        throw "server restart must create a new boot id."
+    }
+    Assert-Equal ([long]$PersistedAsciiInput.state.revision) $ToolbarPositionRevision `
+        "persisted state revision changed across restart after accepted no-op mutations."
+
+    $RestartRevision = [long]$PersistedAsciiInput.state.revision
+    $EpochConflict = Invoke-RawYuneWindowsServerRequest `
+        -PipeLeaf $PipeLeaf `
+        -Payload "op=set-option`nname=ascii_mode`nvalue=0`nexpect_boot_id=$InitialBootId`nexpect_revision=$RestartRevision`n.`n" `
+        -Process $Process `
+        -TimeoutMs $TimeoutMs
+    Assert-Equal ([bool]$EpochConflict.ready) $true "epoch conflict readiness mismatch."
+    Assert-Equal ([bool]$EpochConflict.applied) $false "epoch conflict must not mutate state."
+    Assert-Equal ([string]$EpochConflict.reason) "epoch_conflict" "epoch conflict reason mismatch."
+    Assert-Equal ([bool]$EpochConflict.state.ascii_mode) $true "epoch conflict changed ascii_mode."
+    Assert-Equal ([long]$EpochConflict.state.revision) $RestartRevision "epoch conflict advanced revision."
+
+    $PartialExpectation = Invoke-RawYuneWindowsServerRequest `
+        -PipeLeaf $PipeLeaf `
+        -Payload "op=set-option`nname=ascii_mode`nvalue=0`nexpect_revision=$RestartRevision`n.`n" `
+        -Process $Process `
+        -TimeoutMs $TimeoutMs
+    Assert-ErrorResponse $PartialExpectation "partial revision expectation"
+    Assert-Equal ([long]$PartialExpectation.state.revision) $RestartRevision "partial expectation advanced revision."
 
     foreach ($InvalidCase in @(
             @{

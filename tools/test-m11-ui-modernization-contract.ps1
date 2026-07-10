@@ -167,9 +167,7 @@ foreach ($Required in @(
         'class GlassSurface',
         'ToolbarGlassMechanism',
         'glass_mechanism',
-        'glass_tint',
-        'glass_tint_opacity',
-        'highlight_intensity',
+        'glass_fallback',
         'WS_EX_NOREDIRECTIONBITMAP',
         'DCompositionCreateDevice',
         'CreateTargetForHwnd',
@@ -178,6 +176,11 @@ foreach ($Required in @(
         'DwmExtendFrameIntoClientArea',
         'DWMWA_WINDOW_CORNER_PREFERENCE',
         'DWMSBT_TRANSIENTWINDOW',
+        'DWMSBT_NONE',
+        'EffectiveWindowsBuildNumber\(\) < 22621',
+        'ApplyToolbarGlassBackdrop',
+        'acrylic_backdrop_active',
+        'FAILED\(ExtendToolbarFrame\(hwnd, sheet\)\)',
         'DXGI_ERROR_DEVICE_REMOVED'
     )) {
     if ($Header -match $Required -or $WindowSource -match $Required) {
@@ -193,9 +196,19 @@ foreach ($Forbidden in @('WS_EX_LAYERED', 'UpdateLayeredWindow', 'SetWindowCompo
 }
 
 $Skin = $SkinManifestText | ConvertFrom-Json
-foreach ($RequiredProperty in @("glass_mechanism", "glass_tint", "glass_tint_opacity", "highlight_intensity")) {
+foreach ($RequiredProperty in @("glass_mechanism", "glass_fallback")) {
     if ($Skin.PSObject.Properties.Name -notcontains $RequiredProperty) {
         throw "default skin manifest is missing M11 glass property: $RequiredProperty"
+    }
+}
+if ($Skin.glass_fallback -ne "static_tint") {
+    throw "default skin glass_fallback must remain static_tint."
+}
+foreach ($RemovedProperty in @("glass_tint", "glass_tint_opacity", "blur_amount", "highlight_intensity")) {
+    if ($Skin.PSObject.Properties.Name -contains $RemovedProperty -or
+        $Header -match $RemovedProperty -or
+        $WindowSource -match $RemovedProperty) {
+        throw "removed inert v1 glass field is still present: $RemovedProperty"
     }
 }
 $GlyphAscii = Text-FromCodePoints @(0x4e2d)
@@ -210,15 +223,15 @@ if ($Skin.segments.ascii -ne $GlyphAscii -or
 foreach ($Required in @(
         'M11 UI Modernization \+ Cantonese Localization',
         'non-elevated',
-        'live visual proof remains approval-gated',
-        'combo label/value split',
+        'approval-gated installed\s+visual proof pending',
+        'combo label/value\s+(split|separation)',
         'Cantonese',
         'DirectComposition',
-        'DWM Desktop Acrylic'
+        '(DWM|acrylic)'
     )) {
     Require-Text $Evidence $Required "M11 evidence summary is missing: $Required"
 }
-Require-Text $Roadmap 'M11 .*non-elevated implementation' `
+Require-Text $Roadmap 'M11 .*implementation fixed; installed proof pending' `
     "roadmap must report the M11 non-elevated implementation status truthfully."
 
 Write-Host "M11 UI modernization/Cantonese localization static contract passed."

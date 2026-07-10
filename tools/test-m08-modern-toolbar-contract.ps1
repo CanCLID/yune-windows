@@ -93,8 +93,23 @@ if ($WindowSource -match 'HTCAPTION') {
 # content must be a DComp surface so window moves do not stamp stale ULW frames.
 Require-Text $WindowSource 'SetWindowPos\(hwnd_, nullptr, clamped\.left, clamped\.top' `
     "language-bar drag must still move the no-activate popup with SetWindowPos."
-Require-Text $WindowSource 'drag-active guard: keep position during pointer capture' `
-    "language-bar Update must skip caret-follow reposition while the pointer is captured (drag-fight/ghost-trail fix)."
+$ContinueBody = [regex]::Match(
+    $WindowSource,
+    '(?s)void LanguageBarWindow::ContinuePointerInteraction\(POINT client_point\) \{(?<body>.*?)\r?\n\}\r?\n\r?\nvoid LanguageBarWindow::EndPointerInteraction').Groups['body'].Value
+if ($ContinueBody -eq '') {
+    throw "unable to locate LanguageBarWindow::ContinuePointerInteraction body."
+}
+Require-Text $ContinueBody 'SetWindowPos' `
+    "language-bar drag must move the persistent composition window."
+foreach ($Forbidden in @('(?m)^\s*Render\s*\(', 'PresentLanguageBar', 'BeginDraw', 'Commit\s*\(')) {
+    if ($ContinueBody -match $Forbidden) {
+        throw "language-bar drag movement must not render/commit DComp frames: $Forbidden"
+    }
+}
+Require-Text $WindowSource 'pointer_captured_ \|\| finishing_pointer_interaction_' `
+    "language-bar Update must defer state/layout rendering while capture finalizes."
+Require-Text $WindowSource 'QueueRender\(true, false\)' `
+    "language-bar Update must queue one post-capture state/layout render."
 
 foreach ($Required in @(
         'set-toolbar-position',

@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
+#include <mutex>
 #include <new>
 #include <sstream>
 
@@ -35,6 +36,10 @@ constexpr COLORREF kTextColor = RGB(20, 24, 31);
 constexpr COLORREF kCommentColor = RGB(88, 94, 104);
 constexpr int kLanguageBarDragThreshold = 4;
 constexpr int kToolbarSegmentCount = 5;
+constexpr UINT_PTR kLanguageBarForegroundTimer = 0x59554e45;
+constexpr UINT kLanguageBarForegroundIntervalMs = 250;
+constexpr const wchar_t* kToolbarSupersededMessageName =
+    L"YuneWindows.ToolbarSuperseded.v1";
 
 #ifndef DWMWA_SYSTEMBACKDROP_TYPE
 #define DWMWA_SYSTEMBACKDROP_TYPE 38
@@ -44,6 +49,9 @@ constexpr int kToolbarSegmentCount = 5;
 #endif
 #ifndef DWMSBT_TRANSIENTWINDOW
 #define DWMSBT_TRANSIENTWINDOW 3
+#endif
+#ifndef DWMSBT_NONE
+#define DWMSBT_NONE 1
 #endif
 #ifndef DWMWCP_ROUND
 #define DWMWCP_ROUND 2
@@ -86,6 +94,66 @@ const std::wstring& CandidateWindowClassName() {
 const std::wstring& LanguageBarClassName() {
     static const std::wstring name = ModuleScopedClassName(kLanguageBarClassName);
     return name;
+}
+
+UINT ToolbarSupersededMessage() {
+    static const UINT message =
+        RegisterWindowMessageW(kToolbarSupersededMessageName);
+    return message;
+}
+
+std::mutex g_visible_toolbar_mutex;
+HWND g_visible_toolbar = nullptr;
+
+HWND RootOwnerWindow(HWND hwnd) {
+    if (!hwnd || !IsWindow(hwnd)) {
+        return nullptr;
+    }
+    HWND root = GetAncestor(hwnd, GA_ROOTOWNER);
+    return root ? root : hwnd;
+}
+
+bool WindowOwnerMatchesForeground(HWND hwnd) {
+    if (!hwnd || !IsWindow(hwnd) || !IsWindowVisible(hwnd)) {
+        return false;
+    }
+    const HWND owner = GetWindow(hwnd, GW_OWNER);
+    const HWND owner_root = RootOwnerWindow(owner);
+    const HWND foreground_root = RootOwnerWindow(GetForegroundWindow());
+    return owner_root && foreground_root && owner_root == foreground_root;
+}
+
+bool IsLanguageBarWindow(HWND hwnd) {
+    wchar_t class_name[192] = {};
+    if (!GetClassNameW(hwnd, class_name, ARRAYSIZE(class_name))) {
+        return false;
+    }
+    constexpr std::wstring_view prefix = L"YuneWindowsLanguageBar_";
+    return std::wstring_view(class_name).starts_with(prefix);
+}
+
+struct SupersedeToolbarContext {
+    HWND claimant = nullptr;
+    UINT message = 0;
+};
+
+BOOL CALLBACK SupersedeToolbarWindow(HWND hwnd, LPARAM parameter) {
+    auto* context =
+        reinterpret_cast<SupersedeToolbarContext*>(parameter);
+    if (!context || hwnd == context->claimant || !IsLanguageBarWindow(hwnd)) {
+        return TRUE;
+    }
+    (void)PostMessageW(hwnd, context->message,
+                       reinterpret_cast<WPARAM>(context->claimant), 0);
+    return TRUE;
+}
+
+void SupersedeOtherToolbarWindows(HWND claimant) {
+    SupersedeToolbarContext context = {claimant, ToolbarSupersededMessage()};
+    if (context.message != 0) {
+        (void)EnumWindows(&SupersedeToolbarWindow,
+                          reinterpret_cast<LPARAM>(&context));
+    }
 }
 
 std::filesystem::path ModuleDirectoryFromAddress() {
@@ -609,21 +677,12 @@ ToolbarSkin LoadToolbarSkin(const std::filesystem::path& install_root,
     LoadSkinColor(json, "pressed", &skin.pressed);
     LoadSkinColor(json, "separator", &skin.separator);
     LoadSkinColor(json, "shadow", &skin.shadow);
-    LoadSkinColor(json, "glass_tint", &skin.glass_tint);
     const std::string glass_mechanism = JsonStringValue(json, "glass_mechanism");
     skin.glass_mechanism = ParseGlassMechanism(glass_mechanism);
     const std::string glass_fallback = JsonStringValue(json, "glass_fallback");
     if (!glass_fallback.empty()) {
         skin.glass_fallback = ParseGlassMechanism(glass_fallback);
     }
-    skin.glass_tint_opacity = std::max(
-        0.0f, std::min(1.0f, JsonFloatValueOr(json, "glass_tint_opacity",
-                                              skin.glass_tint_opacity)));
-    skin.blur_amount =
-        std::max(0.0f, JsonFloatValueOr(json, "blur_amount", skin.blur_amount));
-    skin.highlight_intensity = std::max(
-        0.0f, std::min(1.0f, JsonFloatValueOr(json, "highlight_intensity",
-                                              skin.highlight_intensity)));
 
     const char* label_keys[kToolbarSegmentCount] = {
         "ascii", "shape", "standard", "schema", "settings"};
@@ -735,36 +794,111 @@ DWORD CachedWindowsBuildNumber() {
     return build;
 }
 
-// True when the toolbar has a real DWM acrylic backdrop behind the (transparent)
-// composition surface. When false (Windows 10, or a non-acrylic skin), the pill
-// must be drawn opaque or it renders as a see-through bar over live content.
-bool ToolbarGlassBackdropActive(const ToolbarSkin& skin) {
-    return CachedWindowsBuildNumber() >= 22000 &&
-           skin.glass_mechanism == ToolbarGlassMechanism::DwmAcrylic;
+namespace {
+
+#ifdef YUNE_WINDOWS_LANGUAGE_BAR_SMOKE_HOOKS
+ToolbarBackdropTestHooks g_toolbar_backdrop_test_hooks;
+#endif
+
+DWORD EffectiveWindowsBuildNumber() {
+#ifdef YUNE_WINDOWS_LANGUAGE_BAR_SMOKE_HOOKS
+    if (g_toolbar_backdrop_test_hooks.windows_build_number != 0) {
+        return g_toolbar_backdrop_test_hooks.windows_build_number;
+    }
+#endif
+    return CachedWindowsBuildNumber();
 }
+
+HRESULT SetToolbarWindowAttribute(HWND hwnd, DWORD attribute,
+                                  const void* value, DWORD value_size) {
+#ifdef YUNE_WINDOWS_LANGUAGE_BAR_SMOKE_HOOKS
+    if (g_toolbar_backdrop_test_hooks.set_window_attribute) {
+        return g_toolbar_backdrop_test_hooks.set_window_attribute(
+            hwnd, attribute, value, value_size);
+    }
+#endif
+    return DwmSetWindowAttribute(hwnd, attribute, value, value_size);
+}
+
+HRESULT ExtendToolbarFrame(HWND hwnd, const MARGINS& margins) {
+#ifdef YUNE_WINDOWS_LANGUAGE_BAR_SMOKE_HOOKS
+    if (g_toolbar_backdrop_test_hooks.extend_frame) {
+        return g_toolbar_backdrop_test_hooks.extend_frame(
+            hwnd, margins.cxLeftWidth, margins.cxRightWidth,
+            margins.cyTopHeight, margins.cyBottomHeight);
+    }
+#endif
+    return DwmExtendFrameIntoClientArea(hwnd, &margins);
+}
+
+ToolbarSkinColor EffectiveToolbarPillBackground(
+    const ToolbarSkin& skin, bool acrylic_backdrop_active) {
+    ToolbarSkinColor background = skin.background;
+    if (!acrylic_backdrop_active) {
+        background.a = 1.0f;
+    }
+    return background;
+}
+
+}  // namespace
+
+#ifdef YUNE_WINDOWS_LANGUAGE_BAR_SMOKE_HOOKS
+void SetToolbarBackdropTestHooksForTesting(
+    const ToolbarBackdropTestHooks* hooks) {
+    g_toolbar_backdrop_test_hooks = hooks ? *hooks : ToolbarBackdropTestHooks{};
+}
+
+ToolbarSkinColor EffectiveToolbarPillBackgroundForTesting(
+    const ToolbarSkin& skin, bool acrylic_backdrop_active) {
+    return EffectiveToolbarPillBackground(skin, acrylic_backdrop_active);
+}
+#endif
 
 bool ApplyDwmTransientAcrylic(HWND hwnd) {
+    // DWMWA_SYSTEMBACKDROP_TYPE is supported starting with Windows 11 22621.
+    if (!hwnd || EffectiveWindowsBuildNumber() < 22621) {
+        return false;
+    }
     const MARGINS sheet = {-1, -1, -1, -1};
-    (void)DwmExtendFrameIntoClientArea(hwnd, &sheet);
+    if (FAILED(ExtendToolbarFrame(hwnd, sheet))) {
+        return false;
+    }
     const DWORD corner = DWMWCP_ROUND;
-    (void)DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE,
-                                &corner, sizeof(corner));
+    (void)SetToolbarWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE,
+                                    &corner, sizeof(corner));
     const DWORD backdrop = DWMSBT_TRANSIENTWINDOW;
-    return SUCCEEDED(DwmSetWindowAttribute(hwnd, DWMWA_SYSTEMBACKDROP_TYPE,
-                                           &backdrop, sizeof(backdrop)));
+    return SUCCEEDED(SetToolbarWindowAttribute(
+        hwnd, DWMWA_SYSTEMBACKDROP_TYPE, &backdrop, sizeof(backdrop)));
 }
 
-void ApplyToolbarGlassBackdrop(HWND hwnd, const ToolbarSkin& skin) {
+void ClearToolbarGlassBackdrop(HWND hwnd) {
     if (!hwnd) {
         return;
     }
-    // Windows 10 stays flat (Decision 7); DWM Desktop Acrylic is Win11-gated.
-    if (WindowsBuildNumber() < 22000) {
-        return;
+    if (EffectiveWindowsBuildNumber() >= 22621) {
+        const DWORD backdrop = DWMSBT_NONE;
+        (void)SetToolbarWindowAttribute(hwnd, DWMWA_SYSTEMBACKDROP_TYPE,
+                                        &backdrop, sizeof(backdrop));
     }
-    if (skin.glass_mechanism == ToolbarGlassMechanism::DwmAcrylic) {
-        (void)ApplyDwmTransientAcrylic(hwnd);
+    const MARGINS client_only = {0, 0, 0, 0};
+    (void)ExtendToolbarFrame(hwnd, client_only);
+}
+
+bool ApplyToolbarGlassBackdrop(HWND hwnd, const ToolbarSkin& skin) {
+    if (!hwnd) {
+        return false;
     }
+    if (skin.glass_mechanism == ToolbarGlassMechanism::DwmAcrylic &&
+        ApplyDwmTransientAcrylic(hwnd)) {
+        return true;
+    }
+    if (skin.glass_fallback == ToolbarGlassMechanism::DwmAcrylic &&
+        skin.glass_fallback != skin.glass_mechanism &&
+        ApplyDwmTransientAcrylic(hwnd)) {
+        return true;
+    }
+    ClearToolbarGlassBackdrop(hwnd);
+    return false;
 }
 
 bool IsDeviceLoss(HRESULT hr) {
@@ -788,6 +922,7 @@ HRESULT DrawLanguageBarContent(ID2D1RenderTarget* target,
                                LanguageBarSegment pressed_segment,
                                bool has_hover,
                                bool has_pressed,
+                               bool acrylic_backdrop_active,
                                D2D1_COLOR_F clear_color) {
     target->Clear(clear_color);
 
@@ -825,10 +960,8 @@ HRESULT DrawLanguageBarContent(ID2D1RenderTarget* target,
     // composition surface is transparent with nothing frosting behind it, so a
     // low-alpha pill would show the live desktop through it and wash out the text.
     // Force the pill opaque there; keep the skin's glass alpha when acrylic is on.
-    ToolbarSkinColor pill_background = skin.background;
-    if (!ToolbarGlassBackdropActive(skin)) {
-        pill_background.a = 1.0f;
-    }
+    const ToolbarSkinColor pill_background =
+        EffectiveToolbarPillBackground(skin, acrylic_backdrop_active);
     if (SUCCEEDED(target->CreateSolidColorBrush(ToD2DColor(pill_background),
                                                 &brush))) {
         target->FillRoundedRectangle(pill, brush.Get());
@@ -987,7 +1120,7 @@ bool D2DSurface::PaintLanguageBarPreview(HWND hwnd, HDC dc, const RECT& bounds,
     const HRESULT draw_hr = DrawLanguageBarContent(
         target.Get(), impl_->dwrite_factory.Get(), {width, height}, state, skin,
         LanguageBarSegment::Settings, LanguageBarSegment::Settings, false, false,
-        D2D1::ColorF(0.96f, 0.97f, 0.98f, 1.0f));
+        false, D2D1::ColorF(0.96f, 0.97f, 0.98f, 1.0f));
     const HRESULT end_hr = target->EndDraw();
     hr = FAILED(draw_hr) ? draw_hr : end_hr;
     if (hr == D2DERR_RECREATE_TARGET) {
@@ -1010,11 +1143,23 @@ struct GlassSurface::Impl {
     ComPtr<IDCompositionSurface> dcomp_surface;
     HWND hwnd = nullptr;
     SIZE surface_size = {0, 0};
+    ToolbarGlassMechanism requested_backdrop =
+        ToolbarGlassMechanism::StaticTint;
+    ToolbarGlassMechanism requested_fallback =
+        ToolbarGlassMechanism::StaticTint;
+    bool backdrop_configured = false;
+    bool acrylic_backdrop_active = false;
 };
 
 GlassSurface::~GlassSurface() {
     DiscardDeviceResources();
 }
+
+#ifdef YUNE_WINDOWS_LANGUAGE_BAR_SMOKE_HOOKS
+bool GlassSurface::acrylic_backdrop_active_for_testing() const {
+    return impl_ && impl_->acrylic_backdrop_active;
+}
+#endif
 
 bool GlassSurface::EnsureDeviceResources(HWND hwnd, SIZE size,
                                          const ToolbarSkin& skin) {
@@ -1030,11 +1175,15 @@ bool GlassSurface::EnsureDeviceResources(HWND hwnd, SIZE size,
     if (impl_->dcomp_surface && impl_->d2d_context && impl_->dwrite_factory &&
         impl_->hwnd == hwnd && impl_->surface_size.cx == size.cx &&
         impl_->surface_size.cy == size.cy) {
-        // Device stack already built for this window/size. The DWM backdrop is a
-        // set-once window property applied on the build path below -- do NOT
-        // re-apply it here: this branch runs on every present (every keystroke,
-        // hover, and drag mouse-move), and churning DwmExtendFrameIntoClientArea
-        // on a window being repositioned is wasteful and can flicker.
+        if (!impl_->backdrop_configured ||
+            impl_->requested_backdrop != skin.glass_mechanism ||
+            impl_->requested_fallback != skin.glass_fallback) {
+            impl_->requested_backdrop = skin.glass_mechanism;
+            impl_->requested_fallback = skin.glass_fallback;
+            impl_->acrylic_backdrop_active =
+                ApplyToolbarGlassBackdrop(hwnd, skin);
+            impl_->backdrop_configured = true;
+        }
         return true;
     }
 
@@ -1115,7 +1264,15 @@ bool GlassSurface::EnsureDeviceResources(HWND hwnd, SIZE size,
 
     impl_->hwnd = hwnd;
     impl_->surface_size = size;
-    ApplyToolbarGlassBackdrop(hwnd, skin);
+    if (!impl_->backdrop_configured ||
+        impl_->requested_backdrop != skin.glass_mechanism ||
+        impl_->requested_fallback != skin.glass_fallback) {
+        impl_->requested_backdrop = skin.glass_mechanism;
+        impl_->requested_fallback = skin.glass_fallback;
+        impl_->acrylic_backdrop_active =
+            ApplyToolbarGlassBackdrop(hwnd, skin);
+        impl_->backdrop_configured = true;
+    }
     return true;
 }
 
@@ -1158,7 +1315,8 @@ HRESULT GlassSurface::RenderLanguageBar(const LanguageBarState& state,
     const HRESULT draw_hr = DrawLanguageBarContent(
         impl_->d2d_context.Get(), impl_->dwrite_factory.Get(),
         impl_->surface_size, state, skin, hover_segment, pressed_segment,
-        has_hover, has_pressed, D2D1::ColorF(0.0f, 0.0f, 0.0f, 0.0f));
+        has_hover, has_pressed, impl_->acrylic_backdrop_active,
+        D2D1::ColorF(0.0f, 0.0f, 0.0f, 0.0f));
     const HRESULT end_draw_hr = impl_->d2d_context->EndDraw();
     impl_->d2d_context->SetTransform(D2D1::Matrix3x2F::Identity());
     impl_->d2d_context->SetTarget(nullptr);
@@ -1221,6 +1379,9 @@ bool GlassSurface::PaintLanguageBarPreview(HWND hwnd, HDC dc, const RECT& bounds
 }
 
 void GlassSurface::DiscardDeviceResources() {
+    if (impl_ && impl_->hwnd && impl_->backdrop_configured) {
+        ClearToolbarGlassBackdrop(impl_->hwnd);
+    }
     delete impl_;
     impl_ = nullptr;
     preview_surface_.DiscardDeviceResources();
@@ -1434,7 +1595,6 @@ void NativeCandidateWindow::Paint() {
 LanguageBarWindow::~LanguageBarWindow() {
     if (hwnd_) {
         DestroyWindow(hwnd_);
-        hwnd_ = nullptr;
     }
 }
 
@@ -1451,12 +1611,28 @@ void LanguageBarWindow::SetPositionChangedHandler(
 }
 
 bool LanguageBarWindow::EnsureCreated(HWND owner) {
+    owner = RootOwnerWindow(owner);
+    if (!owner) {
+        return false;
+    }
     if (hwnd_) {
-        if (owner_ != owner) {
-            SetWindowLongPtrW(hwnd_, GWLP_HWNDPARENT,
-                              reinterpret_cast<LONG_PTR>(owner));
-            owner_ = owner;
+        const HWND actual_owner = RootOwnerWindow(GetWindow(hwnd_, GW_OWNER));
+        if (actual_owner != owner) {
+            SetLastError(ERROR_SUCCESS);
+            const LONG_PTR previous = SetWindowLongPtrW(
+                hwnd_, GWLP_HWNDPARENT, reinterpret_cast<LONG_PTR>(owner));
+            if (previous == 0 && GetLastError() != ERROR_SUCCESS) {
+                owner_ = nullptr;
+                Hide();
+                return false;
+            }
         }
+        if (RootOwnerWindow(GetWindow(hwnd_, GW_OWNER)) != owner) {
+            owner_ = nullptr;
+            Hide();
+            return false;
+        }
+        owner_ = owner;
         return true;
     }
     if (!RegisterLanguageBarWindowClass()) {
@@ -1469,15 +1645,28 @@ bool LanguageBarWindow::EnsureCreated(HWND owner) {
                             L"YuneWindowsLanguageBar",
                             WS_POPUP, 0, 0, 1, 1, owner, nullptr,
                             ModuleHandleFromAddress(), this);
-    owner_ = owner;
+    if (hwnd_ && RootOwnerWindow(GetWindow(hwnd_, GW_OWNER)) == owner) {
+        owner_ = owner;
+    } else if (hwnd_) {
+        const HWND invalid_window = hwnd_;
+        hwnd_ = nullptr;
+        SetWindowLongPtrW(invalid_window, GWLP_USERDATA, 0);
+        DestroyWindow(invalid_window);
+        owner_ = nullptr;
+        return false;
+    }
+    if (hwnd_ && ToolbarSupersededMessage() != 0) {
+        CHANGEFILTERSTRUCT filter = {};
+        filter.cbSize = sizeof(filter);
+        (void)ChangeWindowMessageFilterEx(hwnd_, ToolbarSupersededMessage(),
+                                          MSGFLT_ALLOW, &filter);
+    }
     return hwnd_ != nullptr;
 }
 
 bool LanguageBarWindow::Update(const LanguageBarState& state, bool show) {
-    if (!EnsureCreated(state.owner)) {
-        return false;
-    }
     state_ = state;
+    state_.owner = RootOwnerWindow(state.owner);
     skin_ = LoadToolbarSkin(ModuleDirectoryFromAddress(), state_.skin_name);
 
     // Render the bar at a fixed, compact 1x size regardless of caret/display DPI.
@@ -1487,26 +1676,48 @@ bool LanguageBarWindow::Update(const LanguageBarState& state, bool show) {
     // compact size; DPI scale-up is intentionally skipped here.
     state_.dpi = 96;
 
-    // drag-active guard: keep position during pointer capture. While the user is
-    // actively dragging the bar (mouse captured), a caret-follow/state refresh
-    // must not reposition or hide it -- doing so fights the drag's SetWindowPos.
-    // Refresh the cached state/skin and repaint in place under the cursor.
-    if (pointer_captured_) {
-        Render();
+    if (!show || !state_.owner) {
+        Hide();
+        return true;
+    }
+    if ((pointer_captured_ || finishing_pointer_interaction_) &&
+        owner_ != state_.owner) {
+        // Ownership changes mean focus moved. Finish the old drag before any
+        // GWLP_HWNDPARENT mutation, then let this update bind/show the new owner.
+        Hide();
+    }
+    if (!EnsureCreated(state_.owner)) {
+        return false;
+    }
+    if (!ForegroundMatchesOwner()) {
+        Hide();
         return true;
     }
 
-    if (show && !ForegroundMatchesOwner()) {
-        Hide();
+    // During capture the persistent DComp visual moves with the HWND. Cache any
+    // state/layout change and flush it once capture ends; presenting on every
+    // move is the compositor churn that the validated spike deliberately avoids.
+    if (pointer_captured_ || finishing_pointer_interaction_) {
+        QueueRender(true, false);
         return true;
     }
 
     const SIZE desired = LanguageBarDesiredSize(state_.dpi, skin_);
     const RECT rect = ComputeToolbarWindowRect(
         state_.anchor, desired, state_.dpi, state_.toolbar_position);
-    SetWindowPos(hwnd_, HWND_TOPMOST, rect.left, rect.top, rect.right - rect.left,
-                 rect.bottom - rect.top,
-                 SWP_NOACTIVATE | (show ? SWP_SHOWWINDOW : SWP_NOZORDER));
+    if (SetTimer(hwnd_, kLanguageBarForegroundTimer,
+                 kLanguageBarForegroundIntervalMs, nullptr) == 0) {
+        Hide();
+        return false;
+    }
+    ClaimVisibleToolbar();
+    if (!SetWindowPos(hwnd_, HWND_TOPMOST, rect.left, rect.top,
+                      rect.right - rect.left, rect.bottom - rect.top,
+                      SWP_NOACTIVATE | SWP_SHOWWINDOW)) {
+        Hide();
+        return false;
+    }
+    SupersedeOtherToolbarWindows(hwnd_);
     Render();
     return true;
 }
@@ -1514,28 +1725,87 @@ bool LanguageBarWindow::Update(const LanguageBarState& state, bool show) {
 void LanguageBarWindow::Hide() {
     if (hwnd_) {
         if (pointer_captured_) {
-            ReleaseCapture();
-            pointer_captured_ = false;
+            FinishPointerInteraction(pointer_down_client_, false, true, false);
         }
         click_allowed_ = false;
         tracking_mouse_leave_ = false;
         has_hover_segment_ = false;
+        (void)KillTimer(hwnd_, kLanguageBarForegroundTimer);
         ShowWindow(hwnd_, SW_HIDE);
+        ReleaseVisibleToolbar();
+        render_pending_ = false;
+        layout_pending_ = false;
+        surface_reset_pending_ = false;
     }
 }
 
+void LanguageBarWindow::HideForSupersededFocus() {
+    Hide();
+}
+
 bool LanguageBarWindow::ForegroundMatchesOwner() const {
-    if (!owner_ || !IsWindow(owner_)) {
-        return true;
+    if (!hwnd_ || !owner_ || !IsWindow(owner_)) {
+        return false;
     }
-    HWND foreground = GetForegroundWindow();
-    if (!foreground || foreground == hwnd_ || foreground == owner_ ||
-        IsChild(owner_, foreground)) {
-        return true;
+    const HWND owner_root = RootOwnerWindow(GetWindow(hwnd_, GW_OWNER));
+    if (!owner_root || owner_root != RootOwnerWindow(owner_)) {
+        return false;
     }
-    HWND owner_root = GetAncestor(owner_, GA_ROOTOWNER);
-    HWND foreground_root = GetAncestor(foreground, GA_ROOTOWNER);
+    const HWND foreground_root = RootOwnerWindow(GetForegroundWindow());
     return owner_root && foreground_root && owner_root == foreground_root;
+}
+
+void LanguageBarWindow::ClaimVisibleToolbar() {
+    HWND previous = nullptr;
+    {
+        std::lock_guard<std::mutex> lock(g_visible_toolbar_mutex);
+        if (g_visible_toolbar != hwnd_) {
+            previous = g_visible_toolbar;
+            g_visible_toolbar = hwnd_;
+        }
+    }
+    if (previous && IsWindow(previous)) {
+        (void)ShowWindowAsync(previous, SW_HIDE);
+    }
+}
+
+void LanguageBarWindow::ReleaseVisibleToolbar() {
+    std::lock_guard<std::mutex> lock(g_visible_toolbar_mutex);
+    if (g_visible_toolbar == hwnd_) {
+        g_visible_toolbar = nullptr;
+    }
+}
+
+void LanguageBarWindow::QueueRender(bool layout_changed, bool reset_surface) {
+    render_pending_ = true;
+    layout_pending_ = layout_pending_ || layout_changed;
+    surface_reset_pending_ = surface_reset_pending_ || reset_surface;
+}
+
+void LanguageBarWindow::FlushQueuedRender() {
+    if (pointer_captured_ || !hwnd_ || !IsWindowVisible(hwnd_)) {
+        return;
+    }
+    if (surface_reset_pending_) {
+        surface_.DiscardDeviceResources();
+    }
+    if (layout_pending_) {
+        RECT rect = {};
+        if (GetWindowRect(hwnd_, &rect)) {
+            const SIZE desired = LanguageBarDesiredSize(state_.dpi, skin_);
+            SetWindowPos(hwnd_, nullptr, rect.left, rect.top,
+                         desired.cx, desired.cy,
+                         SWP_NOACTIVATE | SWP_NOZORDER);
+        }
+    }
+    const bool should_render = render_pending_ || layout_pending_ ||
+                               surface_reset_pending_;
+    render_pending_ = false;
+    layout_pending_ = false;
+    surface_reset_pending_ = false;
+    if (should_render) {
+        Render();
+    }
 }
 
 LRESULT CALLBACK LanguageBarWindow::WindowProc(HWND hwnd, UINT message,
@@ -1562,16 +1832,33 @@ LRESULT CALLBACK LanguageBarWindow::WindowProc(HWND hwnd, UINT message,
 
 LRESULT LanguageBarWindow::HandleMessage(UINT message, WPARAM wparam,
                                          LPARAM lparam) {
+    if (message == ToolbarSupersededMessage()) {
+        const HWND claimant = reinterpret_cast<HWND>(wparam);
+        if (claimant && claimant != hwnd_ &&
+            IsLanguageBarWindow(claimant) &&
+            WindowOwnerMatchesForeground(claimant)) {
+            Hide();
+        }
+        return 0;
+    }
     switch (message) {
         case WM_PAINT:
             ValidateRect(hwnd_, nullptr);
-            Render();
+            if (pointer_captured_) {
+                QueueRender();
+            } else {
+                Render();
+            }
             return 0;
         case WM_ERASEBKGND:
             return 1;
         case WM_DPICHANGED:
             (void)wparam;
             state_.dpi = 96;
+            if (pointer_captured_) {
+                QueueRender(true, true);
+                return 0;
+            }
             surface_.DiscardDeviceResources();
             if (lparam) {
                 const RECT* suggested = reinterpret_cast<const RECT*>(lparam);
@@ -1581,6 +1868,23 @@ LRESULT LanguageBarWindow::HandleMessage(UINT message, WPARAM wparam,
                              SWP_NOACTIVATE);
             }
             Render();
+            return 0;
+        case WM_ACTIVATEAPP:
+            if (wparam == FALSE) {
+#ifdef YUNE_WINDOWS_LANGUAGE_BAR_SMOKE_HOOKS
+                if (ignore_activate_app_for_testing_) {
+                    ++activate_app_bypass_count_for_testing_;
+                    return 0;
+                }
+#endif
+                Hide();
+            }
+            return 0;
+        case WM_TIMER:
+            if (wparam == kLanguageBarForegroundTimer &&
+                !ForegroundMatchesOwner()) {
+                Hide();
+            }
             return 0;
         case WM_MOUSEACTIVATE:
             return MA_NOACTIVATE;
@@ -1612,15 +1916,45 @@ LRESULT LanguageBarWindow::HandleMessage(UINT message, WPARAM wparam,
         case WM_MOUSELEAVE:
             tracking_mouse_leave_ = false;
             has_hover_segment_ = false;
-            Render();
+            if (pointer_captured_) {
+                QueueRender();
+            } else {
+                Render();
+            }
             return 0;
         case WM_CAPTURECHANGED:
+            if (pointer_captured_ && !finishing_pointer_interaction_) {
+                FinishPointerInteraction(pointer_down_client_, false, true,
+                                         IsWindowVisible(hwnd_) != FALSE);
+            }
+            return 0;
+        case WM_CANCELMODE:
+            if (pointer_captured_) {
+                FinishPointerInteraction(pointer_down_client_, false, true,
+                                         IsWindowVisible(hwnd_) != FALSE);
+            }
+            return 0;
+        case WM_NCDESTROY: {
+            const HWND destroyed = hwnd_;
+            (void)KillTimer(destroyed, kLanguageBarForegroundTimer);
+            ReleaseVisibleToolbar();
+            surface_.DiscardDeviceResources();
+            owner_ = nullptr;
             pointer_captured_ = false;
             dragging_ = false;
+            drag_allowed_ = false;
             click_allowed_ = false;
+            has_hover_segment_ = false;
             has_pressed_segment_ = false;
-            Render();
-            return 0;
+            tracking_mouse_leave_ = false;
+            finishing_pointer_interaction_ = false;
+            render_pending_ = false;
+            layout_pending_ = false;
+            surface_reset_pending_ = false;
+            hwnd_ = nullptr;
+            SetWindowLongPtrW(destroyed, GWLP_USERDATA, 0);
+            return DefWindowProcW(destroyed, message, wparam, lparam);
+        }
         default:
             return DefWindowProcW(hwnd_, message, wparam, lparam);
     }
@@ -1654,6 +1988,9 @@ void LanguageBarWindow::Render() {
     if (!hwnd_) {
         return;
     }
+#ifdef YUNE_WINDOWS_LANGUAGE_BAR_SMOKE_HOOKS
+    ++render_count_;
+#endif
     if (!surface_.PresentLanguageBar(hwnd_, state_, skin_, hover_segment_,
                                      pressed_segment_, has_hover_segment_,
                                      has_pressed_segment_)) {
@@ -1701,7 +2038,12 @@ void LanguageBarWindow::BeginPointerInteraction(POINT client_point) {
     click_allowed_ = !in_grip;
     dragging_ = false;
     SetCapture(hwnd_);
-    pointer_captured_ = true;
+    pointer_captured_ = GetCapture() == hwnd_;
+    if (!pointer_captured_) {
+        click_allowed_ = false;
+        drag_allowed_ = false;
+        return;
+    }
     drag_start_screen_ = client_point;
     ClientToScreen(hwnd_, &drag_start_screen_);
     GetWindowRect(hwnd_, &drag_start_rect_);
@@ -1725,6 +2067,8 @@ void LanguageBarWindow::ContinuePointerInteraction(POINT client_point) {
             return;
         }
         dragging_ = true;
+        has_pressed_segment_ = false;
+        QueueRender();
     }
 
     RECT desired = drag_start_rect_;
@@ -1733,51 +2077,75 @@ void LanguageBarWindow::ContinuePointerInteraction(POINT client_point) {
     SetWindowPos(hwnd_, nullptr, clamped.left, clamped.top,
                  clamped.right - clamped.left, clamped.bottom - clamped.top,
                  SWP_NOACTIVATE | SWP_NOZORDER | SWP_NOSIZE);
-    Render();
 }
 
 void LanguageBarWindow::EndPointerInteraction(POINT client_point) {
+    FinishPointerInteraction(client_point, true, true, true);
+}
+
+void LanguageBarWindow::FinishPointerInteraction(POINT client_point,
+                                                  bool allow_click,
+                                                  bool persist_position,
+                                                  bool flush_render) {
+    if (finishing_pointer_interaction_) {
+        return;
+    }
+    finishing_pointer_interaction_ = true;
     const bool was_dragging = dragging_;
     const bool click_allowed = click_allowed_;
     const LanguageBarSegment pressed_segment = pressed_segment_;
-    if (pointer_captured_) {
-        ReleaseCapture();
-    }
+    RECT final_rect = {};
+    const bool has_final_rect =
+        was_dragging && persist_position && hwnd_ &&
+        GetWindowRect(hwnd_, &final_rect);
     pointer_captured_ = false;
     dragging_ = false;
     has_pressed_segment_ = false;
     click_allowed_ = false;
+    drag_allowed_ = false;
+    if (GetCapture() == hwnd_) {
+        ReleaseCapture();
+    }
 
-    if (was_dragging) {
-        RECT rect = {};
-        if (GetWindowRect(hwnd_, &rect) && position_changed_handler_) {
-            position_changed_handler_(rect.left, rect.top,
-                                      position_changed_context_);
+    if (has_final_rect && position_changed_handler_) {
+        position_changed_handler_(final_rect.left, final_rect.top,
+                                  position_changed_context_);
+    }
+
+    if (!was_dragging && allow_click) {
+        POINT release_screen = client_point;
+        ClientToScreen(hwnd_, &release_screen);
+        const int dx = release_screen.x - drag_start_screen_.x;
+        const int dy = release_screen.y - drag_start_screen_.y;
+        RECT client = {};
+        GetClientRect(hwnd_, &client);
+        const bool release_inside =
+            client_point.x >= client.left && client_point.x <= client.right &&
+            client_point.y >= client.top && client_point.y <= client.bottom;
+        const int threshold = Scale(kLanguageBarDragThreshold, state_.dpi);
+        const bool stayed_within_click_threshold =
+            std::abs(dx) < threshold && std::abs(dy) < threshold;
+        const bool released_on_pressed_segment =
+            release_inside && SegmentFromPoint(client_point) == pressed_segment;
+
+        if (click_allowed && stayed_within_click_threshold &&
+            released_on_pressed_segment && click_handler_) {
+            click_handler_(pressed_segment, click_context_);
         }
-        Render();
-        return;
     }
-
-    POINT release_screen = client_point;
-    ClientToScreen(hwnd_, &release_screen);
-    const int dx = release_screen.x - drag_start_screen_.x;
-    const int dy = release_screen.y - drag_start_screen_.y;
-    RECT client = {};
-    GetClientRect(hwnd_, &client);
-    const bool release_inside =
-        client_point.x >= client.left && client_point.x <= client.right &&
-        client_point.y >= client.top && client_point.y <= client.bottom;
-    const int threshold = Scale(kLanguageBarDragThreshold, state_.dpi);
-    const bool stayed_within_click_threshold =
-        std::abs(dx) < threshold && std::abs(dy) < threshold;
-    const bool released_on_pressed_segment =
-        release_inside && SegmentFromPoint(client_point) == pressed_segment;
-
-    if (click_allowed && stayed_within_click_threshold &&
-        released_on_pressed_segment && click_handler_) {
-        click_handler_(pressed_segment, click_context_);
+    const bool visible_after_callbacks =
+        hwnd_ && IsWindowVisible(hwnd_) != FALSE;
+    if (visible_after_callbacks) {
+        QueueRender();
+    } else {
+        render_pending_ = false;
+        layout_pending_ = false;
+        surface_reset_pending_ = false;
     }
-    Render();
+    finishing_pointer_interaction_ = false;
+    if (flush_render && visible_after_callbacks) {
+        FlushQueuedRender();
+    }
 }
 
 }  // namespace yune_windows

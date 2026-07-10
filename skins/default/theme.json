@@ -25,10 +25,6 @@
   },
   "glass_mechanism": "dwm_acrylic",
   "glass_fallback": "static_tint",
-  "glass_tint": "#57EAF8FF",
-  "glass_tint_opacity": 0.34,
-  "blur_amount": 28,
-  "highlight_intensity": 0.34,
   "segments": {
     "ascii": "\u4e2d",
     "shape": "\u534a",

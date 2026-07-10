@@ -35,6 +35,7 @@ $ProfileToolObj = Join-Path $OutputDir "yune_windows_profile_tool.obj"
 $SettingsToolObj = Join-Path $OutputDir "yune_windows_settings.obj"
 $SettingsUiStringsObj = Join-Path $OutputDir "yune_windows_ui_strings.obj"
 $CandidateWindowObj = Join-Path $OutputDir "yune_windows_candidate_window.obj"
+$LanguageBarCandidateWindowObj = Join-Path $OutputDir "yune_windows_candidate_window_language_bar_smoke.obj"
 $CandidateWindowSmokeObj = Join-Path $OutputDir "yune_windows_candidate_window_smoke.obj"
 $LanguageBarSmokeObj = Join-Path $OutputDir "yune_windows_language_bar_smoke.obj"
 
@@ -76,6 +77,12 @@ if ($LASTEXITCODE -ne 0) {
     throw "candidate window build failed with exit code $LASTEXITCODE"
 }
 
+$LanguageBarCandidateWindowCompile = "call `"$VsDevCmd`" -arch=x64 -host_arch=x64 >nul && cl.exe /nologo /std:c++20 /EHsc /W4 /permissive- /utf-8 /DUNICODE /D_UNICODE /DYUNE_WINDOWS_LANGUAGE_BAR_SMOKE_HOOKS /Fo`"$LanguageBarCandidateWindowObj`" /c `"$CandidateWindowSource`""
+cmd.exe /d /s /c "$LanguageBarCandidateWindowCompile"
+if ($LASTEXITCODE -ne 0) {
+    throw "language-bar candidate window smoke build failed with exit code $LASTEXITCODE"
+}
+
 $TsfCompile = "call `"$VsDevCmd`" -arch=x64 -host_arch=x64 >nul && cl.exe /nologo /std:c++20 /EHsc /W4 /permissive- /utf-8 /DUNICODE /D_UNICODE /LD /Fo`"$TsfObj`" /Fe`"$TsfDll`" `"$TsfSource`" `"$CandidateWindowObj`" /link ole32.lib uuid.lib advapi32.lib user32.lib gdi32.lib dwmapi.lib d2d1.lib dwrite.lib d3d11.lib dxgi.lib dcomp.lib /EXPORT:DllGetClassObject,PRIVATE /EXPORT:DllCanUnloadNow,PRIVATE /EXPORT:DllRegisterServer,PRIVATE /EXPORT:DllUnregisterServer,PRIVATE"
 cmd.exe /d /s /c "$TsfCompile"
 if ($LASTEXITCODE -ne 0) {
@@ -88,7 +95,7 @@ if ($LASTEXITCODE -ne 0) {
     throw "candidate window smoke build failed with exit code $LASTEXITCODE"
 }
 
-$LanguageBarSmokeCompile = "call `"$VsDevCmd`" -arch=x64 -host_arch=x64 >nul && cl.exe /nologo /std:c++20 /EHsc /W4 /permissive- /utf-8 /DUNICODE /D_UNICODE /Fo`"$LanguageBarSmokeObj`" /Fe`"$LanguageBarSmokeExe`" `"$LanguageBarSmokeSource`" `"$CandidateWindowObj`" /link user32.lib gdi32.lib ole32.lib dwmapi.lib d2d1.lib dwrite.lib d3d11.lib dxgi.lib dcomp.lib"
+$LanguageBarSmokeCompile = "call `"$VsDevCmd`" -arch=x64 -host_arch=x64 >nul && cl.exe /nologo /std:c++20 /EHsc /W4 /permissive- /utf-8 /DUNICODE /D_UNICODE /DYUNE_WINDOWS_LANGUAGE_BAR_SMOKE_HOOKS /Fo`"$LanguageBarSmokeObj`" /Fe`"$LanguageBarSmokeExe`" `"$LanguageBarSmokeSource`" `"$LanguageBarCandidateWindowObj`" /link user32.lib gdi32.lib ole32.lib dwmapi.lib d2d1.lib dwrite.lib d3d11.lib dxgi.lib dcomp.lib"
 cmd.exe /d /s /c "$LanguageBarSmokeCompile"
 if ($LASTEXITCODE -ne 0) {
     throw "language bar smoke build failed with exit code $LASTEXITCODE"

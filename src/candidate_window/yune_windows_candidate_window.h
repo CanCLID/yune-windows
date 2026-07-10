@@ -73,10 +73,6 @@ struct ToolbarSkin {
     ToolbarSkinColor shadow = {0.0f, 0.0f, 0.0f, 0.0f};
     ToolbarGlassMechanism glass_mechanism = ToolbarGlassMechanism::DwmAcrylic;
     ToolbarGlassMechanism glass_fallback = ToolbarGlassMechanism::StaticTint;
-    ToolbarSkinColor glass_tint = {0.92f, 0.97f, 1.0f, 0.34f};
-    float glass_tint_opacity = 0.34f;
-    float blur_amount = 28.0f;
-    float highlight_intensity = 0.34f;
     std::array<std::wstring, 5> segment_labels = {
         L"\x4e2d", L"\x534a", L"\x50b3", L"\x6719", L"\x2699"};
 };
@@ -132,6 +128,23 @@ private:
     Impl* impl_ = nullptr;
 };
 
+#ifdef YUNE_WINDOWS_LANGUAGE_BAR_SMOKE_HOOKS
+// Narrow DWM seam compiled only into the non-elevated toolbar smoke.
+struct ToolbarBackdropTestHooks {
+    DWORD windows_build_number = 0;
+    HRESULT (*set_window_attribute)(HWND hwnd, DWORD attribute,
+                                    const void* value,
+                                    DWORD value_size) = nullptr;
+    HRESULT (*extend_frame)(HWND hwnd, int left, int right,
+                            int top, int bottom) = nullptr;
+};
+
+void SetToolbarBackdropTestHooksForTesting(
+    const ToolbarBackdropTestHooks* hooks);
+ToolbarSkinColor EffectiveToolbarPillBackgroundForTesting(
+    const ToolbarSkin& skin, bool acrylic_backdrop_active);
+#endif
+
 class GlassSurface {
 public:
     GlassSurface() = default;
@@ -151,6 +164,9 @@ public:
                                  const ToolbarSkin& skin);
     void DiscardDeviceResources();
     bool device_loss_recovery_available() const { return true; }
+#ifdef YUNE_WINDOWS_LANGUAGE_BAR_SMOKE_HOOKS
+    bool acrylic_backdrop_active_for_testing() const;
+#endif
 
 private:
     bool EnsureDeviceResources(HWND hwnd, SIZE size, const ToolbarSkin& skin);
@@ -205,6 +221,21 @@ public:
     bool EnsureCreated(HWND owner);
     bool Update(const LanguageBarState& state, bool show);
     void Hide();
+    void HideForSupersededFocus();
+#ifdef YUNE_WINDOWS_LANGUAGE_BAR_SMOKE_HOOKS
+    HWND native_handle_for_testing() const { return hwnd_; }
+    unsigned long render_count_for_testing() const { return render_count_; }
+    void reset_render_count_for_testing() { render_count_ = 0; }
+    void set_ignore_activate_app_for_testing(bool value) {
+        ignore_activate_app_for_testing_ = value;
+    }
+    unsigned long activate_app_bypass_count_for_testing() const {
+        return activate_app_bypass_count_for_testing_;
+    }
+    void reset_activate_app_bypass_count_for_testing() {
+        activate_app_bypass_count_for_testing_ = 0;
+    }
+#endif
 
     static LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM wparam,
                                        LPARAM lparam);
@@ -212,6 +243,11 @@ public:
 private:
     LRESULT HandleMessage(UINT message, WPARAM wparam, LPARAM lparam);
     bool ForegroundMatchesOwner() const;
+    void ClaimVisibleToolbar();
+    void ReleaseVisibleToolbar();
+    void QueueRender(bool layout_changed = false,
+                     bool reset_surface = false);
+    void FlushQueuedRender();
     LanguageBarSegment SegmentFromPoint(POINT point) const;
     void Render();
     bool IsPointInDragZone(POINT point) const;
@@ -221,6 +257,8 @@ private:
     void BeginPointerInteraction(POINT client_point);
     void ContinuePointerInteraction(POINT client_point);
     void EndPointerInteraction(POINT client_point);
+    void FinishPointerInteraction(POINT client_point, bool allow_click,
+                                  bool persist_position, bool flush_render);
 
     HWND hwnd_ = nullptr;
     HWND owner_ = nullptr;
@@ -243,6 +281,15 @@ private:
     bool has_hover_segment_ = false;
     bool has_pressed_segment_ = false;
     bool tracking_mouse_leave_ = false;
+    bool finishing_pointer_interaction_ = false;
+    bool render_pending_ = false;
+    bool layout_pending_ = false;
+    bool surface_reset_pending_ = false;
+#ifdef YUNE_WINDOWS_LANGUAGE_BAR_SMOKE_HOOKS
+    unsigned long render_count_ = 0;
+    bool ignore_activate_app_for_testing_ = false;
+    unsigned long activate_app_bypass_count_for_testing_ = 0;
+#endif
 };
 
 }  // namespace yune_windows

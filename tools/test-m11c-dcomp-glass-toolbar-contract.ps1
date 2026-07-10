@@ -38,6 +38,17 @@ foreach ($Forbidden in @('WS_EX_LAYERED', 'UpdateLayeredWindow', 'SetWindowCompo
 }
 
 Require-Text $Header 'class GlassSurface' "M11C candidate-window header missing GlassSurface API."
+Require-Text $Header '#ifdef YUNE_WINDOWS_LANGUAGE_BAR_SMOKE_HOOKS' `
+    "M11C render counters/backdrop hooks must be smoke-only."
+Require-Text $BuildScript '\$LanguageBarCandidateWindowObj' `
+    "M11C build must compile a separate smoke-hook candidate-window object."
+Require-Text $BuildScript '/DYUNE_WINDOWS_LANGUAGE_BAR_SMOKE_HOOKS' `
+    "M11C language-bar smoke build is missing its test-hook define."
+$ProductionCandidateCompile = [regex]::Match(
+    $BuildScript, '\$CandidateWindowCompile = ".*"').Value
+if ($ProductionCandidateCompile -match 'YUNE_WINDOWS_LANGUAGE_BAR_SMOKE_HOOKS') {
+    throw "production candidate-window object must not compile smoke hooks."
+}
 
 foreach ($Required in @(
         '<d3d11\.h>',
@@ -71,8 +82,13 @@ foreach ($Required in @(
         'DwmExtendFrameIntoClientArea',
         'DWMWA_SYSTEMBACKDROP_TYPE',
         'DWMSBT_TRANSIENTWINDOW',
+        'DWMSBT_NONE',
         'DWMWA_WINDOW_CORNER_PREFERENCE',
         'DWMWCP_ROUND',
+        'EffectiveWindowsBuildNumber\(\) < 22621',
+        'ApplyToolbarGlassBackdrop',
+        'acrylic_backdrop_active',
+        'FAILED\(ExtendToolbarFrame\(hwnd, sheet\)\)',
         'D2DERR_RECREATE_TARGET',
         'DXGI_ERROR_DEVICE_REMOVED',
         'DXGI_ERROR_DEVICE_RESET',
@@ -108,6 +124,16 @@ $Skin = $SkinManifestText | ConvertFrom-Json
 if ($Skin.glass_mechanism -ne "dwm_acrylic") {
     throw "default skin glass_mechanism must be dwm_acrylic for M11C."
 }
+if ($Skin.glass_fallback -ne "static_tint") {
+    throw "default skin glass_fallback must be static_tint for deterministic M11C fallback."
+}
+foreach ($RemovedProperty in @("glass_tint", "glass_tint_opacity", "blur_amount", "highlight_intensity")) {
+    if ($Skin.PSObject.Properties.Name -contains $RemovedProperty -or
+        $Header -match $RemovedProperty -or
+        $WindowSource -match $RemovedProperty) {
+        throw "removed inert v1 glass field is still present: $RemovedProperty"
+    }
+}
 
 foreach ($Required in @(
         'M11 Slice C',
@@ -117,7 +143,7 @@ foreach ($Required in @(
         'WS_EX_NOREDIRECTIONBITMAP',
         'D2D1_BITMAP_OPTIONS_CANNOT_DRAW',
         'SetDpi\(96,96\)',
-        'live visual confirmation was not run'
+        'installed visual proof has not run'
     )) {
     Require-Text $Evidence $Required "M11C evidence summary missing: $Required"
 }

@@ -65,6 +65,9 @@ constexpr ULONGLONG kServerLaunchCooldownMs = 1500;
 constexpr ULONGLONG kLoneShiftDoubleToggleGuardMs = 250;
 constexpr UINT kShiftHookToggleMessage = WM_APP + 0x5a;
 constexpr const wchar_t* kShiftHookWindowClass = L"YuneWindowsShiftHookWindow";
+constexpr UINT kFocusedServiceSupersededMessage = WM_APP + 0x5b;
+constexpr const wchar_t* kFocusedServiceWindowClass =
+    L"YuneWindowsFocusedServiceWindow";
 constexpr int kCandidatePageSize = 5;
 constexpr LPARAM kKeyWasDownMask = 0x40000000;
 
@@ -83,9 +86,11 @@ std::atomic<bool> g_server_warmup_inflight = false;
 std::atomic<bool> g_hook_shift_down = false;
 std::atomic<bool> g_hook_shift_consumed = false;
 std::atomic<unsigned long long> g_last_lone_shift_toggle_ms = 0;
+std::atomic<unsigned long long> g_focused_service_generation = 0;
 std::mutex g_structural_log_mutex;
 std::mutex g_shift_hook_mutex;
 HHOOK g_shift_hook = nullptr;
+DWORD g_shift_hook_thread_id = 0;
 HWND g_shift_hook_window = nullptr;
 DWORD g_shift_hook_window_thread_id = 0;
 TextService* g_focused_text_service = nullptr;
@@ -232,9 +237,12 @@ bool CanLaunchSharedServerFromCurrentHost();
 bool RequestSharedServerLaunch();
 void RequestSharedServerWarmupAsync();
 bool TryAcquireLoneShiftToggle();
-void RegisterFocusedTextService(TextService* service);
+bool ActivateFocusedTextService(TextService* service);
+void DeactivateFocusedTextService(TextService* service);
 LRESULT CALLBACK ShiftHookWindowProc(HWND hwnd, UINT message, WPARAM wparam,
                                      LPARAM lparam);
+LRESULT CALLBACK FocusedServiceWindowProc(HWND hwnd, UINT message,
+                                          WPARAM wparam, LPARAM lparam);
 LRESULT CALLBACK LowLevelKeyboardProc(int code, WPARAM wparam, LPARAM lparam);
 
 void WriteStructuralEvent(const char* event_name, int buffer_length = -1,
@@ -1340,6 +1348,16 @@ public:
 
     ~TextService() {
         Deactivate();
+        const HWND dispatcher = focused_service_window_.exchange(nullptr);
+        if (dispatcher) {
+            SetWindowLongPtrW(dispatcher, GWLP_USERDATA, 0);
+            if (GetWindowThreadProcessId(dispatcher, nullptr) ==
+                GetCurrentThreadId()) {
+                DestroyWindow(dispatcher);
+            } else {
+                (void)PostMessageW(dispatcher, WM_CLOSE, 0, 0);
+            }
+        }
         DllRelease();
     }
 
@@ -1449,7 +1467,8 @@ public:
         }
         client_id_ = TF_CLIENTID_NULL;
         focused_ = false;
-        RegisterFocusedTextService(nullptr);
+        DeactivateFocusedTextService(this);
+        ClearToolbarAnchorCache();
         ClearShiftState();
         language_bar_.Hide();
         return S_OK;
@@ -1458,15 +1477,20 @@ public:
     STDMETHODIMP OnSetFocus(BOOL focused) override {
         if (!focused) {
             focused_ = false;
-            RegisterFocusedTextService(nullptr);
+            DeactivateFocusedTextService(this);
+            ClearToolbarAnchorCache();
             ClearShiftState();
             WriteStructuralEvent("focus_lost", static_cast<int>(buffer_.size()),
                                  static_cast<int>(last_candidates_.size()));
             ClearCompositionState(true);
             language_bar_.Hide();
         } else {
-            focused_ = true;
-            RegisterFocusedTextService(this);
+            focused_ = ActivateFocusedTextService(this);
+            if (!focused_) {
+                ClearToolbarAnchorCache();
+                language_bar_.Hide();
+                return S_OK;
+            }
             RefreshStateFromServer(nullptr, RefreshStateMode::ExistingServerOnly);
             RequestSharedServerWarmupAsync();
         }
@@ -1703,6 +1727,20 @@ public:
         ToggleBoolState("ascii_mode", context);
     }
 
+    void HideLanguageBarForSupersededFocus() {
+        language_bar_.HideForSupersededFocus();
+    }
+
+    bool PrepareFocusedServiceActivation(unsigned long long generation);
+    bool QueueSupersededFocus(unsigned long long generation);
+    unsigned long long FocusedServiceGeneration() const {
+        return focused_service_generation_.load();
+    }
+    void HandleSupersededFocus(HWND dispatcher,
+                               unsigned long long generation);
+    bool DetachFocusedServiceWindow(HWND dispatcher,
+                                    unsigned long* pending_references);
+
 private:
     static void LanguageBarClickThunk(yune_windows::LanguageBarSegment segment,
                                       void* context) {
@@ -1869,6 +1907,13 @@ private:
         compartment_mgr->Release();
     }
 
+    void ClearToolbarAnchorCache() {
+        last_toolbar_owner_ = nullptr;
+        last_toolbar_anchor_ = {};
+        last_toolbar_dpi_ = 96;
+        has_toolbar_anchor_ = false;
+    }
+
     void UpdateLanguageBar(ITfContext* context) {
         if (!focused_) {
             language_bar_.Hide();
@@ -1879,24 +1924,66 @@ private:
             return;
         }
 
+        const bool contextless_update = context == nullptr;
+        ITfContext* resolved_context = context;
+        bool release_resolved_context = false;
+        if (!resolved_context && thread_mgr_) {
+            ITfDocumentMgr* document_mgr = nullptr;
+            if (SUCCEEDED(thread_mgr_->GetFocus(&document_mgr)) && document_mgr) {
+                if (SUCCEEDED(document_mgr->GetTop(&resolved_context)) &&
+                    resolved_context) {
+                    release_resolved_context = true;
+                }
+                document_mgr->Release();
+            }
+        }
+
         CandidateAnchorResult anchor_result;
-        if (context && client_id_ != TF_CLIENTID_NULL) {
+        if (resolved_context && client_id_ != TF_CLIENTID_NULL) {
             CandidateAnchorEditSession* session = nullptr;
             try {
                 session = new (std::nothrow)
-                    CandidateAnchorEditSession(context, &anchor_result);
+                    CandidateAnchorEditSession(resolved_context, &anchor_result);
             } catch (...) {
             }
             if (session) {
                 HRESULT edit_hr = E_FAIL;
                 const HRESULT request_hr =
-                    context->RequestEditSession(client_id_, session,
-                                                TF_ES_SYNC | TF_ES_READ,
-                                                &edit_hr);
+                    resolved_context->RequestEditSession(
+                        client_id_, session, TF_ES_SYNC | TF_ES_READ, &edit_hr);
                 session->Release();
                 (void)request_hr;
                 (void)edit_hr;
             }
+        }
+        if (release_resolved_context) {
+            resolved_context->Release();
+        }
+
+        HWND resolved_owner = anchor_result.owner;
+        if (resolved_owner && IsWindow(resolved_owner)) {
+            HWND root = GetAncestor(resolved_owner, GA_ROOTOWNER);
+            resolved_owner = root ? root : resolved_owner;
+            if (resolved_owner != last_toolbar_owner_) {
+                has_toolbar_anchor_ = false;
+            }
+            last_toolbar_owner_ = resolved_owner;
+            last_toolbar_dpi_ = anchor_result.dpi;
+            if (anchor_result.has_anchor) {
+                last_toolbar_anchor_ = anchor_result.anchor;
+                has_toolbar_anchor_ = true;
+            }
+        } else if (!contextless_update) {
+            // A concrete context must establish its own owner. Reusing the
+            // previous context's cache here can expose a bar over the wrong host.
+            ClearToolbarAnchorCache();
+            language_bar_.Hide();
+            return;
+        }
+        if (!last_toolbar_owner_ || !IsWindow(last_toolbar_owner_)) {
+            ClearToolbarAnchorCache();
+            language_bar_.Hide();
+            return;
         }
 
         yune_windows::LanguageBarState bar_state;
@@ -1904,12 +1991,12 @@ private:
         bar_state.full_shape = state_.full_shape;
         bar_state.output_standard = state_.output_standard;
         bar_state.schema_id = state_.schema_id;
-        bar_state.owner = anchor_result.owner;
-        bar_state.dpi = anchor_result.dpi;
+        bar_state.owner = last_toolbar_owner_;
+        bar_state.dpi = last_toolbar_dpi_;
         bar_state.toolbar_position = state_.toolbar_position;
         bar_state.skin_name = state_.toolbar_skin;
-        if (anchor_result.has_anchor) {
-            bar_state.anchor = anchor_result.anchor;
+        if (has_toolbar_anchor_) {
+            bar_state.anchor = last_toolbar_anchor_;
             bar_state.anchor.top =
                 bar_state.anchor.top > 40 ? bar_state.anchor.top - 40 : 0;
             bar_state.anchor.bottom = bar_state.anchor.top + 34;
@@ -2445,9 +2532,174 @@ private:
     bool shift_down_ = false;
     bool shift_consumed_ = false;
     bool focused_ = false;
+    std::atomic<HWND> focused_service_window_{nullptr};
+    std::atomic<unsigned long long> focused_service_generation_{0};
+    std::mutex focused_service_handoff_mutex_;
+    std::vector<unsigned long long> pending_focused_service_handoffs_;
+    bool retire_focused_service_window_ = false;
+    HWND last_toolbar_owner_ = nullptr;
+    RECT last_toolbar_anchor_ = {};
+    UINT last_toolbar_dpi_ = 96;
+    bool has_toolbar_anchor_ = false;
     yune_windows::NativeCandidateWindow candidate_window_;
     yune_windows::LanguageBarWindow language_bar_;
 };
+
+bool EnsureFocusedServiceWindowClassRegistered() {
+    WNDCLASSEXW wc = {};
+    wc.cbSize = sizeof(wc);
+    wc.lpfnWndProc = FocusedServiceWindowProc;
+    wc.hInstance = g_instance;
+    wc.lpszClassName = kFocusedServiceWindowClass;
+    return RegisterClassExW(&wc) != 0 ||
+           GetLastError() == ERROR_CLASS_ALREADY_EXISTS;
+}
+
+bool TextService::PrepareFocusedServiceActivation(
+    unsigned long long generation) {
+    HWND dispatcher = focused_service_window_.load();
+    if ((!dispatcher || !IsWindow(dispatcher)) &&
+        EnsureFocusedServiceWindowClassRegistered()) {
+        dispatcher = CreateWindowExW(
+            0, kFocusedServiceWindowClass, L"Yune Windows Focus Handoff", 0,
+            0, 0, 0, 0, HWND_MESSAGE, nullptr, g_instance, this);
+        focused_service_window_.store(dispatcher);
+    }
+    focused_service_generation_.store(generation);
+    retire_focused_service_window_ = false;
+    return dispatcher != nullptr;
+}
+
+bool TextService::QueueSupersededFocus(unsigned long long generation) {
+    std::lock_guard<std::mutex> lock(focused_service_handoff_mutex_);
+    const HWND dispatcher = focused_service_window_.load();
+    if (!dispatcher || !IsWindow(dispatcher)) {
+        return false;
+    }
+    pending_focused_service_handoffs_.push_back(generation);
+    if (PostMessageW(dispatcher, kFocusedServiceSupersededMessage,
+                     static_cast<WPARAM>(generation), 0)) {
+        return true;
+    }
+    pending_focused_service_handoffs_.pop_back();
+    return false;
+}
+
+void TextService::HandleSupersededFocus(
+    HWND dispatcher, unsigned long long generation) {
+    size_t remaining = 0;
+    {
+        std::lock_guard<std::mutex> lock(focused_service_handoff_mutex_);
+        const auto pending = std::find(
+            pending_focused_service_handoffs_.begin(),
+            pending_focused_service_handoffs_.end(), generation);
+        if (pending == pending_focused_service_handoffs_.end()) {
+            return;
+        }
+        pending_focused_service_handoffs_.erase(pending);
+        remaining = pending_focused_service_handoffs_.size();
+    }
+
+    // Queueing occurs while the global focus mutex is held. Taking it here is a
+    // commit barrier: the old registration reference is not released until the
+    // new focused service has replaced it.
+    {
+        std::lock_guard<std::mutex> lock(g_shift_hook_mutex);
+    }
+    if (focused_service_generation_.load() == generation) {
+        // This callback runs on the superseded service's apartment/window
+        // thread. A later activation on the same thread changes the generation
+        // before a stale callback can run, so A -> B -> A cannot hide current A.
+        HideLanguageBarForSupersededFocus();
+        retire_focused_service_window_ = true;
+    }
+
+    if (remaining == 0 && retire_focused_service_window_ &&
+        dispatcher == focused_service_window_.load()) {
+        focused_service_window_.store(nullptr);
+        SetWindowLongPtrW(dispatcher, GWLP_USERDATA, 0);
+        DestroyWindow(dispatcher);
+    }
+
+    // Releases the old process-global focus-registration reference transferred
+    // by ActivateFocusedTextService. This is deliberately the final operation:
+    // it may delete the service after its apartment-owned dispatcher is gone.
+    Release();
+}
+
+bool TextService::DetachFocusedServiceWindow(
+    HWND dispatcher, unsigned long* pending_references) {
+    if (!pending_references) {
+        return false;
+    }
+    *pending_references = 0;
+    HWND expected = dispatcher;
+    if (!focused_service_window_.compare_exchange_strong(expected, nullptr)) {
+        return false;
+    }
+    std::lock_guard<std::mutex> lock(focused_service_handoff_mutex_);
+    *pending_references = static_cast<unsigned long>(
+        pending_focused_service_handoffs_.size());
+    pending_focused_service_handoffs_.clear();
+    retire_focused_service_window_ = false;
+    return true;
+}
+
+LRESULT CALLBACK FocusedServiceWindowProc(HWND hwnd, UINT message,
+                                          WPARAM wparam, LPARAM lparam) {
+    TextService* service = reinterpret_cast<TextService*>(
+        GetWindowLongPtrW(hwnd, GWLP_USERDATA));
+    if (message == WM_NCCREATE) {
+        const auto* create = reinterpret_cast<const CREATESTRUCTW*>(lparam);
+        service = create ? static_cast<TextService*>(create->lpCreateParams)
+                         : nullptr;
+        SetWindowLongPtrW(hwnd, GWLP_USERDATA,
+                          reinterpret_cast<LONG_PTR>(service));
+        return service ? TRUE : FALSE;
+    }
+    if (message == kFocusedServiceSupersededMessage && service) {
+        service->HandleSupersededFocus(
+            hwnd, static_cast<unsigned long long>(wparam));
+        return 0;
+    }
+    if (message == WM_NCDESTROY) {
+        SetWindowLongPtrW(hwnd, GWLP_USERDATA, 0);
+        unsigned long references_to_release = 0;
+        const bool detached =
+            service && service->DetachFocusedServiceWindow(
+                           hwnd, &references_to_release);
+        HWND shift_hook_window_to_close = nullptr;
+        if (detached) {
+            std::lock_guard<std::mutex> lock(g_shift_hook_mutex);
+            if (g_focused_text_service == service) {
+                g_focused_text_service = nullptr;
+                ++references_to_release;
+                g_hook_shift_down.store(false);
+                g_hook_shift_consumed.store(false);
+                if (g_shift_hook) {
+                    UnhookWindowsHookEx(g_shift_hook);
+                    g_shift_hook = nullptr;
+                    g_shift_hook_thread_id = 0;
+                    WriteStructuralEvent("shift_hook_uninstalled");
+                }
+                shift_hook_window_to_close = g_shift_hook_window;
+                g_shift_hook_window = nullptr;
+                g_shift_hook_window_thread_id = 0;
+            }
+        }
+        const LRESULT result =
+            DefWindowProcW(hwnd, message, wparam, lparam);
+        if (shift_hook_window_to_close) {
+            (void)PostMessageW(shift_hook_window_to_close, WM_CLOSE, 0, 0);
+        }
+        while (service && references_to_release > 0) {
+            --references_to_release;
+            service->Release();
+        }
+        return result;
+    }
+    return DefWindowProcW(hwnd, message, wparam, lparam);
+}
 
 bool TryAcquireLoneShiftToggle() {
     const ULONGLONG now = GetTickCount64();
@@ -2484,21 +2736,39 @@ bool EnsureShiftHookWindowClassRegistered() {
     return false;
 }
 
+bool IsShiftHookWindow(HWND hwnd, DWORD expected_thread = 0) {
+    if (!hwnd || !IsWindow(hwnd)) {
+        return false;
+    }
+    const DWORD window_thread = GetWindowThreadProcessId(hwnd, nullptr);
+    if (expected_thread != 0 && window_thread != expected_thread) {
+        return false;
+    }
+    wchar_t class_name[64] = {};
+    return GetClassNameW(hwnd, class_name, ARRAYSIZE(class_name)) != 0 &&
+           lstrcmpW(class_name, kShiftHookWindowClass) == 0;
+}
+
 bool EnsureShiftHookWindowForCurrentThreadLocked() {
     const DWORD current_thread = GetCurrentThreadId();
-    if (g_shift_hook_window &&
-        g_shift_hook_window_thread_id == current_thread &&
-        IsWindow(g_shift_hook_window)) {
-        return true;
+    if (g_shift_hook_window) {
+        if (g_shift_hook_window_thread_id == current_thread &&
+            IsShiftHookWindow(g_shift_hook_window, current_thread)) {
+            return true;
+        }
+        const HWND old_window = g_shift_hook_window;
+        const bool old_window_is_ours = IsShiftHookWindow(old_window);
+        g_shift_hook_window = nullptr;
+        g_shift_hook_window_thread_id = 0;
+        // The old message-only window belongs to another apartment thread.
+        // Ask that thread to destroy it instead of overwriting/leaking the HWND
+        // or calling DestroyWindow cross-thread.
+        if (old_window_is_ours) {
+            (void)PostMessageW(old_window, WM_CLOSE, 0, 0);
+        }
     }
     if (!EnsureShiftHookWindowClassRegistered()) {
         return false;
-    }
-    if (g_shift_hook_window &&
-        g_shift_hook_window_thread_id == current_thread) {
-        DestroyWindow(g_shift_hook_window);
-        g_shift_hook_window = nullptr;
-        g_shift_hook_window_thread_id = 0;
     }
     HWND window = CreateWindowExW(0, kShiftHookWindowClass,
                                   L"Yune Windows Shift Hook",
@@ -2514,8 +2784,14 @@ bool EnsureShiftHookWindowForCurrentThreadLocked() {
 }
 
 bool EnsureShiftHookInstalledLocked() {
-    if (g_shift_hook) {
+    const DWORD current_thread = GetCurrentThreadId();
+    if (g_shift_hook && g_shift_hook_thread_id == current_thread) {
         return true;
+    }
+    if (g_shift_hook) {
+        UnhookWindowsHookEx(g_shift_hook);
+        g_shift_hook = nullptr;
+        g_shift_hook_thread_id = 0;
     }
     g_shift_hook = SetWindowsHookExW(WH_KEYBOARD_LL, LowLevelKeyboardProc,
                                      g_instance, 0);
@@ -2523,44 +2799,86 @@ bool EnsureShiftHookInstalledLocked() {
         WriteStructuralEvent("shift_hook_install_failed");
         return false;
     }
+    g_shift_hook_thread_id = current_thread;
     WriteStructuralEvent("shift_hook_installed");
     return true;
 }
 
-void RegisterFocusedTextService(TextService* service) {
+bool ActivateFocusedTextService(TextService* service) {
+    if (!service) {
+        return false;
+    }
+    const unsigned long long generation =
+        ++g_focused_service_generation;
+    if (!service->PrepareFocusedServiceActivation(generation)) {
+        return false;
+    }
     TextService* old_service = nullptr;
+    unsigned long long old_generation = 0;
     {
         std::lock_guard<std::mutex> lock(g_shift_hook_mutex);
         if (service == g_focused_text_service) {
-            return;
-        }
-        if (service) {
-            if (!EnsureShiftHookWindowForCurrentThreadLocked() ||
-                !EnsureShiftHookInstalledLocked()) {
-                return;
-            }
-            service->AddRef();
+            (void)EnsureShiftHookWindowForCurrentThreadLocked();
+            (void)EnsureShiftHookInstalledLocked();
+            return true;
         }
         old_service = g_focused_text_service;
+        old_generation = old_service
+                             ? old_service->FocusedServiceGeneration()
+                             : 0;
+        if (old_service &&
+            !old_service->QueueSupersededFocus(old_generation)) {
+            // Fail closed. The previous service remains registered until its
+            // own focus-loss/deactivation runs on its apartment thread; the new
+            // service must not show a toolbar without a safe handoff path.
+            return false;
+        }
+        service->AddRef();
         g_focused_text_service = service;
-        if (!service) {
-            g_hook_shift_down.store(false);
-            g_hook_shift_consumed.store(false);
-            if (g_shift_hook) {
-                UnhookWindowsHookEx(g_shift_hook);
-                g_shift_hook = nullptr;
-                WriteStructuralEvent("shift_hook_uninstalled");
-            }
-            if (g_shift_hook_window &&
-                g_shift_hook_window_thread_id == GetCurrentThreadId()) {
-                DestroyWindow(g_shift_hook_window);
-                g_shift_hook_window = nullptr;
-                g_shift_hook_window_thread_id = 0;
-            }
+        // Focus identity is authoritative even when the optional lone-Shift
+        // hook cannot be created. Move its message target only after the safe
+        // service handoff has committed.
+        (void)EnsureShiftHookWindowForCurrentThreadLocked();
+        (void)EnsureShiftHookInstalledLocked();
+    }
+    return true;
+}
+
+void DeactivateFocusedTextService(TextService* service) {
+    if (!service) {
+        return;
+    }
+    TextService* released_service = nullptr;
+    HWND shift_hook_window_to_close = nullptr;
+    {
+        std::lock_guard<std::mutex> lock(g_shift_hook_mutex);
+        // A late focus-loss from an older TSF service must not clear the newer
+        // focused service in this process.
+        if (g_focused_text_service != service) {
+            return;
+        }
+        released_service = g_focused_text_service;
+        g_focused_text_service = nullptr;
+        g_hook_shift_down.store(false);
+        g_hook_shift_consumed.store(false);
+        if (g_shift_hook) {
+            UnhookWindowsHookEx(g_shift_hook);
+            g_shift_hook = nullptr;
+            g_shift_hook_thread_id = 0;
+            WriteStructuralEvent("shift_hook_uninstalled");
+        }
+        if (g_shift_hook_window) {
+            shift_hook_window_to_close = g_shift_hook_window;
+            g_shift_hook_window = nullptr;
+            g_shift_hook_window_thread_id = 0;
         }
     }
-    if (old_service) {
-        old_service->Release();
+    if (shift_hook_window_to_close) {
+        (void)PostMessageW(shift_hook_window_to_close, WM_CLOSE, 0, 0);
+    }
+    if (released_service) {
+        released_service->HideLanguageBarForSupersededFocus();
+        released_service->Release();
     }
 }
 
@@ -2575,6 +2893,13 @@ LRESULT CALLBACK ShiftHookWindowProc(HWND hwnd, UINT message, WPARAM wparam,
             service->Release();
         }
         return 0;
+    }
+    if (message == WM_NCDESTROY) {
+        std::lock_guard<std::mutex> lock(g_shift_hook_mutex);
+        if (g_shift_hook_window == hwnd) {
+            g_shift_hook_window = nullptr;
+            g_shift_hook_window_thread_id = 0;
+        }
     }
     return DefWindowProcW(hwnd, message, wparam, lparam);
 }
@@ -2611,7 +2936,7 @@ LRESULT CALLBACK LowLevelKeyboardProc(int code, WPARAM wparam, LPARAM lparam) {
             g_hook_shift_consumed.store(true);
         }
     }
-    return CallNextHookEx(g_shift_hook, code, wparam, lparam);
+    return CallNextHookEx(nullptr, code, wparam, lparam);
 }
 
 class ClassFactory final : public IClassFactory {

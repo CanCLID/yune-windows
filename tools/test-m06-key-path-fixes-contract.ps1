@@ -85,12 +85,35 @@ foreach ($Required in @(
         'WM_APP',
         'g_focused_text_service',
         'TryAcquireLoneShiftToggle',
-        'RegisterFocusedTextService\(this\)',
-        'RegisterFocusedTextService\(nullptr\)'
+        'ActivateFocusedTextService\(this\)',
+        'DeactivateFocusedTextService\(this\)',
+        'g_focused_text_service != service',
+        'kFocusedServiceSupersededMessage',
+        'PrepareFocusedServiceActivation',
+        'QueueSupersededFocus',
+        'FocusedServiceGeneration',
+        'pending_focused_service_handoffs_',
+        'pending_focused_service_handoffs_\.push_back',
+        'DetachFocusedServiceWindow',
+        'PostMessageW\(dispatcher, kFocusedServiceSupersededMessage',
+        'IsShiftHookWindow',
+        'PostMessageW\(old_window, WM_CLOSE'
     )) {
     if ($Source -notmatch $Required) {
         throw "F5 low-level Shift hook contract missing pattern: $Required"
     }
+}
+
+$ActivateFocusedBody = [regex]::Match(
+    $Source,
+    'bool ActivateFocusedTextService\(TextService\* service\) \{(?s:.*?)\n\}\r?\n\r?\nvoid DeactivateFocusedTextService').Value
+if (-not $ActivateFocusedBody -or
+    $ActivateFocusedBody -match 'old_service->Release\(\)' -or
+    $ActivateFocusedBody -match 'SendNotifyMessageW') {
+    throw "focused-service activation must transfer the old reference to its apartment dispatcher."
+}
+if ($Source -match 'SendNotifyMessageW\(dispatcher, kFocusedServiceSupersededMessage') {
+    throw "focused-service handoff must not synchronously re-enter its apartment dispatcher."
 }
 
 $KeyUpBody = [regex]::Match(

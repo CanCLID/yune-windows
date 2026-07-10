@@ -62,9 +62,12 @@ The active native-shell work is rebaselined in dependency order. M10 owns the
 implemented Cantonese UI, singular clone-free toolbar presentation, and
 settings-window usability closeout. M11 owns the implemented activation,
 lone-Shift state, and deterministic toolbar-visibility reliability closeout.
-They share the next approval-gated hash-pinned deployment but receive separate
-verdicts. M12 then adds the strict manifest-only skin platform, and M13 applies
-it to the native candidate presentation. See
+M10 may take the next approval-gated hash-pinned presentation deployment;
+M11 may reuse the exact candidate after its remaining direct-TSF preflight, or
+must rerun affected M10 regressions if its product inputs change. They receive
+separate verdicts, and both remain prerequisites for M12. M12 then adds the
+strict manifest-only skin platform, and M13 applies it to the native candidate
+presentation. See
 `docs/reference/m10-m13-rebaseline.md`.
 
 For dogfood package or production installer work, refresh live evidence under

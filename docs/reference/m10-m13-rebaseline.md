@@ -50,27 +50,29 @@ M13 use `docs/evidence/m12/` and `docs/evidence/m13/` respectively.
 
 ## Execution order
 
-1. Record `4199a09` as the last implementation commit and `337b9bd` as the
-   pre-rebaseline source/evidence baseline that contains it. This planning/
-   contract rebaseline changes no product build input.
+1. Record `f67b9c1` as the current implementation commit and `337b9bd` as the
+   older pre-rebaseline source/evidence baseline.
 2. At deployment time, pin the clean source commit and the TSF, server,
    settings, and skin artifact hashes actually built and installed. If the
-   source descends from `337b9bd` without a new product change, record the diff
+   source descends from `f67b9c1` without a new product change, record the diff
    proving the intervening changes are planning/contracts only.
-3. Use one approved deployment for the M10 and M11 live session, but publish
-   separate verdicts: M10 presentation/settings and M11 activation/state.
+3. Publish separate verdicts: M10 presentation/settings and M11
+   activation/state. M10 may deploy and close first. M11 may reuse that exact
+   candidate only if product/package inputs remain unchanged and its remaining
+   pre-deployment matrix passes.
 4. Keep either milestone open when its own gate fails or is not exercised; one
    passing verdict does not erase the other lane's failure. Any product build
-   or package input change invalidates the shared candidate and requires the
-   complete M10 + M11 closeout to be rerun.
+   or package input change before M11 invalidates candidate reuse and requires
+   the affected M10 regression gates on the new candidate.
 5. Begin M12 only after both M10 and M11 pass. Begin M13 after M12 with Slice 0
    GDI baseline capture; begin renderer migration only after that baseline is
    recorded and reproducible.
 
-M10 and M11 are separate diagnostic and evidence verdicts, but their installed
-execution is deliberately coupled. M10 cannot exercise a host's presentation
-gate if M11 cannot make the toolbar eligible there. In that case M10 is
-`not_exercised`, not passed, and the paired closeout remains open. A duplicate
+M10 and M11 are separate diagnostic and evidence verdicts. Their installed
+execution may share one exact candidate but need not occur in one session. M10
+still cannot exercise a host's presentation gate if the current implementation
+cannot make the toolbar eligible there. In that case M10 is `not_exercised`,
+not passed. A duplicate
 or foreground-invalid stale toolbar may legitimately fail both M10 topology and
 M11 handoff timing.
 

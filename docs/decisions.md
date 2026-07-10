@@ -243,16 +243,34 @@ I/O runs in a heap-owned worker with no COM/UI/service state; results are consum
 only on the owning service STA. Retired dispatchers become ineligible before
 best-effort cleanup, so late work fails closed.
 
-M10 and M11 receive separate verdicts from one hash-pinned installed session.
+M10 and M11 receive separate verdicts and may reuse one exact hash-pinned
+candidate; D-22 permits their installed sessions to occur sequentially.
 M10 closes only when its current-build toolbar-presentation and settings-
 usability gates pass. M11 closes only after Notepad, Chromium, Explorer, and one
 Electron host show the toolbar without sacrificial toggles; each paced lone
 Shift causes exactly one acknowledged state transition; rapid bursts end at the
 parity-correct state; and previous-host hiding remains within 250 ms. Neither
 verdict substitutes for the other, and M12 remains blocked until both pass.
-The installed execution is nevertheless coupled: if M11 cannot make a toolbar
+Their eligibility evidence is nevertheless coupled: if the implementation
+cannot make a toolbar
 eligible in a required host, that M10 presentation gate is `not_exercised`; an
 observed duplicate or foreground-invalid stale toolbar may fail both verdicts.
+
+### D-22 - Separate M10 deployment readiness from M11 acceptance readiness
+
+M10 may deploy and close after its own focused non-elevated presentation and
+settings preflight passes. The remaining direct-TSF M11 matrix gates whether a
+deployment can be graded as M11; it does not block an M10-only installed
+presentation run. Such a run makes no activation/state claim.
+
+The milestones may reuse one exact hash-pinned candidate. If M11 later changes
+a product or package input, the affected M10 toolbar regressions must pass again
+on that new candidate before M11 can close or M12 can begin. M12 remains blocked
+until both independent installed verdicts pass. A toolbar that cannot be made
+visible still leaves the corresponding M10 host `not_exercised` rather than
+passed. D-22 supersedes only D-21's one-session deployment assumption; it does
+not change the milestone scope mapping or authorize registration, holder
+termination, cleanup, sign-out, or reboot.
 
 ### D-21 - Rebaseline active work as M10 through M13
 
@@ -278,13 +296,23 @@ test names, hashes, and observations are not renamed or retroactively claimed
 as current-hash acceptance. The crosswalk is canonical at
 `docs/reference/m10-m13-rebaseline.md`.
 
-M10 and M11 share one approved deployment but receive separate verdicts;
-both must pass before M12 begins. M13 begins after M12 with its GDI baseline
-slice; renderer migration begins only after that baseline is reproducible. This
-decision changes planning ownership only and does not authorize elevated
-installation, registration, holder termination, or cleanup.
+At rebaseline time M10 and M11 were expected to share one approved deployment
+while receiving separate verdicts. D-22 later permits sequential deployment
+readiness without changing the requirement that both pass before M12. M13
+begins after M12 with its GDI baseline slice; renderer migration begins only
+after that baseline is reproducible. This decision changes planning ownership
+only and does not authorize elevated installation, registration, holder
+termination, or cleanup.
 
 ## Last Updated
+
+2026-07-10 - D-22 permits the already-preflighted M10 presentation/settings
+closeout to deploy independently of M11's remaining direct-TSF pre-deployment
+matrix. Implementation last changed at `f67b9c1`; its settings DPI matrix,
+Shift disposition tracing, server fault/reconciliation smoke, evidence binding,
+and frozen-candidate deployment safety contracts pass non-elevated checks. M11
+remains open, both installed verdicts still block M12, and no installed result
+is claimed by this entry.
 
 2026-07-10 - D-21 replaces the historical M11-before-M10 execution order with
 canonical M10 presentation, M11 activation/state reliability, M12 skin

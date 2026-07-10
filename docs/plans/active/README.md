@@ -4,8 +4,9 @@ The 2026-07-10 rebaseline removes the historical "M11 before M10" inversion.
 See `docs/reference/m10-m13-rebaseline.md` for the complete old-to-new scope and
 evidence map.
 
-- `m10-native-ui-presentation-closeout.md` - **implementation complete;
-  installed acceptance pending.** Owns the native Cantonese surface,
+- `m10-native-ui-presentation-closeout.md` - **implementation and focused
+  non-elevated closeout preflight complete; installed acceptance pending.**
+  Owns the native Cantonese surface,
   DirectComposition toolbar presentation, clone-free ownership/drag/backdrop
   behavior, and settings DPI/resize/scroll usability. The older installed
   clone result remains regression evidence; the current implementation baseline
@@ -27,10 +28,12 @@ evidence map.
   normally redirected GDI fallback, behavior preservation, `頁 n/N`, and cold/
   warm performance gates.
 
-M10 and M11 may share one approved, hash-pinned deployment, but they receive
-separate verdicts. Both must pass before M12 begins; M13 follows M12 and starts
-with its baseline slice. Their live execution is a paired closeout: if M11 cannot
-make a toolbar eligible in a required host, that M10 host gate is not exercised.
+M10 may close first on its own approved, hash-pinned deployment. M11 may reuse
+that exact candidate only if product/package inputs remain unchanged; otherwise
+the affected M10 regressions run again on the M11 candidate. The remaining M11
+direct-TSF matrix gates M11 acceptance, not an M10-only presentation run. Both
+milestones must pass before M12 begins; M13 follows M12. If a toolbar cannot be
+made eligible in a required host, that M10 host gate is not exercised.
 Legacy plans now live in `docs/plans/history/`, and existing `m11*` evidence/test names
 remain unchanged as implementation provenance.
 

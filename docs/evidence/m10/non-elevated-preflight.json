@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "milestone": "M10",
+  "evidence_kind": "non_elevated_preflight",
+  "captured_at": "2026-07-10T01:23:02.0350716-07:00",
+  "implementation_commit": "f67b9c1f3a85d2aeff775c622e90eb579a92086d",
+  "checked_tree_commit": "f67b9c1f3a85d2aeff775c622e90eb579a92086d",
+  "deployment_source_commit": "pending_until_frozen_docs_commit",
+  "verdict": "pass",
+  "settings_dpi_percent_matrix": [100, 125, 150, 200],
+  "settings_minimum_larger_scroll_each_dpi": true,
+  "checks": [
+    {"command": "git diff --check", "passed": true},
+    {"command": "tools/test-tsf-shell-build.ps1", "passed": true},
+    {"command": "tools/test-language-bar-smoke.ps1", "passed": true},
+    {"command": "tools/test-settings-window-smoke.ps1", "passed": true},
+    {"command": "tools/test-m08-modern-toolbar-contract.ps1", "passed": true},
+    {"command": "tools/test-m09-settings-panel-contract.ps1", "passed": true},
+    {"command": "tools/test-m11-ui-modernization-contract.ps1", "passed": true},
+    {"command": "tools/test-m11c-dcomp-glass-toolbar-contract.ps1", "passed": true},
+    {"command": "tools/test-language-bar-window-contract.ps1", "passed": true},
+    {"command": "tools/test-language-bar-topology-diagnostic-contract.ps1", "passed": true},
+    {"command": "tools/test-settings-ime-state-contract.ps1", "passed": true},
+    {"command": "tools/test-server-ime-state-protocol-contract.ps1", "passed": true},
+    {"command": "tools/test-tsf-server-response-validation-contract.ps1", "passed": true},
+    {"command": "tools/test-m11d-activation-reliability-contract.ps1", "passed": true},
+    {"command": "tools/test-m11d-activation-trace-contract.ps1", "passed": true},
+    {"command": "tools/test-m11d-reliability-smoke.ps1", "passed": true},
+    {"command": "tools/test-m11d-multiprocess-reliability-smoke.ps1", "passed": true},
+    {"command": "tools/test-tsf-ime-state-hotkey-contract.ps1", "passed": true},
+    {"command": "tools/test-candidate-window-smoke.ps1", "passed": true},
+    {"command": "tools/test-m10-evidence-summary-contract.ps1", "passed": true},
+    {"command": "tools/test-m10-frozen-candidate-deploy-contract.ps1", "passed": true}
+  ],
+  "stress_results": {
+    "language_bar_repeated_drags": 50,
+    "intermediate_moves_per_drag": 100,
+    "movement_renders": 0,
+    "final_renders_per_completed_drag": 1,
+    "paced_server_cas_actions": 100,
+    "paced_server_revision_advances": 100,
+    "timeout_after_commit_reconciled_once": true,
+    "persistence_failure_atomic_and_recovered_once": true
+  },
+  "review": {
+    "remaining_p0_or_p1_findings": 0,
+    "partial_rollback_fail_closed_contract_passed": true,
+    "post_restart_process_boundary_contract_passed": true,
+    "completion_binding_contract_passed": true,
+    "current_candidate_post_restart_machine_verified": false,
+    "completed_summary_exists": false
+  },
+  "m11_boundary": {
+    "m11_acceptance_claimed": false,
+    "remaining_direct_tsf_matrix": "pending",
+    "note": "This record supports M10 presentation readiness only. D-22 leaves M11 direct-TSF and installed activation/state acceptance open."
+  }
+}

@@ -6,6 +6,7 @@ $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $EvidenceRoot = Join-Path $RepoRoot "docs\evidence\m10"
 $ReadmePath = Join-Path $EvidenceRoot "README.md"
 $TemplatePath = Join-Path $EvidenceRoot "summary.template.json"
+$PreflightPath = Join-Path $EvidenceRoot "non-elevated-preflight.json"
 $SummaryPath = Join-Path $EvidenceRoot "summary.json"
 $SummaryMarkdownPath = Join-Path $EvidenceRoot "summary.md"
 $ToolbarCapture = Join-Path $RepoRoot "tools\dev\capture-m10-toolbar-session.ps1"
@@ -15,6 +16,7 @@ $SettingsCapture = Join-Path $RepoRoot "tools\dev\capture-m10-settings-geometry.
 foreach ($Path in @(
         $ReadmePath,
         $TemplatePath,
+        $PreflightPath,
         $ToolbarCapture,
         $ToolbarFinalize,
         $SettingsCapture
@@ -305,6 +307,25 @@ foreach ($RequiredCheck in $RequiredChecks) {
         throw "M10 evidence schema is missing required preflight check: $RequiredCheck"
     }
 }
+$Preflight = Get-Content -Raw -LiteralPath $PreflightPath | ConvertFrom-Json
+if ([int]$Preflight.schema_version -ne 1 -or
+    $Preflight.milestone -ne "M10" -or
+    $Preflight.evidence_kind -ne "non_elevated_preflight" -or
+    $Preflight.verdict -ne "pass" -or
+    $Preflight.implementation_commit -ne $Evidence.source.implementation_commit -or
+    $Preflight.checked_tree_commit -ne $Evidence.source.implementation_commit -or
+    (@($Preflight.settings_dpi_percent_matrix | ForEach-Object { [int]$_ }) -join ',') -ne
+        '100,125,150,200' -or
+    -not [bool]$Preflight.settings_minimum_larger_scroll_each_dpi -or
+    [bool]$Preflight.m11_boundary.m11_acceptance_claimed) {
+    throw "M10 non-elevated preflight is not a passing, scope-honest record for the implementation commit."
+}
+foreach ($RequiredCheck in $RequiredChecks) {
+    $Match = @($Preflight.checks | Where-Object { $_.command -eq $RequiredCheck })
+    if ($Match.Count -ne 1 -or -not [bool]$Match[0].passed) {
+        throw "M10 non-elevated preflight is missing a passing check: $RequiredCheck"
+    }
+}
 
 $ToolbarGate = Require-Property $Evidence "toolbar_gate" "M10 evidence"
 $Artifacts = Require-Property $Evidence "artifacts" "M10 evidence"
@@ -333,6 +354,8 @@ if ($Evidence.status -eq "pending") {
         [bool]$Evidence.artifacts.all_built_and_installed_hashes_match -or
         -not [string]::IsNullOrWhiteSpace([string]$Artifacts.candidate_manifest_path) -or
         -not [string]::IsNullOrWhiteSpace([string]$Artifacts.post_restart_verification_path) -or
+        $Preflight.deployment_source_commit -ne
+            "pending_until_frozen_docs_commit" -or
         [bool]$Evidence.machine_state_evidence_committed_separately) {
         throw "M10 pending template must not pre-claim non-elevated, installed, or publication success."
     }
@@ -357,6 +380,11 @@ foreach ($CommitField in @("source_commit", "implementation_commit", "pre_rebase
 if ($SourceEvidence.source_commit -eq "1f419837b0575dc1ea47dba2785cbb6949b7e73c" -or
     -not [bool]$SourceEvidence.product_build_input_diff_recorded) {
     throw "M10 cannot close on the older clone-proof commit or without a product-input diff record."
+}
+[void](Assert-IsoTimestamp ([string]$Preflight.captured_at) `
+    "M10 non-elevated preflight")
+if ($Preflight.deployment_source_commit -ne $SourceEvidence.source_commit) {
+    throw "M10 non-elevated preflight is not bound to the deployed source commit."
 }
 [void](Resolve-EvidencePath $SourceEvidence.product_build_input_diff_path "M10 product-input diff evidence")
 

@@ -1,14 +1,14 @@
 # M10 Native UI Presentation Closeout
 
-> **Status:** implementation complete; installed acceptance pending.
+> **Status:** implementation and focused non-elevated closeout preflight
+> complete; installed acceptance pending.
 >
 > M10 is the canonical milestone for the native Cantonese UI, toolbar
 > presentation, and settings-window usability work previously planned and
 > evidenced under M11/M11C, plus only the settings DPI/resize/scroll portion of
-> M11D. Implementation last changed at `4199a09`; pre-rebaseline source/evidence
-> baseline `337b9bd` contains that implementation. This planning/contract
-> rebaseline changes no product build input. No fresh installed proof exists for
-> the resulting closeout tree.
+> M11D. Implementation last changed at `f67b9c1`; the older pre-rebaseline
+> source/evidence baseline remains `337b9bd`. No fresh installed proof exists
+> for the current closeout tree.
 
 ## Outcome
 
@@ -26,22 +26,23 @@ cross-host visibility become deterministic; those are the redefined M11.
 
 ## Frozen closeout build
 
-Implementation last changed at `4199a09`; `337b9bd` is the pre-rebaseline
-source/evidence baseline containing it. At deployment time, pin the clean source
+Implementation last changed at `f67b9c1`; `337b9bd` remains historical
+pre-rebaseline provenance. At deployment time, pin the clean source
 commit actually used to build the TSF DLL, server, settings executable, and
 default skin, then record their installed hashes before either live gate begins.
-If that source is a planning/contract-only descendant of `337b9bd`, record the
+If that source is a planning/contract-only descendant of `f67b9c1`, record the
 diff proving no product build input changed. Verify that loaded TSF holders map
 the pinned DLL.
 
 Do not change the source, settings layout, skin, toolbar fallback, or installed
 binaries midway through a gate. Any corrective change creates a new candidate:
 rerun the focused non-elevated checks, freeze the new source and artifact hashes,
-and rerun the complete shared M10 + M11 installed closeout. Documentation,
-test-contract, or evidence-only edits that change no product build or package
-input do not invalidate a candidate, but their diff from the pinned source must
-be recorded. Final evidence may not combine verdicts from incompatible TSF,
-server, settings, default-skin, or package artifact sets.
+and rerun the affected M10 installed gates. If that candidate is also used for
+M11, its M11 gates run separately. Documentation, test-contract, or evidence-
+only edits that change no product build or package input do not invalidate a
+candidate, but their diff from the pinned source must be recorded. Final
+evidence may not combine verdicts from incompatible TSF, server, settings,
+default-skin, or package artifact sets.
 
 The approved 2026-07-09 PT clone/drag observation used the older source commit
 `1f419837b0575dc1ea47dba2785cbb6949b7e73c`. It proved that the then-installed
@@ -102,6 +103,20 @@ exercised.
 - Yune engine ABI changes, a librime fallback, WebView2/Electron/HTML UI, a
   per-user UI host, animated skins, or new settings functionality.
 
+## Execution boundary with M11
+
+M10 may use its own approval-gated, hash-pinned deployment after the M10
+preflight passes. That run can close only presentation and settings usability;
+it is not M11 activation/state evidence. The remaining direct-TSF M11
+pre-deployment matrix is required before a run is graded as M11, not before an
+M10-only presentation run.
+
+The milestones may reuse one exact candidate when no product or package input
+changes. If later M11 work changes such an input, the affected M10 toolbar
+regressions must be rerun on the new combined candidate before downstream work.
+If M11 cannot make a toolbar visible in one of M10's required hosts, that M10
+host remains `not_exercised`; separation never converts absence into proof.
+
 ## Legacy evidence crosswalk
 
 The published evidence keeps its original labels and factual claims. This plan
@@ -128,7 +143,12 @@ against the frozen source tree:
 - legacy M11 UI-modernization and M11C DirectComposition toolbar contracts;
 - language-bar window/topology diagnostics; and
 - settings IME-state and server-response contracts, so localized display values
-  remain separate from protocol values.
+  remain separate from protocol values;
+- the expanded multiprocess server reliability smoke, as a regression guard for
+  the shared candidate rather than an M11 acceptance claim; and
+- the M10 evidence/deployment safety contracts that bind the final verdict to
+  one clean build, installed hashes, and a proven post-deployment session
+  boundary.
 
 The settings layout/self-test coverage must exercise 100%, 125%, 150%, and 200%
 DPI calculations, minimum and larger client sizes, and constrained-work-area
@@ -180,9 +200,9 @@ Clone-free behavior outranks glass:
    DirectComposition path.
 
 A fallback source or manifest change invalidates the current candidate hash. It
-must land as a new implementation change and rerun the complete newly frozen
-M10 + M11 closeout; do not record a failed run as accepted with an unpinned live
-adjustment.
+must land as a new implementation change and rerun the affected M10 gates on a
+newly frozen candidate. M11 runs only if or when that same candidate is graded
+for M11; do not record a failed run as accepted with an unpinned live adjustment.
 
 ## Installed gate B — settings usability
 

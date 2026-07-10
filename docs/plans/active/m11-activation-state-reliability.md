@@ -2,11 +2,10 @@
 
 > **Status:** implementation complete; focused non-elevated checks pass;
 > expanded pre-deployment verification and installed acceptance remain pending.
-> Implementation last changed at `4199a09`; pre-rebaseline source/evidence
-> baseline `337b9bd` contains it. This planning/contract rebaseline changes no
-> product build input. Pin the clean source and artifact hashes used for
-> deployment and record that provenance. No installed result for this baseline
-> is claimed yet. M12 and M13 remain blocked until both the redefined
+> Implementation last changed at `f67b9c1`; the older pre-rebaseline
+> source/evidence baseline remains `337b9bd`. Pin the clean source and artifact
+> hashes used for deployment and record that provenance. No installed result
+> for this baseline is claimed yet. M12 and M13 remain blocked until both the redefined
 > [M10 native UI presentation closeout](m10-native-ui-presentation-closeout.md)
 > and this M11 pass their separate acceptance gates.
 
@@ -55,9 +54,9 @@ M11 consumes M10's native toolbar as an already-defined surface. It must retest
 the affected M10 ownership, clone, drag, no-focus-steal, and persistence
 invariants on the frozen combined build, but those checks remain M10 regression
 evidence and are not absorbed into M11 scope. Any product build/package input
-change after proof invalidates the shared M10 + M11 candidate and requires the
-complete closeout to be rerun; documentation/test/evidence-only changes follow
-the provenance rule in M10.
+change after M10 proof requires the affected M10 regressions to be rerun before
+that new candidate can close M11 or unblock M12; documentation/test/evidence-
+only changes follow the provenance rule in M10.
 
 No Yune engine ABI change is introduced.
 
@@ -179,7 +178,7 @@ unacknowledged state result, invalid owner, or foreground mismatch fails closed.
 
 ## Non-elevated evidence and remaining pre-deployment matrix
 
-The `337b9bd` source/evidence baseline passes these focused build, state,
+The `f67b9c1` implementation baseline passes these focused build, state,
 token/parity, trace, visibility, and concurrency checks:
 
 - `tools/build-tsf-shell.ps1`;
@@ -190,14 +189,15 @@ token/parity, trace, visibility, and concurrency checks:
 - `tools/test-m11d-reliability-smoke.ps1`; and
 - `tools/test-m11d-multiprocess-reliability-smoke.ps1`.
 
-The concurrency smoke proves two independent CAS clients and separate
-process-local token/parity cores. It is not multiprocess TSF activation, hook,
-dispatcher, foreground-owner, or toolbar proof. The approval-gated installed
-host matrix remains authoritative for those paths.
+The expanded concurrency smoke also proves 100 paced server CAS transitions,
+timeout-after-commit reconciliation, persistence-failure rollback/recovery,
+and boot-epoch rejection. It does not prove multiprocess TSF activation, hook,
+dispatcher, foreground-owner, or toolbar behavior. The remaining helper and
+approval-gated installed host matrices remain authoritative for those paths.
 
-Before deployment, expand or add non-elevated coverage for the cases required by
-the legacy M11D design but not fully closed by the current core/concurrency
-smokes:
+Before a deployment is graded as **M11 acceptance**, expand or add non-elevated
+coverage for the cases required by the legacy M11D design but not fully closed
+by the current core/concurrency smokes:
 
 - helper profile activation before and after its first TSF context;
 - focus while the server is cold, warming, ready, busy, and restarted;
@@ -210,9 +210,11 @@ smokes:
 - stale generations, dead dispatchers, owner destruction, focus loss during
   retry, foreground-owner rejection, and trace privacy/atomic append.
 
-These are required pre-deployment verification gaps. Do not promote the current
-process-local core and two-client CAS smoke into a claim that they are already
-end-to-end multiprocess TSF proof.
+These are required M11 pre-deployment verification gaps. An M10-only
+presentation/settings deployment may proceed under the M10 plan, but it cannot
+claim any M11 result. Do not promote the current process-local core and
+isolated-server CAS/fault smoke into a claim that they are already end-to-end
+multiprocess TSF proof.
 
 M11 also reruns M10's language-bar, DComp/backdrop, drag, click, ownership, and
 topology regressions. Passing them protects the dependency; it does not move
@@ -220,9 +222,11 @@ their implementation or acceptance ownership into M11.
 
 ## Approval-gated installed acceptance
 
-Build and deploy the frozen combined M10+M11 tree once. Record source and
-installed TSF/server hashes, verify every holder maps that build, and use fresh
-Notepad, Chromium, Explorer, and one explicit Electron host such as Claude.
+Build and deploy a frozen M11 candidate; it may reuse an already deployed M10
+candidate only when the exact source and artifact hashes are unchanged. Record
+source and installed TSF/server hashes, verify every holder maps that build,
+and use fresh Notepad, Chromium, Explorer, and one explicit Electron host such
+as Claude.
 Accept M11 only when:
 
 - profile activation plus eligible text focus shows the toolbar without a

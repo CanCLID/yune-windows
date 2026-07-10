@@ -30,6 +30,8 @@ constexpr const wchar_t* kWindowClassName = L"YuneWindowsSettingsWindow";
 constexpr const wchar_t* kPreviewClassName = L"YuneWindowsSettingsPreview";
 constexpr const wchar_t* kInstanceMutexName =
     L"Local\\YuneWindowsSettingsInstance";
+constexpr const wchar_t* kLaunchObservedEventName =
+    L"Local\\YuneWindowsSettingsLaunchObserved.v1";
 constexpr int kDesignDpi = 96;
 // Controls keep their 96-DPI design coordinates at the top-left. Their current
 // bounds end at x=684/y=524; this client floor preserves the intended margins.
@@ -86,6 +88,13 @@ struct SettingsLayoutMetrics {
     int client_height = 0;
 };
 
+struct SettingsScrollLayout {
+    bool horizontal_visible = false;
+    bool vertical_visible = false;
+    int viewport_width = 0;
+    int viewport_height = 0;
+};
+
 struct InitialWindowPlacement {
     int x = CW_USEDEFAULT;
     int y = CW_USEDEFAULT;
@@ -115,6 +124,9 @@ struct SettingsState {
     UINT dpi = kDesignDpi;
     int scroll_x = 0;
     int scroll_y = 0;
+    int vertical_wheel_remainder = 0;
+    int horizontal_wheel_remainder = 0;
+    bool updating_scrollbars = false;
     HFONT ui_font = nullptr;
     std::vector<HWND> controls;
     std::vector<LayoutEntry> layout_entries;
@@ -143,6 +155,46 @@ int Scale(int value, UINT dpi) {
 
 SettingsLayoutMetrics CalculateSettingsLayoutMetrics(UINT dpi) {
     return {Scale(kDesignClientWidth, dpi), Scale(kDesignClientHeight, dpi)};
+}
+
+SettingsScrollLayout CalculateSettingsScrollLayout(
+    int base_client_width, int base_client_height, int content_width,
+    int content_height, int vertical_scrollbar_width,
+    int horizontal_scrollbar_height) {
+    SettingsScrollLayout layout;
+    const int base_width = std::max(1, base_client_width);
+    const int base_height = std::max(1, base_client_height);
+    const int vertical_width = std::max(0, vertical_scrollbar_width);
+    const int horizontal_height = std::max(0, horizontal_scrollbar_height);
+
+    // Start without either bar and monotonically add the bars made necessary
+    // by the other bar's footprint. This produces the same fixed point no
+    // matter which bars happened to be visible before a resize.
+    for (int pass = 0; pass < 3; ++pass) {
+        const int viewport_width =
+            std::max(1, base_width -
+                            (layout.vertical_visible ? vertical_width : 0));
+        const int viewport_height =
+            std::max(1, base_height -
+                            (layout.horizontal_visible ? horizontal_height
+                                                       : 0));
+        const bool need_horizontal = content_width > viewport_width;
+        const bool need_vertical = content_height > viewport_height;
+        if (need_horizontal == layout.horizontal_visible &&
+            need_vertical == layout.vertical_visible) {
+            break;
+        }
+        layout.horizontal_visible =
+            layout.horizontal_visible || need_horizontal;
+        layout.vertical_visible = layout.vertical_visible || need_vertical;
+    }
+    layout.viewport_width =
+        std::max(1, base_width -
+                        (layout.vertical_visible ? vertical_width : 0));
+    layout.viewport_height =
+        std::max(1, base_height -
+                        (layout.horizontal_visible ? horizontal_height : 0));
+    return layout;
 }
 
 bool CalculateWindowSizeForDesignClient(UINT dpi, int design_width,
@@ -966,23 +1018,50 @@ void RelayoutControls(UINT dpi) {
 }
 
 void UpdateScrollBars(HWND hwnd) {
-    RECT client = {};
-    if (!hwnd || !GetClientRect(hwnd, &client)) {
+    if (!hwnd || g_state.updating_scrollbars) {
+        return;
+    }
+    g_state.updating_scrollbars = true;
+    struct ScrollbarUpdateGuard {
+        ~ScrollbarUpdateGuard() { g_state.updating_scrollbars = false; }
+    } update_guard;
+
+    // Measure the client without either standard scrollbar. Deriving the
+    // decision from this stable base avoids the hysteresis where a bar left
+    // visible by the previous size makes the other bar appear necessary.
+    (void)ShowScrollBar(hwnd, SB_BOTH, FALSE);
+    RECT base_client = {};
+    if (!GetClientRect(hwnd, &base_client)) {
         return;
     }
     const SettingsLayoutMetrics content =
         CalculateSettingsLayoutMetrics(g_state.dpi);
-    const int client_width =
-        std::max(1, static_cast<int>(client.right - client.left));
-    const int client_height =
-        std::max(1, static_cast<int>(client.bottom - client.top));
+    const SettingsScrollLayout layout = CalculateSettingsScrollLayout(
+        static_cast<int>(base_client.right - base_client.left),
+        static_cast<int>(base_client.bottom - base_client.top),
+        content.client_width, content.client_height,
+        GetSystemMetricsForDpi(SM_CXVSCROLL, g_state.dpi),
+        GetSystemMetricsForDpi(SM_CYHSCROLL, g_state.dpi));
+
+    (void)ShowScrollBar(hwnd, SB_HORZ,
+                        layout.horizontal_visible ? TRUE : FALSE);
+    (void)ShowScrollBar(hwnd, SB_VERT,
+                        layout.vertical_visible ? TRUE : FALSE);
+    RECT viewport = {};
+    if (!GetClientRect(hwnd, &viewport)) {
+        return;
+    }
+    const int viewport_width =
+        std::max(1, static_cast<int>(viewport.right - viewport.left));
+    const int viewport_height =
+        std::max(1, static_cast<int>(viewport.bottom - viewport.top));
 
     SCROLLINFO horizontal = {};
     horizontal.cbSize = sizeof(horizontal);
     horizontal.fMask = SIF_RANGE | SIF_PAGE | SIF_POS;
     horizontal.nMin = 0;
     horizontal.nMax = std::max(0, content.client_width - 1);
-    horizontal.nPage = static_cast<UINT>(client_width);
+    horizontal.nPage = static_cast<UINT>(viewport_width);
     horizontal.nPos = g_state.scroll_x;
     (void)SetScrollInfo(hwnd, SB_HORZ, &horizontal, TRUE);
 
@@ -991,7 +1070,7 @@ void UpdateScrollBars(HWND hwnd) {
     vertical.fMask = SIF_RANGE | SIF_PAGE | SIF_POS;
     vertical.nMin = 0;
     vertical.nMax = std::max(0, content.client_height - 1);
-    vertical.nPage = static_cast<UINT>(client_height);
+    vertical.nPage = static_cast<UINT>(viewport_height);
     vertical.nPos = g_state.scroll_y;
     (void)SetScrollInfo(hwnd, SB_VERT, &vertical, TRUE);
 
@@ -1004,6 +1083,33 @@ void UpdateScrollBars(HWND hwnd) {
     RelayoutControls(g_state.dpi);
 }
 
+void SetSettingsScrollPosition(HWND hwnd, int bar, long long requested) {
+    SCROLLINFO info = {};
+    info.cbSize = sizeof(info);
+    info.fMask = SIF_ALL;
+    if (!GetScrollInfo(hwnd, bar, &info)) {
+        return;
+    }
+    const int page_adjustment =
+        info.nPage == 0 ? 0 : static_cast<int>(info.nPage) - 1;
+    const int maximum_position =
+        std::max(info.nMin, info.nMax - page_adjustment);
+    const int next = static_cast<int>(std::clamp(
+        requested, static_cast<long long>(info.nMin),
+        static_cast<long long>(maximum_position)));
+    info.fMask = SIF_POS;
+    info.nPos = next;
+    (void)SetScrollInfo(hwnd, bar, &info, TRUE);
+    info.fMask = SIF_POS;
+    (void)GetScrollInfo(hwnd, bar, &info);
+    if (bar == SB_HORZ) {
+        g_state.scroll_x = info.nPos;
+    } else {
+        g_state.scroll_y = info.nPos;
+    }
+    RelayoutControls(g_state.dpi);
+}
+
 void ScrollSettingsWindow(HWND hwnd, int bar, int request,
                           int thumb_position = 0) {
     SCROLLINFO info = {};
@@ -1012,7 +1118,7 @@ void ScrollSettingsWindow(HWND hwnd, int bar, int request,
     if (!GetScrollInfo(hwnd, bar, &info)) {
         return;
     }
-    int next = info.nPos;
+    long long next = info.nPos;
     const int line = Scale(24, g_state.dpi);
     const int page = static_cast<int>(std::max<UINT>(1, info.nPage));
     switch (request) {
@@ -1041,17 +1147,56 @@ void ScrollSettingsWindow(HWND hwnd, int bar, int request,
         default:
             return;
     }
-    info.fMask = SIF_POS;
-    info.nPos = next;
-    (void)SetScrollInfo(hwnd, bar, &info, TRUE);
-    info.fMask = SIF_POS;
-    (void)GetScrollInfo(hwnd, bar, &info);
-    if (bar == SB_HORZ) {
-        g_state.scroll_x = info.nPos;
-    } else {
-        g_state.scroll_y = info.nPos;
+    SetSettingsScrollPosition(hwnd, bar, next);
+}
+
+UINT ConfiguredWheelScrollUnits(bool horizontal) {
+    if (g_layout_smoke) {
+        return 1;
     }
-    RelayoutControls(g_state.dpi);
+    UINT units = 3;
+    const UINT action =
+        horizontal ? SPI_GETWHEELSCROLLCHARS : SPI_GETWHEELSCROLLLINES;
+    if (!SystemParametersInfoW(action, 0, &units, 0)) {
+        return 3;
+    }
+    return units;
+}
+
+void ScrollSettingsWheel(HWND hwnd, int bar, short delta) {
+    int& remainder = bar == SB_HORZ ? g_state.horizontal_wheel_remainder
+                                    : g_state.vertical_wheel_remainder;
+    remainder += static_cast<int>(delta);
+    const int detents = remainder / WHEEL_DELTA;
+    remainder -= detents * WHEEL_DELTA;
+    if (detents == 0) {
+        return;
+    }
+
+    SCROLLINFO info = {};
+    info.cbSize = sizeof(info);
+    info.fMask = SIF_ALL;
+    if (!GetScrollInfo(hwnd, bar, &info)) {
+        return;
+    }
+    const UINT units = ConfiguredWheelScrollUnits(bar == SB_HORZ);
+    if (units == 0) {
+        return;
+    }
+    const long long distance_per_detent =
+        units == WHEEL_PAGESCROLL
+            ? static_cast<long long>(std::max<UINT>(1, info.nPage))
+            : static_cast<long long>(Scale(24, g_state.dpi)) * units;
+    const long long signed_distance =
+        distance_per_detent * static_cast<long long>(detents);
+    // Vertical wheel deltas are positive toward the top. Horizontal wheel
+    // deltas are positive toward the right, per WM_MOUSEHWHEEL.
+    const long long next = bar == SB_HORZ
+                               ? static_cast<long long>(info.nPos) +
+                                     signed_distance
+                               : static_cast<long long>(info.nPos) -
+                                     signed_distance;
+    SetSettingsScrollPosition(hwnd, bar, next);
 }
 
 DWORD WindowsBuildNumber() {
@@ -1275,7 +1420,8 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM wparam,
             if (CalculateSettingsMinimumWindowSize(
                     dpi,
                     current_style == 0 ? kSettingsWindowStyle
-                                       : static_cast<DWORD>(current_style),
+                                       : static_cast<DWORD>(current_style) |
+                                             WS_HSCROLL | WS_VSCROLL,
                     current_ex_style == 0
                         ? kSettingsWindowExStyle
                         : static_cast<DWORD>(current_ex_style),
@@ -1303,6 +1449,10 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM wparam,
         }
         case WM_CREATE:
             g_state.dpi = EffectiveWindowDpi(hwnd);
+            g_state.scroll_x = 0;
+            g_state.scroll_y = 0;
+            g_state.vertical_wheel_remainder = 0;
+            g_state.horizontal_wheel_remainder = 0;
             RefreshUIFont(g_state.dpi);
             ApplyDwmPolish(hwnd);
             CreatePanelControls(hwnd);
@@ -1323,14 +1473,19 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM wparam,
                                  HIWORD(wparam));
             return 0;
         case WM_MOUSEWHEEL:
-            ScrollSettingsWindow(
-                hwnd, SB_VERT,
-                GET_WHEEL_DELTA_WPARAM(wparam) > 0 ? SB_LINEUP : SB_LINEDOWN);
+            ScrollSettingsWheel(hwnd, SB_VERT,
+                                GET_WHEEL_DELTA_WPARAM(wparam));
+            return 0;
+        case WM_MOUSEHWHEEL:
+            ScrollSettingsWheel(hwnd, SB_HORZ,
+                                GET_WHEEL_DELTA_WPARAM(wparam));
             return 0;
         case WM_DPICHANGED:
             g_state.dpi = HIWORD(wparam);
             g_state.scroll_x = 0;
             g_state.scroll_y = 0;
+            g_state.vertical_wheel_remainder = 0;
+            g_state.horizontal_wheel_remainder = 0;
             if (lparam) {
                 const RECT suggested =
                     *reinterpret_cast<const RECT*>(lparam);
@@ -1591,7 +1746,8 @@ int LayoutWindowSmoke(HWND hwnd) {
                        reinterpret_cast<LPARAM>(&minmax));
     SIZE expected_minimum = {};
     if (!CalculateSettingsMinimumWindowSize(
-            EffectiveWindowDpi(hwnd), static_cast<DWORD>(style),
+            EffectiveWindowDpi(hwnd),
+            static_cast<DWORD>(style) | WS_HSCROLL | WS_VSCROLL,
             static_cast<DWORD>(GetWindowLongPtrW(hwnd, GWL_EXSTYLE)),
             &expected_minimum)) {
         std::cerr << "settings layout smoke minimum calculation failed\n";
@@ -1634,17 +1790,93 @@ int LayoutWindowSmoke(HWND hwnd) {
         std::cerr << "settings layout smoke minimum has no scroll access\n";
         return 1;
     }
+
+    const SettingsLayoutMetrics content =
+        CalculateSettingsLayoutMetrics(g_state.dpi);
+    const int vertical_scrollbar_width =
+        GetSystemMetricsForDpi(SM_CXVSCROLL, g_state.dpi);
+    const int horizontal_scrollbar_height =
+        GetSystemMetricsForDpi(SM_CYHSCROLL, g_state.dpi);
+    const SettingsScrollLayout coupled = CalculateSettingsScrollLayout(
+        content.client_width, content.client_height - 1,
+        content.client_width, content.client_height,
+        vertical_scrollbar_width, horizontal_scrollbar_height);
+    const SettingsScrollLayout synthetic_larger =
+        CalculateSettingsScrollLayout(
+            content.client_width + Scale(64, g_state.dpi),
+            content.client_height + Scale(64, g_state.dpi),
+            content.client_width, content.client_height,
+            vertical_scrollbar_width, horizontal_scrollbar_height);
+    const SettingsScrollLayout synthetic_larger_again =
+        CalculateSettingsScrollLayout(
+            content.client_width + Scale(64, g_state.dpi),
+            content.client_height + Scale(64, g_state.dpi),
+            content.client_width, content.client_height,
+            vertical_scrollbar_width, horizontal_scrollbar_height);
+    if (!coupled.horizontal_visible || !coupled.vertical_visible ||
+        synthetic_larger.horizontal_visible ||
+        synthetic_larger.vertical_visible ||
+        synthetic_larger_again.horizontal_visible ||
+        synthetic_larger_again.vertical_visible ||
+        synthetic_larger.viewport_width < content.client_width ||
+        synthetic_larger.viewport_height < content.client_height) {
+        std::cerr << "settings layout smoke scrollbar fixed point is invalid\n";
+        return 1;
+    }
+
+    // The larger-window check is intentionally synthetic. At 200% DPI the
+    // design client is taller than a 1080p work area, so correctness must not
+    // depend on the physical monitor attached to the test machine.
+    for (const LayoutEntry& entry : g_state.layout_entries) {
+        if (Scale(entry.x, g_state.dpi) < 0 ||
+            Scale(entry.y, g_state.dpi) < 0 ||
+            Scale(entry.x + entry.width, g_state.dpi) >
+                synthetic_larger.viewport_width ||
+            Scale(entry.y + entry.height, g_state.dpi) >
+                synthetic_larger.viewport_height) {
+            std::cerr << "settings synthetic larger window clipped a child\n";
+            return 1;
+        }
+    }
+
+    auto controls_match_scroll_offset = [&]() {
+        if (g_state.layout_entries.empty()) {
+            return false;
+        }
+        const std::array<size_t, 2> indices = {
+            0, g_state.layout_entries.size() - 1};
+        for (size_t index : indices) {
+            const LayoutEntry& entry = g_state.layout_entries[index];
+            RECT bounds = {};
+            if (!entry.hwnd || !IsWindow(entry.hwnd) ||
+                !GetWindowRect(entry.hwnd, &bounds)) {
+                return false;
+            }
+            POINT top_left = {bounds.left, bounds.top};
+            SetLastError(ERROR_SUCCESS);
+            if (MapWindowPoints(nullptr, hwnd, &top_left, 1) == 0 &&
+                GetLastError() != ERROR_SUCCESS) {
+                return false;
+            }
+            if (top_left.x != Scale(entry.x, g_state.dpi) - g_state.scroll_x ||
+                top_left.y != Scale(entry.y, g_state.dpi) - g_state.scroll_y) {
+                return false;
+            }
+        }
+        return true;
+    };
+
     ScrollSettingsWindow(hwnd, SB_HORZ, SB_RIGHT);
     ScrollSettingsWindow(hwnd, SB_VERT, SB_BOTTOM);
-    if (g_state.scroll_x <= 0 || g_state.scroll_y <= 0) {
-        std::cerr << "settings layout smoke could not reach content end\n";
+    if (g_state.scroll_x <= 0 || g_state.scroll_y <= 0 ||
+        !controls_match_scroll_offset()) {
+        std::cerr <<
+            "settings layout smoke controls did not track the scroll offset\n";
         return 1;
     }
     if (!GetClientRect(hwnd, &client)) {
         return 1;
     }
-    const SettingsLayoutMetrics content =
-        CalculateSettingsLayoutMetrics(g_state.dpi);
     if (content.client_width - g_state.scroll_x > client.right - client.left ||
         content.client_height - g_state.scroll_y >
             client.bottom - client.top) {
@@ -1652,42 +1884,133 @@ int LayoutWindowSmoke(HWND hwnd) {
         return 1;
     }
 
-    SIZE design_window = {};
-    if (!CalculateSettingsWindowSize(
-            EffectiveWindowDpi(hwnd), static_cast<DWORD>(style),
-            static_cast<DWORD>(GetWindowLongPtrW(hwnd, GWL_EXSTYLE)),
-            &design_window)) {
-        return 1;
-    }
-    (void)SetWindowPos(hwnd, nullptr, 0, 0,
-                       design_window.cx + Scale(64, g_state.dpi),
-                       design_window.cy + Scale(64, g_state.dpi),
-                       SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
     ScrollSettingsWindow(hwnd, SB_HORZ, SB_LEFT);
     ScrollSettingsWindow(hwnd, SB_VERT, SB_TOP);
-    UpdateScrollBars(hwnd);
-    if (!GetClientRect(hwnd, &client)) {
+    g_state.vertical_wheel_remainder = 0;
+    g_state.horizontal_wheel_remainder = 0;
+    const auto wheel_wparam = [](short delta) {
+        return static_cast<WPARAM>(static_cast<USHORT>(delta)) << 16;
+    };
+    (void)SendMessageW(hwnd, WM_MOUSEWHEEL,
+                       wheel_wparam(-WHEEL_DELTA / 2), 0);
+    if (g_state.scroll_y != 0) {
+        std::cerr << "settings layout smoke lost a partial vertical wheel delta\n";
         return 1;
     }
-    for (HWND control : g_state.controls) {
-        if (!control || !IsWindow(control) ||
-            (GetWindowLongPtrW(control, GWL_STYLE) & WS_VISIBLE) == 0) {
-            continue;
+    (void)SendMessageW(hwnd, WM_MOUSEWHEEL,
+                       wheel_wparam(-WHEEL_DELTA / 2), 0);
+    if (g_state.scroll_y != Scale(24, g_state.dpi)) {
+        std::cerr << "settings layout smoke did not accumulate vertical wheel deltas\n";
+        return 1;
+    }
+    (void)SendMessageW(hwnd, WM_MOUSEHWHEEL,
+                       wheel_wparam(WHEEL_DELTA / 2), 0);
+    if (g_state.scroll_x != 0) {
+        std::cerr << "settings layout smoke lost a partial horizontal wheel delta\n";
+        return 1;
+    }
+    (void)SendMessageW(hwnd, WM_MOUSEHWHEEL,
+                       wheel_wparam(WHEEL_DELTA / 2), 0);
+    if (g_state.scroll_x != Scale(24, g_state.dpi) ||
+        !controls_match_scroll_offset()) {
+        std::cerr <<
+            "settings layout smoke did not accumulate horizontal wheel deltas\n";
+        return 1;
+    }
+    ScrollSettingsWindow(hwnd, SB_VERT, SB_TOP);
+    g_state.vertical_wheel_remainder = 0;
+    (void)SendMessageW(hwnd, WM_MOUSEWHEEL,
+                       wheel_wparam(-2 * WHEEL_DELTA), 0);
+    if (g_state.scroll_y != Scale(48, g_state.dpi) ||
+        !controls_match_scroll_offset()) {
+        std::cerr << "settings layout smoke ignored wheel delta magnitude\n";
+        return 1;
+    }
+
+    // Exercise the real ShowScrollBar/SetScrollInfo path through a hidden
+    // monitor-independent viewport. This catches a sticky show/hide state or
+    // failure to clamp positions that a pure fixed-point calculation cannot.
+    const int probe_small_width = Scale(kMinimumDesignClientWidth, g_state.dpi);
+    const int probe_small_height =
+        Scale(kMinimumDesignClientHeight, g_state.dpi);
+    HWND scrollbar_probe = CreateWindowExW(
+        0, L"STATIC", L"", WS_POPUP | WS_HSCROLL | WS_VSCROLL,
+        0, 0, probe_small_width, probe_small_height,
+        nullptr, nullptr, GetModuleHandleW(nullptr), nullptr);
+    if (!scrollbar_probe) {
+        std::cerr << "settings layout smoke could not create scrollbar probe\n";
+        return 1;
+    }
+    struct ScopedProbeWindow {
+        HWND hwnd;
+        ~ScopedProbeWindow() {
+            if (hwnd) {
+                DestroyWindow(hwnd);
+            }
         }
-        RECT bounds = {};
-        if (!GetWindowRect(control, &bounds)) {
-            return 1;
-        }
-        POINT corners[2] = {{bounds.left, bounds.top},
-                            {bounds.right, bounds.bottom}};
-        SetLastError(ERROR_SUCCESS);
-        if ((MapWindowPoints(nullptr, hwnd, corners, 2) == 0 &&
-             GetLastError() != ERROR_SUCCESS) ||
-            corners[0].x < client.left || corners[0].y < client.top ||
-            corners[1].x > client.right || corners[1].y > client.bottom) {
-            std::cerr << "settings layout smoke larger window clipped a child\n";
-            return 1;
-        }
+    } scoped_probe = {scrollbar_probe};
+    auto probe_has_both_scrollbars = [&]() {
+        const LONG_PTR probe_style =
+            GetWindowLongPtrW(scrollbar_probe, GWL_STYLE);
+        SCROLLINFO probe_horizontal = {};
+        probe_horizontal.cbSize = sizeof(probe_horizontal);
+        probe_horizontal.fMask = SIF_ALL;
+        SCROLLINFO probe_vertical = probe_horizontal;
+        return (probe_style & WS_HSCROLL) != 0 &&
+               (probe_style & WS_VSCROLL) != 0 &&
+               GetScrollInfo(scrollbar_probe, SB_HORZ,
+                             &probe_horizontal) &&
+               GetScrollInfo(scrollbar_probe, SB_VERT,
+                             &probe_vertical) &&
+               probe_horizontal.nMax + 1 >
+                   static_cast<int>(probe_horizontal.nPage) &&
+               probe_vertical.nMax + 1 >
+                   static_cast<int>(probe_vertical.nPage);
+    };
+    UpdateScrollBars(scrollbar_probe);
+    if (!probe_has_both_scrollbars()) {
+        std::cerr << "settings layout smoke probe did not show both scrollbars\n";
+        return 1;
+    }
+    ScrollSettingsWindow(scrollbar_probe, SB_HORZ, SB_RIGHT);
+    ScrollSettingsWindow(scrollbar_probe, SB_VERT, SB_BOTTOM);
+    if (g_state.scroll_x <= 0 || g_state.scroll_y <= 0 ||
+        !controls_match_scroll_offset()) {
+        std::cerr << "settings layout smoke probe did not reach its scroll end\n";
+        return 1;
+    }
+    // Grow to the exact content size. With stale bars still present the old
+    // client remains one scrollbar footprint too small, so only a genuine
+    // no-bar-base recomputation can make both bars disappear here.
+    (void)SetWindowPos(
+        scrollbar_probe, nullptr, 0, 0,
+        content.client_width,
+        content.client_height,
+        SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
+    UpdateScrollBars(scrollbar_probe);
+    const LONG_PTR grown_probe_style =
+        GetWindowLongPtrW(scrollbar_probe, GWL_STYLE);
+    if ((grown_probe_style & (WS_HSCROLL | WS_VSCROLL)) != 0 ||
+        g_state.scroll_x != 0 || g_state.scroll_y != 0 ||
+        !controls_match_scroll_offset()) {
+        std::cerr <<
+            "settings layout smoke probe did not hide and clamp scrollbars\n";
+        return 1;
+    }
+    (void)SetWindowPos(scrollbar_probe, nullptr, 0, 0,
+                       probe_small_width, probe_small_height,
+                       SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
+    UpdateScrollBars(scrollbar_probe);
+    if (!probe_has_both_scrollbars() || g_state.scroll_x != 0 ||
+        g_state.scroll_y != 0 || !controls_match_scroll_offset()) {
+        std::cerr <<
+            "settings layout smoke probe did not restore both scrollbars\n";
+        return 1;
+    }
+    UpdateScrollBars(hwnd);
+    if (!controls_match_scroll_offset()) {
+        std::cerr << "settings layout smoke did not restore main viewport\n";
+        return 1;
     }
     std::cout << "settings layout smoke passed at " << g_state.dpi
               << " DPI\n";
@@ -1700,9 +2023,23 @@ bool IsSupportedLayoutSmokeDpi(UINT dpi) {
            supported.end();
 }
 
+void SignalSettingsLaunchObserver() {
+    // Evidence capture creates and holds this manual-reset event only while a
+    // toolbar drag session is being recorded. Opening rather than creating it
+    // keeps normal launches side-effect free while making even a short-lived
+    // settings process observable before singleton forwarding or UI startup.
+    HANDLE launch_observed =
+        OpenEventW(EVENT_MODIFY_STATE, FALSE, kLaunchObservedEventName);
+    if (launch_observed) {
+        (void)SetEvent(launch_observed);
+        CloseHandle(launch_observed);
+    }
+}
+
 }  // namespace
 
 int wmain(int argc, wchar_t** argv) {
+    SignalSettingsLaunchObserver();
     const HRESULT coinit = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
     const bool should_uninit = SUCCEEDED(coinit);
     INITCOMMONCONTROLSEX common_controls = {};

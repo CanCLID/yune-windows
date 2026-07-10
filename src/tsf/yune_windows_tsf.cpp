@@ -2699,21 +2699,25 @@ private:
 
     void ReconcileLanguageBarVisibility(ITfContext* context) {
         const char* context_source = context ? "explicit" : "none";
-        if (!focused_) {
-            RecordToolbarVisibilityReason("not_focused", context_source);
-            language_bar_.Hide();
-            return;
-        }
-        if (!IsCurrentFocusedTextService(
-                this, focused_service_generation_.load())) {
-            RecordToolbarVisibilityReason("not_current_generation",
-                                          context_source);
-            language_bar_.Hide();
-            return;
-        }
-        if (!StateAcknowledgedForCurrentGeneration()) {
-            RecordToolbarVisibilityReason("state_unacknowledged",
-                                          context_source);
+        const unsigned long long generation =
+            focused_service_generation_.load();
+        const yune_windows::reliability::ToolbarEligibilityReason
+            service_eligibility =
+                yune_windows::reliability::EvaluateToolbarEligibility({
+                    thread_mgr_ != nullptr &&
+                        client_id_ != TF_CLIENTID_NULL,
+                    IsCurrentFocusedTextService(this, generation),
+                    focused_,
+                    StateAcknowledgedForCurrentGeneration(),
+                    true,
+                    true,
+                });
+        if (service_eligibility !=
+            yune_windows::reliability::ToolbarEligibilityReason::Eligible) {
+            RecordToolbarVisibilityReason(
+                yune_windows::reliability::ToolbarEligibilityReasonName(
+                    service_eligibility),
+                context_source);
             language_bar_.Hide();
             return;
         }
@@ -2772,22 +2776,31 @@ private:
             // A concrete context must establish its own owner. Reusing the
             // previous context's cache here can expose a bar over the wrong host.
             ClearToolbarAnchorCache();
-            RecordToolbarVisibilityReason("no_owner_for_context",
-                                          context_source);
-            language_bar_.Hide();
-            return;
         } else if (last_toolbar_owner_ && IsWindow(last_toolbar_owner_)) {
             context_source = "cached_owner";
         }
-        if (!last_toolbar_owner_ || !IsWindow(last_toolbar_owner_)) {
-            ClearToolbarAnchorCache();
-            RecordToolbarVisibilityReason("owner_invalid", context_source);
-            language_bar_.Hide();
-            return;
-        }
-        if (!CachedToolbarOwnerMatchesForeground()) {
-            RecordToolbarVisibilityReason("foreground_mismatch",
-                                          context_source);
+        const bool owner_valid =
+            last_toolbar_owner_ && IsWindow(last_toolbar_owner_);
+        const yune_windows::reliability::ToolbarEligibilityReason
+            owner_eligibility =
+                yune_windows::reliability::EvaluateToolbarEligibility({
+                    true,
+                    true,
+                    true,
+                    true,
+                    owner_valid,
+                    owner_valid && CachedToolbarOwnerMatchesForeground(),
+                });
+        if (owner_eligibility !=
+            yune_windows::reliability::ToolbarEligibilityReason::Eligible) {
+            const char* reason =
+                yune_windows::reliability::ToolbarEligibilityReasonName(
+                    owner_eligibility);
+            if (owner_eligibility == yune_windows::reliability::
+                                         ToolbarEligibilityReason::OwnerInvalid) {
+                ClearToolbarAnchorCache();
+            }
+            RecordToolbarVisibilityReason(reason, context_source);
             language_bar_.Hide();
             return;
         }

@@ -43,8 +43,36 @@ if ($Subsystem -ne 2) {
     throw "settings executable PE subsystem is $Subsystem, expected 2 (Windows GUI)."
 }
 
+$LaunchSentinelCreatedNew = $false
+$LaunchSentinel = [Threading.EventWaitHandle]::new(
+    $false,
+    [Threading.EventResetMode]::ManualReset,
+    "Local\YuneWindowsSettingsLaunchObserved.v1",
+    [ref]$LaunchSentinelCreatedNew)
+try {
+    if (-not $LaunchSentinelCreatedNew) {
+        throw "settings launch sentinel already exists; smoke cannot prove an isolated handshake."
+    }
+    $SelfTest = Start-Process -FilePath $SettingsExe `
+        -ArgumentList @("--self-test") `
+        -WindowStyle Hidden `
+        -PassThru
+    if (-not $SelfTest.WaitForExit(5000)) {
+        Stop-Process -Id $SelfTest.Id -Force -ErrorAction SilentlyContinue
+        throw "settings self-test did not exit promptly."
+    }
+    if ($SelfTest.ExitCode -ne 0) {
+        throw "settings self-test failed with exit code $($SelfTest.ExitCode)."
+    }
+    if (-not $LaunchSentinel.WaitOne(1000)) {
+        throw "built settings executable did not signal the launch sentinel."
+    }
+}
+finally {
+    $LaunchSentinel.Dispose()
+}
+
 foreach ($Arguments in @(
-        @("--self-test"),
         @("--layout-smoke-dpi", "96"),
         @("--layout-smoke-dpi", "120"),
         @("--layout-smoke-dpi", "144"),
@@ -76,4 +104,4 @@ if ($InvalidDpi.ExitCode -ne 2) {
     throw "settings layout smoke accepted unsupported DPI 97"
 }
 
-Write-Host "Settings self-test and 100/125/150/200% layout smokes passed."
+Write-Host "Settings self-test and 100/125/150/200% layout, scroll, and wheel smokes passed."

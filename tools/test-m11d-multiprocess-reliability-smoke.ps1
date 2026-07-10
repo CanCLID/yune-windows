@@ -29,6 +29,25 @@ $StateTempFile = "$StateFile.tmp"
 $PipeLeaf = "yune-windows-m11d-multiprocess-$PID"
 $PipeName = "\\.\pipe\$PipeLeaf"
 
+$ProductionSeamProbe = Start-Process `
+    -FilePath $Server `
+    -ArgumentList @(
+        "--rime-dll", $RimeDll,
+        "--shared-dir", $SharedDataDir,
+        "--user-dir", $UserDataDir,
+        "--pipe", "\\.\pipe\yune-windows-ime",
+        "--test-persist-failure-once", "write") `
+    -WindowStyle Hidden `
+    -Wait `
+    -PassThru
+if ($ProductionSeamProbe.ExitCode -eq 0) {
+    throw "test persistence failure seam was admitted on the production pipe"
+}
+if ((Test-Path -LiteralPath $StateFile) -or
+    (Test-Path -LiteralPath $UserDataDir)) {
+    throw "rejected production-pipe failure seam reached runtime/state initialization"
+}
+
 & (Join-Path $RepoRoot "tools\prepare-yune-product-data.ps1") `
     -SourceSchemaDir $SourceSchemaDir `
     -DestinationSchemaDir $SharedDataDir `
@@ -57,13 +76,23 @@ $RequestScript = {
     }
 }
 
-function Start-IsolatedServer {
-    return Start-Process -FilePath $Server -ArgumentList @(
+function Start-IsolatedServer([string]$PersistFailureStage = "") {
+    $Arguments = @(
         "--rime-dll", $RimeDll,
         "--shared-dir", $SharedDataDir,
         "--user-dir", $UserDataDir,
         "--pipe", $PipeName
-    ) -WindowStyle Hidden -PassThru
+    )
+    if (-not [string]::IsNullOrWhiteSpace($PersistFailureStage)) {
+        $Arguments += @(
+            "--test-persist-failure-once",
+            $PersistFailureStage)
+    }
+    return Start-Process `
+        -FilePath $Server `
+        -ArgumentList $Arguments `
+        -WindowStyle Hidden `
+        -PassThru
 }
 
 function Send-RequestWithoutReading([string]$Payload) {
@@ -78,6 +107,20 @@ function Send-RequestWithoutReading([string]$Payload) {
     }
     finally {
         $Client.Dispose()
+    }
+}
+
+function Assert-PersistenceFailure(
+    [object]$Response,
+    [bool]$Desired,
+    [long]$ExpectedRevision,
+    [string]$Stage) {
+    if ($Response.ready -ne $false -or
+        $Response.outcome -ne "persist_failed" -or
+        $Response.applied -ne $false -or
+        [bool]$Response.state.ascii_mode -eq $Desired -or
+        [long]$Response.state.revision -ne $ExpectedRevision) {
+        throw "$Stage persistence failure was not atomic or explicit"
     }
 }
 
@@ -171,26 +214,43 @@ try {
         throw "outcome-unknown stale replay was not rejected"
     }
 
-    # Block the atomic temporary file to force persistence failure. The failed
-    # mutation must leave both the in-memory value and revision unchanged; the
-    # same CAS request must then succeed once after storage recovers.
-    New-Item -ItemType Directory -Path $StateTempFile -Force | Out-Null
-    Set-Content -LiteralPath (Join-Path $StateTempFile "blocker") `
-        -Value "test-only persistence blocker" -Encoding ASCII
+    # Exercise real filesystem failures at directory creation, temporary-file
+    # open, and atomic replace. Every failed mutation must leave both the
+    # in-memory value and revision unchanged; the same CAS request must then
+    # succeed once storage recovers.
     $PersistStartRevision = [long]$Replay.state.revision
     $PersistDesired = -not [bool]$Replay.state.ascii_mode
     $PersistValue = if ($PersistDesired) { 1 } else { 0 }
     $PersistPayload = "op=set-option`nname=ascii_mode`nvalue=$PersistValue`nexpect_boot_id=$BootId`nexpect_revision=$PersistStartRevision`n.`n"
+
+    $StateDir = Split-Path -Parent $StateFile
+    Remove-Item -LiteralPath $StateFile -Force
+    Remove-Item -LiteralPath $StateDir -Force
+    Set-Content -LiteralPath $StateDir `
+        -Value "test-only directory blocker" -Encoding ASCII
+    $DirectoryFailureText = & $RequestScript $PipeLeaf $PersistPayload $TimeoutMs
+    $DirectoryFailure = $DirectoryFailureText | ConvertFrom-Json
+    Assert-PersistenceFailure $DirectoryFailure $PersistDesired `
+        $PersistStartRevision "directory-create"
+    Remove-Item -LiteralPath $StateDir -Force
+    New-Item -ItemType Directory -Path $StateDir | Out-Null
+
+    New-Item -ItemType Directory -Path $StateTempFile -Force | Out-Null
+    Set-Content -LiteralPath (Join-Path $StateTempFile "blocker") `
+        -Value "test-only temporary-file blocker" -Encoding ASCII
     $PersistFailureText = & $RequestScript $PipeLeaf $PersistPayload $TimeoutMs
     $PersistFailure = $PersistFailureText | ConvertFrom-Json
-    if ($PersistFailure.ready -ne $false -or
-        $PersistFailure.outcome -ne "persist_failed" -or
-        $PersistFailure.applied -ne $false -or
-        [bool]$PersistFailure.state.ascii_mode -eq $PersistDesired -or
-        [long]$PersistFailure.state.revision -ne $PersistStartRevision) {
-        throw "persistence failure was not atomic or explicit"
-    }
+    Assert-PersistenceFailure $PersistFailure $PersistDesired `
+        $PersistStartRevision "temporary-file-open"
     Remove-Item -LiteralPath $StateTempFile -Recurse -Force
+
+    New-Item -ItemType Directory -Path $StateFile | Out-Null
+    $ReplaceFailureText = & $RequestScript $PipeLeaf $PersistPayload $TimeoutMs
+    $ReplaceFailure = $ReplaceFailureText | ConvertFrom-Json
+    Assert-PersistenceFailure $ReplaceFailure $PersistDesired `
+        $PersistStartRevision "atomic-replace"
+    Remove-Item -LiteralPath $StateFile -Recurse -Force
+
     $PersistRetryText = & $RequestScript $PipeLeaf $PersistPayload $TimeoutMs
     $PersistRetry = $PersistRetryText | ConvertFrom-Json
     if ($PersistRetry.ready -ne $true -or
@@ -204,6 +264,61 @@ try {
     if ([bool]$Persisted.ascii_mode -ne $PersistDesired -or
         [long]$Persisted.revision -ne $PersistStartRevision + 1) {
         throw "persisted state does not match recovered server state"
+    }
+
+    # The write and flush failure branches cannot be induced portably with
+    # filesystem shape alone. Restart the isolated custom-pipe server with a
+    # one-shot test seam for each exact branch, then prove cleanup, atomic
+    # in-memory/disk state, and successful same-CAS retry. The server rejects
+    # this seam on the production pipe.
+    foreach ($FailureStage in @("write", "flush")) {
+        Stop-Process -Id $ServerProcess.Id -Force
+        $ServerProcess.WaitForExit(10000) | Out-Null
+        $ServerProcess = Start-IsolatedServer `
+            -PersistFailureStage $FailureStage
+        $StageInitialText = & $RequestScript `
+            $PipeLeaf `
+            "op=get-state`n.`n" `
+            $TimeoutMs
+        $StageInitial = $StageInitialText | ConvertFrom-Json
+        $BootId = [string]$StageInitial.state.boot_id
+        $StageStartRevision = [long]$StageInitial.state.revision
+        $StageDesired = -not [bool]$StageInitial.state.ascii_mode
+        $StageValue = if ($StageDesired) { 1 } else { 0 }
+        $StagePayload = "op=set-option`nname=ascii_mode`nvalue=$StageValue`nexpect_boot_id=$BootId`nexpect_revision=$StageStartRevision`n.`n"
+        $StageFailureText = & $RequestScript `
+            $PipeLeaf `
+            $StagePayload `
+            $TimeoutMs
+        $StageFailure = $StageFailureText | ConvertFrom-Json
+        Assert-PersistenceFailure `
+            $StageFailure `
+            $StageDesired `
+            $StageStartRevision `
+            $FailureStage
+        if (Test-Path -LiteralPath $StateTempFile) {
+            throw "$FailureStage persistence failure left its temporary file behind"
+        }
+        $StagePersistedAfterFailure =
+            Get-Content -Raw -LiteralPath $StateFile | ConvertFrom-Json
+        if ([bool]$StagePersistedAfterFailure.ascii_mode -eq $StageDesired -or
+            [long]$StagePersistedAfterFailure.revision -ne
+                $StageStartRevision) {
+            throw "$FailureStage persistence failure changed durable state"
+        }
+        $StageRetryText = & $RequestScript `
+            $PipeLeaf `
+            $StagePayload `
+            $TimeoutMs
+        $StageRetry = $StageRetryText | ConvertFrom-Json
+        if ($StageRetry.ready -ne $true -or
+            $StageRetry.applied -ne $true -or
+            $StageRetry.outcome -ne "applied" -or
+            [bool]$StageRetry.state.ascii_mode -ne $StageDesired -or
+            [long]$StageRetry.state.revision -ne $StageStartRevision + 1) {
+            throw "$FailureStage persistence recovery did not commit exactly once"
+        }
+        $PersistRetry = $StageRetry
     }
 
     # Restart creates a new epoch without changing the persisted revision.

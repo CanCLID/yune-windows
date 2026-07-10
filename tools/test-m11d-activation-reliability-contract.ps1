@@ -38,9 +38,24 @@ foreach ($Required in @(
         'PersistState\(const YuneState& state\)',
         'MoveFileExW',
         'MOVEFILE_REPLACE_EXISTING',
-        'CommitStateMutation'
-    )) {
+        'CommitStateMutation',
+        'class StatePersistenceError',
+        'catch \(const StatePersistenceError& error\)',
+        'ErrorResponseJson\(error\.what\(\), "persist_failed"\)',
+        '--test-persist-failure-once',
+        'ConsumeTestPersistFailure',
+        'test persistence failure injection is forbidden on the production pipe'
+)) {
     Require-Text $Server $Required "server is missing M11D CAS/transaction pattern: $Required"
+}
+if ($Server -match 'error\.find\("IME state file"\)') {
+    throw "server must classify persistence failures by type, not message text."
+}
+$PersistenceThrows = [regex]::Matches(
+    $Server,
+    'throw StatePersistenceError\(').Count
+if ($PersistenceThrows -lt 5) {
+    throw "every state-directory/open/write/flush/replace failure must use the typed persistence error."
 }
 
 foreach ($Required in @(
@@ -100,9 +115,11 @@ foreach ($Required in @(
         'monotonic_ms=',
         'process_nonce=',
         'FILE_APPEND_DATA'
-    )) {
+)) {
     Require-Text $Tsf $Required "TSF is missing M11D reliability pattern: $Required"
 }
+Require-Text $Tsf 'EvaluateToolbarEligibility' `
+    "production toolbar reconciliation must call the tested eligibility evaluator."
 
 $OperationQuery = [regex]::Match(
     $Tsf,
@@ -223,6 +240,7 @@ foreach ($Required in @(
         'class ShiftTokenArbiter',
         'class ToggleParityIntent',
         'EvaluateToolbarEligibility',
+        'ToolbarEligibilityReasonName',
         'ShiftClaimDisposition::Duplicate',
         'generation != generation_'
     )) {

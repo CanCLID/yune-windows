@@ -6,6 +6,7 @@ param(
     [string]$Mode = "DryRun",
     [string]$OutputDir = "",
     [string]$ResultPath = "",
+    [string]$DurableManifestPath = "",
     [switch]$ApprovedMachineStateChange,
     [string]$ApprovalNote = "",
     [switch]$AllowLoadedTsfHolders
@@ -241,21 +242,68 @@ function Test-M10PathNested {
             [System.StringComparison]::OrdinalIgnoreCase)
 }
 
-function Write-M10Result {
+function Write-M10AtomicResultFile {
     param(
         [Parameter(Mandatory = $true)]$Result,
-        [string]$Path
+        [Parameter(Mandatory = $true)][string]$Path
     )
 
-    if ([string]::IsNullOrWhiteSpace($Path)) {
-        return
-    }
     $Parent = Split-Path -Parent $Path
     if (-not [string]::IsNullOrWhiteSpace($Parent)) {
         New-Item -Path $Parent -ItemType Directory -Force | Out-Null
     }
-    $Result | ConvertTo-Json -Depth 12 |
-        Out-File -LiteralPath $Path -Encoding utf8
+    $Leaf = Split-Path -Leaf $Path
+    $TemporaryPath = Join-Path $Parent (
+        ".{0}.{1}.tmp" -f $Leaf, [Guid]::NewGuid().ToString("N"))
+    $BackupPath = "$TemporaryPath.backup"
+    try {
+        $Json = $Result | ConvertTo-Json -Depth 12
+        $Utf8NoBom = [System.Text.UTF8Encoding]::new($false)
+        [System.IO.File]::WriteAllText($TemporaryPath, $Json, $Utf8NoBom)
+        if (Test-Path -LiteralPath $Path -PathType Leaf) {
+            # File.Replace performs one same-volume atomic refresh, so a
+            # concurrent reader sees either the prior complete manifest or the
+            # new complete manifest, never a truncated JSON document.
+            [System.IO.File]::Replace(
+                $TemporaryPath,
+                $Path,
+                $BackupPath,
+                $true)
+        }
+        else {
+            [System.IO.File]::Move($TemporaryPath, $Path)
+        }
+    }
+    finally {
+        if ([System.IO.File]::Exists($TemporaryPath)) {
+            [System.IO.File]::Delete($TemporaryPath)
+        }
+        if ([System.IO.File]::Exists($BackupPath)) {
+            [System.IO.File]::Delete($BackupPath)
+        }
+    }
+}
+
+function Write-M10Result {
+    param(
+        [Parameter(Mandatory = $true)]$Result,
+        [string]$Path,
+        [string]$DurablePath = ""
+    )
+
+    $Written = [System.Collections.Generic.HashSet[string]]::new(
+        [System.StringComparer]::OrdinalIgnoreCase)
+    # Refresh durable provenance first. A scratch-path failure may stop the
+    # operation, but it cannot prevent the authoritative state from advancing.
+    foreach ($CandidatePath in @($DurablePath, $Path)) {
+        if ([string]::IsNullOrWhiteSpace($CandidatePath)) {
+            continue
+        }
+        $FullPath = Resolve-YuneWindowsDevFullPath $CandidatePath
+        if ($Written.Add($FullPath)) {
+            Write-M10AtomicResultFile -Result $Result -Path $FullPath
+        }
+    }
 }
 
 function New-M10AsidePath {
@@ -502,6 +550,12 @@ $Result = [ordered]@{
         artifacts = @()
         tsf_pe_size_of_image = 0
     }
+    manifest = [ordered]@{
+        scratch_path = ""
+        durable_path = ""
+        durable_outside_os_temp = $false
+        atomic_refresh = $true
+    }
     deployment = [ordered]@{
         approved = [bool]$ApprovedMachineStateChange
         approval_note_present = -not [string]::IsNullOrWhiteSpace($ApprovalNote)
@@ -600,6 +654,27 @@ if ([string]::IsNullOrWhiteSpace($ResultPath)) {
 $ResultPath = Resolve-YuneWindowsDevFullPath $ResultPath
 if (Test-M10PathNested -Candidate $ResultPath -Root $InstallRoot) {
     throw "candidate result must be written outside the install root"
+}
+$Result.manifest.scratch_path = $ResultPath
+
+if ($Mode -eq "Deploy") {
+    if ([string]::IsNullOrWhiteSpace($DurableManifestPath)) {
+        $DurableManifestPath = Join-Path $RepoRoot (
+            "docs\evidence\m10\machine-state\frozen-candidate.json")
+    }
+    $DurableManifestPath = Resolve-YuneWindowsDevFullPath $DurableManifestPath
+    $OsTempRoot = Resolve-YuneWindowsDevFullPath ([System.IO.Path]::GetTempPath())
+    if (Test-M10PathNested -Candidate $DurableManifestPath -Root $InstallRoot) {
+        throw "durable candidate manifest must be written outside the install root"
+    }
+    if (Test-M10PathNested -Candidate $DurableManifestPath -Root $OsTempRoot) {
+        throw "durable candidate manifest must be outside the OS temp tree"
+    }
+    $Result.manifest.durable_path = $DurableManifestPath
+    $Result.manifest.durable_outside_os_temp = $true
+}
+elseif (-not [string]::IsNullOrWhiteSpace($DurableManifestPath)) {
+    throw "-DurableManifestPath is valid only with -Mode Deploy"
 }
 
 New-Item -Path $OutputRoot -ItemType Directory -Force | Out-Null
@@ -709,7 +784,10 @@ if ($Mode -eq "Deploy") {
         throw "new TSF holder(s) appeared during the build; no deployment was attempted"
     }
 }
-Write-M10Result -Result $Result -Path $ResultPath
+Write-M10Result `
+    -Result $Result `
+    -Path $ResultPath `
+    -DurablePath $DurableManifestPath
 
 if ($Mode -eq "StageOnly") {
     Write-Host "Staged one frozen M10 candidate build at $BuildDir"
@@ -726,7 +804,10 @@ $Result.deployment.live_test_allowed_without_restart = $false
 $Result.status = "deploying_restart_required"
 # Persist the restart boundary before the first rename. If this PowerShell
 # process is interrupted mid-swap, the durable manifest still fails closed.
-Write-M10Result -Result $Result -Path $ResultPath
+Write-M10Result `
+    -Result $Result `
+    -Path $ResultPath `
+    -DurablePath $DurableManifestPath
 try {
     # The order is protocol-significant: new server accepts old clients, while
     # the new TSF requires the server's boot_id/revision response fields.
@@ -737,6 +818,8 @@ try {
         -ExpectedHash $ArtifactByName.server.sha256 `
         -Tag $Tag `
         -Operations $Operations | Out-Null
+    $Result.deployment.operations = @($Operations)
+    Write-M10Result -Result $Result -Path $ResultPath -DurablePath $DurableManifestPath
     Install-M10CandidateFile `
         -Name "tsf" `
         -Source $CandidatePaths.tsf `
@@ -744,6 +827,8 @@ try {
         -ExpectedHash $ArtifactByName.tsf.sha256 `
         -Tag $Tag `
         -Operations $Operations | Out-Null
+    $Result.deployment.operations = @($Operations)
+    Write-M10Result -Result $Result -Path $ResultPath -DurablePath $DurableManifestPath
     Install-M10CandidateFile `
         -Name "settings" `
         -Source $CandidatePaths.settings `
@@ -751,6 +836,8 @@ try {
         -ExpectedHash $ArtifactByName.settings.sha256 `
         -Tag $Tag `
         -Operations $Operations | Out-Null
+    $Result.deployment.operations = @($Operations)
+    Write-M10Result -Result $Result -Path $ResultPath -DurablePath $DurableManifestPath
     Install-M10CandidateFile `
         -Name "profile" `
         -Source $CandidatePaths.profile `
@@ -758,12 +845,16 @@ try {
         -ExpectedHash $ArtifactByName.profile.sha256 `
         -Tag $Tag `
         -Operations $Operations | Out-Null
+    $Result.deployment.operations = @($Operations)
+    Write-M10Result -Result $Result -Path $ResultPath -DurablePath $DurableManifestPath
     Install-M10CandidateSkins `
         -Source (Join-Path $BuildDir "skins") `
         -Destination $InstalledSkins `
         -ExpectedDefaultHash $ArtifactByName.default_skin.sha256 `
         -Tag $Tag `
         -Operations $Operations | Out-Null
+    $Result.deployment.operations = @($Operations)
+    Write-M10Result -Result $Result -Path $ResultPath -DurablePath $DurableManifestPath
 
     $Result.deployment.performed = $true
     $Result.deployment.completed_at = [DateTimeOffset]::Now.ToString("o")
@@ -773,7 +864,10 @@ try {
     $Result.deployment.session_restart_required = $true
     $Result.deployment.live_test_allowed_without_restart = $false
     $Result.status = "deployed_restart_required"
-    Write-M10Result -Result $Result -Path $ResultPath
+    Write-M10Result `
+        -Result $Result `
+        -Path $ResultPath `
+        -DurablePath $DurableManifestPath
 }
 catch {
     $DeployError = $_.Exception.Message
@@ -809,12 +903,16 @@ catch {
         $Result.deployment.post_rollback_preflight_error =
             $_.Exception.Message
     }
-    Write-M10Result -Result $Result -Path $ResultPath
-    throw "M10 frozen candidate deployment failed; no process was stopped and rollback was attempted: $DeployError. Manifest: $ResultPath"
+    Write-M10Result `
+        -Result $Result `
+        -Path $ResultPath `
+        -DurablePath $DurableManifestPath
+    throw "M10 frozen candidate deployment failed; no process was stopped and rollback was attempted: $DeployError. Durable manifest: $DurableManifestPath"
 }
 
 Write-Host "M10 frozen candidate deployed in server/TSF/settings/profile/skin order."
-Write-Host "Candidate manifest: $ResultPath"
+Write-Host "Scratch candidate manifest: $ResultPath"
+Write-Host "Durable candidate manifest: $DurableManifestPath"
 if ($Result.deployment.session_restart_required) {
     Write-Warning "Loaded old images remain. Full sign-out/reboot is required before live testing."
 }

@@ -264,8 +264,9 @@ deployment can be graded as M11; it does not block an M10-only installed
 presentation run. Such a run makes no activation/state claim.
 
 The milestones may reuse one exact hash-pinned candidate. If M11 later changes
-a product or package input, the affected M10 toolbar regressions must pass again
-on that new candidate before M11 can close or M12 can begin. M12 remains blocked
+a product or package input, every affected M10 regression gate, including
+settings gate B when settings or shared presentation inputs change, must pass
+again on that new candidate before M11 can close or M12 can begin. M12 remains blocked
 until both independent installed verdicts pass. A toolbar that cannot be made
 visible still leaves the corresponding M10 host `not_exercised` rather than
 passed. D-22 supersedes only D-21's one-session deployment assumption; it does
@@ -314,13 +315,14 @@ and frozen-candidate deployment safety contracts pass non-elevated checks. M11
 remains open, both installed verdicts still block M12, and no installed result
 is claimed by this entry.
 
-2026-07-10 - D-21 replaces the historical M11-before-M10 execution order with
+2026-07-10 - D-21 replaced the historical M11-before-M10 execution order with
 canonical M10 presentation, M11 activation/state reliability, M12 skin
 platform, and M13 candidate presentation. Implementation last changed at
 `4199a09`; pre-rebaseline source/evidence baseline `337b9bd` contains it, and
 this planning/contract rebaseline changes no product build input. Legacy
-evidence paths and milestone fields remain unchanged, and the next machine-state
-step is still one separately approved, hash-pinned M10+M11 installed run.
+evidence paths and milestone fields remain unchanged. At that point the next
+machine-state step was one hash-pinned M10+M11 installed run; D-22 above
+supersedes that single-session assumption.
 
 2026-07-09 PT / 2026-07-10 UTC - Approved installed M11 proof deployed commit
 `1f419837b0575dc1ea47dba2785cbb6949b7e73c` with TSF SHA-256

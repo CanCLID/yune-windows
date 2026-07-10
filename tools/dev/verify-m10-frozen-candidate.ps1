@@ -125,6 +125,119 @@ function Get-M10VerifyStartState {
     }
 }
 
+function Test-M10VerifyProperty {
+    param(
+        [Parameter(Mandatory = $true)]$Object,
+        [Parameter(Mandatory = $true)][string]$Name
+    )
+
+    return $null -ne $Object.PSObject.Properties[$Name]
+}
+
+function Test-M10VerifyExactBoolean {
+    param(
+        [Parameter(Mandatory = $true)]$Object,
+        [Parameter(Mandatory = $true)][string]$Name,
+        [Parameter(Mandatory = $true)][bool]$Expected
+    )
+
+    if (-not (Test-M10VerifyProperty -Object $Object -Name $Name)) {
+        return $false
+    }
+    $Value = $Object.PSObject.Properties[$Name].Value
+    return $Value -is [bool] -and $Value -eq $Expected
+}
+
+function Assert-M10VerifyManifestAdmission {
+    param(
+        [Parameter(Mandatory = $true)]$Manifest,
+        [Parameter(Mandatory = $true)][bool]$DeploymentCompletedAtValid
+    )
+
+    $RequiredDeploymentFields = @(
+        "performed",
+        "error",
+        "rollback_attempted",
+        "rollback_complete",
+        "completed_at"
+    )
+    $HasRequiredDeploymentFields = $null -ne $Manifest.deployment
+    if ($HasRequiredDeploymentFields) {
+        foreach ($Field in $RequiredDeploymentFields) {
+            $HasRequiredDeploymentFields = $HasRequiredDeploymentFields -and
+                (Test-M10VerifyProperty -Object $Manifest.deployment -Name $Field)
+        }
+    }
+
+    $ManifestSourceCommit = [string]$Manifest.source.actual_commit
+    if ([int]$Manifest.schema_version -ne 1 -or
+        [string]$Manifest.operation -ne "m10_frozen_candidate" -or
+        [string]$Manifest.status -ne "deployed_restart_required" -or
+        -not $HasRequiredDeploymentFields -or
+        -not (Test-M10VerifyExactBoolean `
+            -Object $Manifest.build -Name "performed" -Expected $true) -or
+        -not (Test-M10VerifyExactBoolean `
+            -Object $Manifest.deployment -Name "performed" -Expected $true) -or
+        [string]$Manifest.deployment.error -ne "" -or
+        -not (Test-M10VerifyExactBoolean `
+            -Object $Manifest.deployment `
+            -Name "rollback_attempted" `
+            -Expected $false) -or
+        -not (Test-M10VerifyExactBoolean `
+            -Object $Manifest.deployment `
+            -Name "rollback_complete" `
+            -Expected $false) -or
+        -not (Test-M10VerifyExactBoolean `
+            -Object $Manifest.source -Name "clean" -Expected $true) -or
+        -not (Test-M10VerifyExactBoolean `
+            -Object $Manifest.source `
+            -Name "post_build_verified" `
+            -Expected $true) -or
+        -not (Test-M10VerifyExactBoolean `
+            -Object $Manifest.package `
+            -Name "post_build_verified" `
+            -Expected $true) -or
+        -not $DeploymentCompletedAtValid -or
+        $ManifestSourceCommit -notmatch '^[A-Fa-f0-9]{40}$' -or
+        [string]$Manifest.source.actual_commit -ne
+            [string]$Manifest.source.expected_commit) {
+        throw "candidate manifest is not an unrolled-back, completed, clean, pinned M10 deployment awaiting restart proof"
+    }
+}
+
+function Assert-M10VerifyDurableManifestPath {
+    param(
+        [Parameter(Mandatory = $true)]$Manifest,
+        [Parameter(Mandatory = $true)][string]$ManifestPath
+    )
+
+    if ($null -eq $Manifest.manifest -or
+        -not (Test-M10VerifyProperty -Object $Manifest.manifest -Name "durable_path") -or
+        -not (Test-M10VerifyProperty `
+            -Object $Manifest.manifest `
+            -Name "durable_outside_os_temp") -or
+        -not (Test-M10VerifyProperty -Object $Manifest.manifest -Name "atomic_refresh")) {
+        throw "candidate manifest lacks durable provenance metadata"
+    }
+    $DeclaredPath = Resolve-M10VerifyFullPath ([string]$Manifest.manifest.durable_path)
+    $OsTempRoot = Resolve-M10VerifyFullPath ([System.IO.Path]::GetTempPath())
+    if (-not [string]::Equals(
+            $DeclaredPath,
+            $ManifestPath,
+            [System.StringComparison]::OrdinalIgnoreCase) -or
+        -not (Test-M10VerifyExactBoolean `
+            -Object $Manifest.manifest `
+            -Name "durable_outside_os_temp" `
+            -Expected $true) -or
+        -not (Test-M10VerifyExactBoolean `
+            -Object $Manifest.manifest `
+            -Name "atomic_refresh" `
+            -Expected $true) -or
+        (Test-M10VerifyPathUnderRoot -Path $ManifestPath -Root $OsTempRoot)) {
+        throw "post-restart verification requires the declared durable manifest outside the OS temp tree"
+    }
+}
+
 function Get-M10VerifyTsfHolders {
     param(
         [Parameter(Mandatory = $true)][string]$InstallRoot,
@@ -136,9 +249,21 @@ function Get-M10VerifyTsfHolders {
 
     $ExpectedPath = Resolve-M10VerifyFullPath $TsfPath
     $Holders = [System.Collections.Generic.List[object]]::new()
-    foreach ($Process in @(Get-Process -ErrorAction SilentlyContinue)) {
+    $EnumerationFailures = [System.Collections.Generic.List[object]]::new()
+    $ExitedBeforeEnumeration = [System.Collections.Generic.List[object]]::new()
+    $CurrentSessionId = [int](Get-Process -Id $PID -ErrorAction Stop).SessionId
+    $Processes = @(Get-Process -ErrorAction Stop | Where-Object {
+            [int]$_.SessionId -eq $CurrentSessionId -and [int]$_.Id -ne 0
+        })
+    $EnumerationSucceeded = 0
+    foreach ($InitialProcess in $Processes) {
+        $ProcessId = [int]$InitialProcess.Id
+        $ProcessName = [string]$InitialProcess.ProcessName
         try {
-            foreach ($Module in @($Process.Modules)) {
+            $Process = Get-Process -Id $ProcessId -ErrorAction Stop
+            $Modules = @($Process.Modules)
+            $EnumerationSucceeded += 1
+            foreach ($Module in $Modules) {
                 if ([string]::IsNullOrWhiteSpace([string]$Module.FileName)) {
                     continue
                 }
@@ -191,9 +316,53 @@ function Get-M10VerifyTsfHolders {
             }
         }
         catch {
+            $StillExists = $null -ne (Get-Process `
+                    -Id $ProcessId `
+                    -ErrorAction SilentlyContinue)
+            if (-not $StillExists) {
+                $ExitedBeforeEnumeration.Add([pscustomobject][ordered]@{
+                        process_id = $ProcessId
+                        process_name = $ProcessName
+                        category = "process_exited"
+                    }) | Out-Null
+                continue
+            }
+            $Exception = $_.Exception
+            $Category = if ($Exception -is [System.UnauthorizedAccessException] -or
+                $Exception.InnerException -is [System.UnauthorizedAccessException]) {
+                "access_denied"
+            }
+            elseif ($Exception -is [System.ComponentModel.Win32Exception] -or
+                $Exception.InnerException -is [System.ComponentModel.Win32Exception]) {
+                "win32_enumeration_error"
+            }
+            elseif ($Exception -is [System.InvalidOperationException]) {
+                "invalid_operation"
+            }
+            else {
+                "module_enumeration_error"
+            }
+            $EnumerationFailures.Add([pscustomobject][ordered]@{
+                    process_id = $ProcessId
+                    process_name = $ProcessName
+                    category = $Category
+                }) | Out-Null
         }
     }
-    return @($Holders)
+    return [pscustomobject][ordered]@{
+        holders = @($Holders)
+        coverage = [pscustomobject][ordered]@{
+            scope = "current_session_non_idle_processes"
+            session_id = $CurrentSessionId
+            total_processes_considered = $Processes.Count
+            module_enumeration_succeeded = $EnumerationSucceeded
+            exited_before_enumeration_count = $ExitedBeforeEnumeration.Count
+            module_enumeration_failure_count = $EnumerationFailures.Count
+            coverage_incomplete = $EnumerationFailures.Count -gt 0
+            exited_before_enumeration = @($ExitedBeforeEnumeration)
+            enumeration_failures = @($EnumerationFailures)
+        }
+    }
 }
 
 function Get-M10VerifyNamedProcesses {
@@ -370,7 +539,31 @@ $InstallRoot = Resolve-M10VerifyFullPath $InstallDir
 if (-not (Test-Path -LiteralPath $ManifestPath -PathType Leaf)) {
     throw "candidate manifest is missing: $ManifestPath"
 }
-$Manifest = Get-Content -Raw -LiteralPath $ManifestPath | ConvertFrom-Json
+$ManifestBytes = [System.IO.File]::ReadAllBytes($ManifestPath)
+$Hasher = [System.Security.Cryptography.SHA256]::Create()
+try {
+    $ManifestSha256 = [System.BitConverter]::ToString(
+        $Hasher.ComputeHash($ManifestBytes)).Replace("-", "")
+}
+finally {
+    $Hasher.Dispose()
+}
+$ManifestStream = [System.IO.MemoryStream]::new($ManifestBytes, $false)
+$ManifestReader = [System.IO.StreamReader]::new(
+    $ManifestStream,
+    [System.Text.Encoding]::UTF8,
+    $true)
+try {
+    $ManifestText = $ManifestReader.ReadToEnd()
+}
+finally {
+    $ManifestReader.Dispose()
+    $ManifestStream.Dispose()
+}
+$Manifest = $ManifestText | ConvertFrom-Json
+$null = Assert-M10VerifyDurableManifestPath `
+    -Manifest $Manifest `
+    -ManifestPath $ManifestPath
 $ManifestSourceCommit = [string]$Manifest.source.actual_commit
 $DeploymentCompletedAtText = [string]$Manifest.deployment.completed_at
 $DeploymentCompletedAt = [DateTimeOffset]::MinValue
@@ -381,19 +574,9 @@ $DeploymentCompletedAtValid =
         [Globalization.CultureInfo]::InvariantCulture,
         [Globalization.DateTimeStyles]::RoundtripKind,
         [ref]$DeploymentCompletedAt)
-if ([int]$Manifest.schema_version -ne 1 -or
-    [string]$Manifest.operation -ne "m10_frozen_candidate" -or
-    $Manifest.build.performed -ne $true -or
-    $Manifest.deployment.performed -ne $true -or
-    $Manifest.source.clean -ne $true -or
-    $Manifest.source.post_build_verified -ne $true -or
-    $Manifest.package.post_build_verified -ne $true -or
-    -not $DeploymentCompletedAtValid -or
-    $ManifestSourceCommit -notmatch '^[A-Fa-f0-9]{40}$' -or
-    [string]$Manifest.source.actual_commit -ne
-        [string]$Manifest.source.expected_commit) {
-    throw "candidate manifest is not a completed clean, pinned M10 deployment"
-}
+Assert-M10VerifyManifestAdmission `
+    -Manifest $Manifest `
+    -DeploymentCompletedAtValid $DeploymentCompletedAtValid
 
 $ArtifactByName = @{}
 foreach ($Artifact in @($Manifest.build.artifacts)) {
@@ -435,11 +618,13 @@ $InstalledArtifacts = @(
 
 $ExpectedImageSize = [long]$Manifest.build.tsf_pe_size_of_image
 $InstalledImageSize = Get-M10VerifyPeSizeOfImage -Path $InstalledPaths.tsf
-$Holders = @(Get-M10VerifyTsfHolders `
+$TsfScan = Get-M10VerifyTsfHolders `
         -InstallRoot $InstallRoot `
         -TsfPath $InstalledPaths.tsf `
         -ExpectedImageSize $ExpectedImageSize `
-        -DeploymentCompletedAt $DeploymentCompletedAt)
+        -DeploymentCompletedAt $DeploymentCompletedAt
+$Holders = @($TsfScan.holders)
+$HolderCoverage = $TsfScan.coverage
 $ServerProcesses = @(Get-M10VerifyNamedProcesses `
         -ProcessName "YuneWindowsServer" `
         -ExpectedPath $InstalledPaths.server `
@@ -506,6 +691,10 @@ if (-not $ProfileState.query_succeeded -or
 if (-not $ComState.path_matches) {
     $Failures.Add("COM InprocServer32 path does not match installed TSF") | Out-Null
 }
+if ($HolderCoverage.coverage_incomplete) {
+    $Failures.Add(
+        "TSF holder scan coverage is incomplete; rerun where every current-session process can be enumerated") | Out-Null
+}
 if ($Holders.Count -eq 0 -and -not $AllowNoHolders) {
     $Failures.Add("no mapped installed TSF holder was available for post-restart proof") | Out-Null
 }
@@ -567,7 +756,12 @@ $Result = [ordered]@{
     privacy_note = "Records artifact hashes, registration state, process identity/path/start time, and module sizes only; no window titles, typed text, composition text, or arbitrary keystrokes are read."
     candidate = [ordered]@{
         manifest_path = $ManifestPath
-        manifest_sha256 = (Get-FileHash -Algorithm SHA256 -LiteralPath $ManifestPath).Hash
+        manifest_sha256 = $ManifestSha256
+        deployment_status = [string]$Manifest.status
+        deployment_error = [string]$Manifest.deployment.error
+        deployment_performed = [bool]$Manifest.deployment.performed
+        rollback_attempted = [bool]$Manifest.deployment.rollback_attempted
+        rollback_complete = [bool]$Manifest.deployment.rollback_complete
         source_expected_commit = [string]$Manifest.source.expected_commit
         source_actual_commit = $ManifestSourceCommit
         source_clean = [bool]$Manifest.source.clean
@@ -591,6 +785,8 @@ $Result = [ordered]@{
     }
     holders = [ordered]@{
         allow_no_holders = [bool]$AllowNoHolders
+        coverage_complete = -not [bool]$HolderCoverage.coverage_incomplete
+        coverage = $HolderCoverage
         count = $Holders.Count
         current_installed_path_count = @($Holders | Where-Object {
                 $_.is_current_installed_path

@@ -157,6 +157,31 @@ int main() {
                  "eligibility baseline was mutated by rejection cases")) {
         return 1;
     }
+    struct NamedEligibilityReason {
+        ToolbarEligibilityReason reason;
+        const char* expected_name;
+    };
+    const NamedEligibilityReason named_reasons[] = {
+        {ToolbarEligibilityReason::ProfileInactive, "profile_inactive"},
+        {ToolbarEligibilityReason::NotCurrentGeneration,
+         "not_current_generation"},
+        {ToolbarEligibilityReason::NotFocused, "not_focused"},
+        {ToolbarEligibilityReason::StateUnacknowledged,
+         "state_unacknowledged"},
+        {ToolbarEligibilityReason::OwnerInvalid, "owner_invalid"},
+        {ToolbarEligibilityReason::ForegroundMismatch,
+         "foreground_mismatch"},
+    };
+    for (const NamedEligibilityReason& test_case : named_reasons) {
+        if (!Require(
+                std::string(yune_windows::reliability::
+                                ToolbarEligibilityReasonName(
+                                    test_case.reason)) ==
+                    test_case.expected_name,
+                "production eligibility reason name did not match")) {
+            return 1;
+        }
+    }
 
     std::cout << "M11D reliability core smoke passed.\n";
     return 0;

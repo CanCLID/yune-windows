@@ -12,6 +12,7 @@ $SummaryMarkdownPath = Join-Path $EvidenceRoot "summary.md"
 $ToolbarCapture = Join-Path $RepoRoot "tools\dev\capture-m10-toolbar-session.ps1"
 $ToolbarFinalize = Join-Path $RepoRoot "tools\dev\finalize-m10-toolbar-session.ps1"
 $SettingsCapture = Join-Path $RepoRoot "tools\dev\capture-m10-settings-geometry.ps1"
+$SettingsProductSourcePath = Join-Path $RepoRoot "src\tools\yune_windows_settings.cpp"
 
 foreach ($Path in @(
         $ReadmePath,
@@ -19,7 +20,8 @@ foreach ($Path in @(
         $PreflightPath,
         $ToolbarCapture,
         $ToolbarFinalize,
-        $SettingsCapture
+        $SettingsCapture,
+        $SettingsProductSourcePath
     )) {
     if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
         throw "missing M10 evidence-tooling input: $Path"
@@ -39,7 +41,7 @@ function Require-Text([string]$Content, [string]$Pattern, [string]$Message) {
     }
 }
 
-function Assert-IsoTimestamp([string]$Value, [string]$Context) {
+function Convert-IsoTimestamp([string]$Value, [string]$Context) {
     $Parsed = [DateTimeOffset]::MinValue
     if ([string]::IsNullOrWhiteSpace($Value) -or
         -not [DateTimeOffset]::TryParse(
@@ -49,6 +51,11 @@ function Assert-IsoTimestamp([string]$Value, [string]$Context) {
             [ref]$Parsed)) {
         throw "$Context must be an ISO-8601 round-trip timestamp."
     }
+    return $Parsed
+}
+
+function Assert-IsoTimestamp([string]$Value, [string]$Context) {
+    [void](Convert-IsoTimestamp $Value $Context)
 }
 
 function Assert-Sha256([string]$Value, [string]$Context) {
@@ -83,6 +90,203 @@ function Assert-ScriptParses([string]$Path) {
         [ref]$ParseErrors)
     if ($ParseErrors.Count -ne 0) {
         throw "$Path has PowerShell parse errors: $($ParseErrors -join '; ')"
+    }
+}
+
+function Get-RecomputedToolbarCaptureMetrics(
+    [object]$Capture,
+    [DateTimeOffset]$EvidenceBoundary,
+    [string]$Context) {
+    if ([int]$Capture.schema_version -ne 1 -or
+        $Capture.evidence_kind -ne "m10_toolbar_topology_capture" -or
+        $Capture.operator_report.verdict -ne "pending" -or
+        [bool]$Capture.gate_ready) {
+        throw "$Context is not an original pending topology capture."
+    }
+    $CaptureStartedAt = Convert-IsoTimestamp `
+        ([string]$Capture.captured_at_utc) "$Context capture start"
+    $CaptureCompletedAt = Convert-IsoTimestamp `
+        ([string]$Capture.completed_at_utc) "$Context capture completion"
+    if ($CaptureStartedAt -le $EvidenceBoundary -or
+        $CaptureCompletedAt -lt $CaptureStartedAt) {
+        throw "$Context was not captured strictly after the verified deployment boundary."
+    }
+
+    $Samples = @($Capture.samples)
+    if ($Samples.Count -le 0 -or
+        $Samples.Count -ne [int]$Capture.sampling.captured_sample_count -or
+        $Samples.Count -ne [int]$Capture.sampling.requested_sample_count) {
+        throw "$Context has an incomplete sample sequence."
+    }
+    $DistinctVisibleHwnds = [Collections.Generic.HashSet[string]]::new(
+        [StringComparer]::OrdinalIgnoreCase)
+    $ObservedVisibleProcessNames = [Collections.Generic.HashSet[string]]::new(
+        [StringComparer]::OrdinalIgnoreCase)
+    $SamplesWithVisibleWindow = 0
+    $SamplesWithToolbarCapture = 0
+    $MaximumVisibleWindows = 0
+    $SamplesWithMultipleVisibleWindows = 0
+    $SamplesWithForegroundOwnerMismatch = 0
+    $SamplesWithUnexpectedHostProcess = 0
+    $FinalVisibleWindows = @()
+    $LastSampleAt = $CaptureStartedAt
+    for ($SampleIndex = 0; $SampleIndex -lt $Samples.Count; $SampleIndex += 1) {
+        $Sample = $Samples[$SampleIndex]
+        if ([int]$Sample.sample_index -ne $SampleIndex -or
+            [int]$Sample.window_count -ne @($Sample.windows).Count) {
+            throw "$Context sample sequence or window count is inconsistent at index $SampleIndex."
+        }
+        $SampleAt = Convert-IsoTimestamp `
+            ([string]$Sample.captured_at_utc) "$Context sample $SampleIndex"
+        if ($SampleAt -le $EvidenceBoundary -or
+            $SampleAt -lt $CaptureStartedAt -or
+            $SampleAt -lt $LastSampleAt -or
+            $SampleAt -gt $CaptureCompletedAt) {
+            throw "$Context sample $SampleIndex is outside its post-verification capture interval."
+        }
+        $LastSampleAt = $SampleAt
+        $VisibleWindows = @($Sample.windows | Where-Object { [bool]$_.visible })
+        $FinalVisibleWindows = $VisibleWindows
+        $MaximumVisibleWindows = [Math]::Max(
+            $MaximumVisibleWindows,
+            $VisibleWindows.Count)
+        if ($VisibleWindows.Count -gt 0) {
+            $SamplesWithVisibleWindow += 1
+        }
+        if ($VisibleWindows.Count -gt 1) {
+            $SamplesWithMultipleVisibleWindows += 1
+        }
+        foreach ($Window in $VisibleWindows) {
+            [void]$DistinctVisibleHwnds.Add([string]$Window.hwnd_hex)
+            [void]$ObservedVisibleProcessNames.Add([string]$Window.process_name)
+            if (-not [string]::Equals(
+                    [string]$Window.process_name,
+                    [string]$Capture.host.expected_process_name,
+                    [StringComparison]::OrdinalIgnoreCase)) {
+                $SamplesWithUnexpectedHostProcess += 1
+            }
+            if (-not [bool]$Window.foreground.root_owner_matches_foreground_root_owner) {
+                $SamplesWithForegroundOwnerMismatch += 1
+            }
+            if ([bool]$Window.capture.is_this_window) {
+                $SamplesWithToolbarCapture += 1
+            }
+        }
+    }
+
+    $Sentinel = Require-Property `
+        $Capture.machine_observed `
+        "settings_launch_sentinel" `
+        $Context
+    $SentinelInitializedAt = Convert-IsoTimestamp `
+        ([string]$Sentinel.initialized_at_utc) "$Context launch sentinel initialization"
+    $SentinelCheckedAt = Convert-IsoTimestamp `
+        ([string]$Sentinel.checked_at_utc) "$Context launch sentinel check"
+    if ($Sentinel.name -ne "Local\YuneWindowsSettingsLaunchObserved.v1" -or
+        $Sentinel.capture_mutex_name -ne "Local\YuneWindowsM10ToolbarCapture.v1" -or
+        -not [bool]$Sentinel.capture_mutex_held -or
+        -not [bool]$Sentinel.created_new -or
+        -not [bool]$Sentinel.initialized_unsignaled_before_initial_process_snapshot -or
+        -not [bool]$Sentinel.held_for_complete_capture -or
+        -not [bool]$Sentinel.coverage_complete -or
+        -not [string]::IsNullOrWhiteSpace([string]$Sentinel.failure) -or
+        $SentinelInitializedAt -le $EvidenceBoundary -or
+        $SentinelInitializedAt -gt $CaptureStartedAt -or
+        $SentinelCheckedAt -lt $LastSampleAt -or
+        $SentinelCheckedAt -lt $CaptureCompletedAt) {
+        throw "$Context does not have complete race-safe settings launch sentinel coverage."
+    }
+
+    $Watcher = Require-Property `
+        $Capture.machine_observed `
+        "settings_process_start_watcher" `
+        $Context
+    $WatcherStartedAt = $null
+    $WatcherStoppedAt = $null
+    if (-not [string]::IsNullOrWhiteSpace([string]$Watcher.provider)) {
+        if (@("Win32_ProcessStartTrace", "continuous_process_poll") -notcontains
+            [string]$Watcher.provider) {
+            throw "$Context uses an unknown auxiliary process-start provider."
+        }
+        $WatcherStartedAt = Convert-IsoTimestamp `
+            ([string]$Watcher.started_at_utc) "$Context process watcher start"
+        $WatcherStoppedAt = Convert-IsoTimestamp `
+            ([string]$Watcher.stopped_at_utc) "$Context process watcher stop"
+        if ($WatcherStartedAt -le $EvidenceBoundary -or
+            $WatcherStartedAt -gt $CaptureStartedAt -or
+            $WatcherStoppedAt -lt $CaptureCompletedAt -or
+            ($Watcher.provider -eq "continuous_process_poll" -and
+             [bool]$Watcher.coverage_complete) -or
+            ([bool]$Watcher.coverage_complete -and
+             -not [string]::IsNullOrWhiteSpace([string]$Watcher.failure))) {
+            throw "$Context has inconsistent auxiliary process-start telemetry."
+        }
+    }
+    elseif ([bool]$Watcher.coverage_complete) {
+        throw "$Context claims process-start coverage without a provider."
+    }
+    foreach ($StartEvent in @($Watcher.events)) {
+        $ObservedAt = Convert-IsoTimestamp `
+            ([string]$StartEvent.observed_at_utc) "$Context process-start event"
+        if ($null -eq $WatcherStartedAt -or
+            $ObservedAt -lt $WatcherStartedAt -or
+            $ObservedAt -gt $WatcherStoppedAt) {
+            throw "$Context contains a process-start event observation outside the watcher interval."
+        }
+        if (-not [string]::IsNullOrWhiteSpace([string]$StartEvent.started_at_utc)) {
+            $StartedAt = Convert-IsoTimestamp `
+                ([string]$StartEvent.started_at_utc) "$Context settings process start"
+            if ($StartedAt -lt $WatcherStartedAt -or $StartedAt -gt $WatcherStoppedAt) {
+                throw "$Context contains a settings process start outside watcher coverage."
+            }
+        }
+    }
+
+    $FinalHasCapture = [bool](
+        @($FinalVisibleWindows | Where-Object { [bool]$_.capture.is_this_window }).Count -gt 0)
+    $FinalOwnerMatchesForeground = [bool](
+        $FinalVisibleWindows.Count -eq 1 -and
+        [bool]$FinalVisibleWindows[0].foreground.root_owner_matches_foreground_root_owner)
+    $SettingsProcessIdsStarted = @(
+        $Capture.machine_observed.settings_process_ids_started_during_capture |
+            ForEach-Object { [int]$_ } |
+            Sort-Object -Unique)
+    $TopologyReady = [bool](
+        $SamplesWithVisibleWindow -gt 0 -and
+        $SamplesWithToolbarCapture -gt 0 -and
+        $FinalVisibleWindows.Count -eq 1 -and
+        -not $FinalHasCapture -and
+        $FinalOwnerMatchesForeground -and
+        $MaximumVisibleWindows -le 1 -and
+        $SamplesWithMultipleVisibleWindows -eq 0 -and
+        $SamplesWithForegroundOwnerMismatch -eq 0 -and
+        $SamplesWithUnexpectedHostProcess -eq 0 -and
+        $DistinctVisibleHwnds.Count -le 1 -and
+        -not [bool]$Sentinel.signaled -and
+        @($Watcher.events).Count -eq 0 -and
+        $SettingsProcessIdsStarted.Count -eq 0)
+
+    return [pscustomobject][ordered]@{
+        capture_started_at = $CaptureStartedAt
+        capture_completed_at = $CaptureCompletedAt
+        samples_with_visible_toolbar = $SamplesWithVisibleWindow
+        samples_with_toolbar_capture = $SamplesWithToolbarCapture
+        maximum_visible_toolbar_windows = $MaximumVisibleWindows
+        samples_with_multiple_visible_toolbars = $SamplesWithMultipleVisibleWindows
+        samples_with_foreground_owner_mismatch = $SamplesWithForegroundOwnerMismatch
+        samples_with_unexpected_host_process = $SamplesWithUnexpectedHostProcess
+        observed_visible_process_names = @($ObservedVisibleProcessNames | Sort-Object)
+        distinct_visible_hwnds = @($DistinctVisibleHwnds | Sort-Object)
+        sampled_visible_hwnd_stable = ($DistinctVisibleHwnds.Count -le 1)
+        final_sample_visible_toolbar_count = $FinalVisibleWindows.Count
+        final_sample_visible_hwnds = @(
+            $FinalVisibleWindows | ForEach-Object { [string]$_.hwnd_hex })
+        final_sample_has_toolbar_capture = $FinalHasCapture
+        final_sample_owner_matches_foreground_root = $FinalOwnerMatchesForeground
+        settings_process_ids_started_during_capture = $SettingsProcessIdsStarted
+        settings_launch_sentinel_signaled = [bool]$Sentinel.signaled
+        settings_launch_sentinel_coverage_complete = [bool]$Sentinel.coverage_complete
+        topology_ready = $TopologyReady
     }
 }
 
@@ -125,7 +329,19 @@ foreach ($Required in @(
         'final_sample_has_toolbar_capture',
         'final_sample_owner_matches_foreground_root',
         'NewSettingsProcessIdsObserved',
+        'Local\YuneWindowsM10ToolbarCapture.v1',
+        'Local\YuneWindowsSettingsLaunchObserved.v1',
+        'settings_launch_sentinel',
+        'initialized_unsignaled_before_initial_process_snapshot',
+        'Win32_ProcessStartTrace',
+        'continuous_process_poll',
+        'settings_process_start_watcher',
+        'coverage_complete',
         'settings_process_ids_started_during_capture',
+        'm10_toolbar_capture_receipt',
+        'settings_launch_sentinel_coverage_complete',
+        'settings_launch_sentinel_signaled',
+        'Capture receipt written',
         'ExpectedHostProcessName',
         'operator-verdict=pending'
     )) {
@@ -135,7 +351,26 @@ foreach ($Required in @(
 if ($ToolbarSource -match 'VisualCopiesOrAfterimages|GripDragsCompleted|SettingsSegmentDragsCompleted') {
     throw "M10 topology capture must not accept operator counts or pass/fail verdicts before the actions finish."
 }
+$CaptureMutexIndex = $ToolbarSource.IndexOf('$CaptureMutex.WaitOne(0)')
+$SentinelInitializeIndex = $ToolbarSource.IndexOf(
+    '$SettingsLaunchSentinelInitializedUnsignaled = $true')
+$InitialSettingsSnapshotIndex = $ToolbarSource.IndexOf(
+    '$SettingsProcessesBefore = @(Get-SettingsProcessIds)')
 $SamplingLoopIndex = $ToolbarSource.IndexOf('for ($SampleIndex = 0;')
+$SentinelCheckIndex = $ToolbarSource.IndexOf(
+    '$SettingsLaunchSentinel.WaitOne(0)',
+    [Math]::Max(0, $SamplingLoopIndex))
+$SentinelDisposeIndex = $ToolbarSource.IndexOf(
+    '$SettingsLaunchSentinel.Dispose()',
+    [Math]::Max(0, $SentinelCheckIndex))
+if ($CaptureMutexIndex -lt 0 -or
+    $SentinelInitializeIndex -lt $CaptureMutexIndex -or
+    $InitialSettingsSnapshotIndex -lt $SentinelInitializeIndex -or
+    $SamplingLoopIndex -lt $InitialSettingsSnapshotIndex -or
+    $SentinelCheckIndex -lt $SamplingLoopIndex -or
+    $SentinelDisposeIndex -lt $SentinelCheckIndex) {
+    throw "M10 recorder must exclusively initialize, hold, sample, and then dispose the launch sentinel around the complete capture."
+}
 $SettingsSampleIndex = $ToolbarSource.IndexOf(
     'foreach ($SettingsProcessId in @(Get-SettingsProcessIds))',
     [Math]::Max(0, $SamplingLoopIndex))
@@ -148,6 +383,24 @@ if ($SamplingLoopIndex -lt 0 -or
     $SettingsSampleIndex -gt $PostLoopSettingsIndex) {
     throw "M10 topology capture must sample newly created settings processes inside every topology iteration."
 }
+$CompletionBoundaryIndex = $ToolbarSource.IndexOf(
+    '$CaptureCompletedAt = [DateTimeOffset]::UtcNow.ToString(',
+    [Math]::Max(0, $SamplingLoopIndex))
+$WatcherDrainIndex = $ToolbarSource.IndexOf(
+    'if ($SettingsWatcherProvider -eq "continuous_process_poll"',
+    [Math]::Max(0, $CompletionBoundaryIndex))
+$FinalPidSnapshotIndex = $ToolbarSource.IndexOf(
+    '$SettingsProcessesAfter = @(Get-SettingsProcessIds)',
+    [Math]::Max(0, $CompletionBoundaryIndex))
+$FinalSentinelCheckIndex = $ToolbarSource.IndexOf(
+    '$SettingsLaunchSentinel.WaitOne(0)',
+    [Math]::Max(0, $FinalPidSnapshotIndex))
+if ($CompletionBoundaryIndex -lt 0 -or
+    $WatcherDrainIndex -le $CompletionBoundaryIndex -or
+    $FinalPidSnapshotIndex -le $WatcherDrainIndex -or
+    $FinalSentinelCheckIndex -le $FinalPidSnapshotIndex) {
+    throw "M10 capture must freeze completion before post-boundary watcher, PID, and sentinel observations."
+}
 
 $ToolbarFinalizeSource = Get-Content -Raw -LiteralPath $ToolbarFinalize
 foreach ($Required in @(
@@ -155,6 +408,10 @@ foreach ($Required in @(
         'm10_toolbar_session_final',
         'Get-FileHash',
         'source_capture',
+        'm10_toolbar_capture_receipt',
+        'SettingsLaunchSentinelReady',
+        'receipt_file_name',
+        'receipt_sha256',
         'must not overwrite the immutable capture file',
         'manually reported after capture',
         'GripDragsCompleted',
@@ -172,6 +429,8 @@ foreach ($Required in @(
         'GetDpiForWindow',
         'GetClientRect',
         'GetScrollInfo',
+        'maximum_position',
+        'at_end',
         'visible_children_fully_within_client',
         'm10_settings_geometry',
         'operator_report',
@@ -184,6 +443,26 @@ foreach ($Required in @(
     Require-Text $SettingsSource ([regex]::Escape($Required)) `
         "M10 settings geometry collector is missing required pattern: $Required"
 }
+$SettingsProductSource = Get-Content -Raw -LiteralPath $SettingsProductSourcePath
+foreach ($Required in @(
+        'Local\\YuneWindowsSettingsLaunchObserved.v1',
+        'OpenEventW(EVENT_MODIFY_STATE',
+        'SetEvent(launch_observed)',
+        'SignalSettingsLaunchObserver();'
+    )) {
+    Require-Text $SettingsProductSource ([regex]::Escape($Required)) `
+        "M10 settings startup sentinel is missing required pattern: $Required"
+}
+$SentinelSignalIndex = $SettingsProductSource.IndexOf(
+    'SignalSettingsLaunchObserver();')
+$SingletonIndex = $SettingsProductSource.IndexOf(
+    'CreateMutexW(nullptr, TRUE,',
+    [Math]::Max(0, $SentinelSignalIndex))
+if ($SentinelSignalIndex -lt 0 -or
+    $SingletonIndex -lt 0 -or
+    $SentinelSignalIndex -gt $SingletonIndex) {
+    throw "M10 settings startup must signal the launch sentinel before singleton handling."
+}
 
 $Readme = Get-Content -Raw -LiteralPath $ReadmePath
 foreach ($Required in @(
@@ -191,6 +470,8 @@ foreach ($Required in @(
         '10 grip and 10 settings-segment drags',
         'light and dark themes',
         'exact capture SHA-256',
+        'capture-time receipt',
+        'YuneWindowsSettingsLaunchObserved.v1',
         'cannot accept pass/fail verdicts',
         'Machine-state evidence must be committed separately'
     )) {
@@ -198,7 +479,8 @@ foreach ($Required in @(
         "M10 evidence README is missing honesty or acceptance guidance: $Required"
 }
 
-$Scratch = Join-Path $env:TEMP ("yune-windows\m10-evidence-contract-" + $PID)
+$Scratch = Join-Path $env:TEMP (
+    "yune-windows\m10-evidence-contract-$PID-$([Guid]::NewGuid().ToString('N'))")
 New-Item -ItemType Directory -Force -Path $Scratch | Out-Null
 try {
     $ToolbarSmokePath = Join-Path $Scratch "toolbar.json"
@@ -209,11 +491,25 @@ try {
         -SampleCount 1 `
         -IntervalMs 20 | Out-Null
     $ToolbarSmoke = Get-Content -Raw -LiteralPath $ToolbarSmokePath | ConvertFrom-Json
+    $ToolbarReceiptPath = $ToolbarSmokePath + ".receipt.json"
+    if (-not (Test-Path -LiteralPath $ToolbarReceiptPath -PathType Leaf)) {
+        throw "M10 toolbar recorder smoke did not emit its capture-time receipt."
+    }
+    $ToolbarReceipt = Get-Content -Raw -LiteralPath $ToolbarReceiptPath |
+        ConvertFrom-Json
+    $ToolbarSmokeHash = (Get-FileHash -LiteralPath $ToolbarSmokePath -Algorithm SHA256).Hash
     if ($ToolbarSmoke.evidence_kind -ne "m10_toolbar_topology_capture" -or
         [int]$ToolbarSmoke.sampling.captured_sample_count -ne 1 -or
         $ToolbarSmoke.operator_report.verdict -ne "pending" -or
         @($ToolbarSmoke.machine_observed.settings_process_ids_started_during_capture).Count -ne 0 -or
-        [bool]$ToolbarSmoke.gate_ready) {
+        [bool]$ToolbarSmoke.gate_ready -or
+        $ToolbarReceipt.evidence_kind -ne "m10_toolbar_capture_receipt" -or
+        $ToolbarReceipt.capture_sha256 -ne $ToolbarSmokeHash -or
+        $ToolbarReceipt.capture_file_name -ne [IO.Path]::GetFileName($ToolbarSmokePath) -or
+        -not [bool]$ToolbarReceipt.settings_launch_sentinel_coverage_complete -or
+        [bool]$ToolbarReceipt.settings_launch_sentinel_signaled -or
+        -not [bool]$ToolbarSmoke.machine_observed.settings_launch_sentinel.coverage_complete -or
+        [bool]$ToolbarSmoke.machine_observed.settings_launch_sentinel.signaled) {
         throw "M10 toolbar recorder smoke must emit one honest pending session."
     }
 
@@ -231,12 +527,36 @@ try {
         -PositionPersistedAfterHostRestart pass | Out-Null
     $ToolbarFinal = Get-Content -Raw -LiteralPath $ToolbarFinalPath | ConvertFrom-Json
     $ExpectedCaptureHash = (Get-FileHash -LiteralPath $ToolbarSmokePath -Algorithm SHA256).Hash
+    $ExpectedReceiptHash = (Get-FileHash -LiteralPath $ToolbarReceiptPath -Algorithm SHA256).Hash
     if ($ToolbarFinal.evidence_kind -ne "m10_toolbar_session_final" -or
         $ToolbarFinal.source_capture.sha256 -ne $ExpectedCaptureHash -or
+        $ToolbarFinal.source_capture.receipt_sha256 -ne $ExpectedReceiptHash -or
         $ToolbarFinal.operator_report.total_drags_completed -ne 20 -or
         -not [bool]$ToolbarFinal.operator_report.report_complete -or
         [bool]$ToolbarFinal.gate_ready) {
         throw "M10 toolbar finalizer must bind the later complete operator report to the exact non-passing smoke capture."
+    }
+
+    Add-Content -LiteralPath $ToolbarSmokePath -Value " " -Encoding utf8
+    $TamperRejected = $false
+    try {
+        & $ToolbarFinalize `
+            -CapturePath $ToolbarSmokePath `
+            -OutputPath (Join-Path $Scratch "toolbar-tampered-final.json") `
+            -GripDragsCompleted 10 `
+            -SettingsSegmentDragsCompleted 10 `
+            -VisualCopiesOrAfterimagesAbsent pass `
+            -FocusNeverStolen pass `
+            -SettingsDragDidNotActivate pass `
+            -CantoneseOnly pass `
+            -PositionPersistedAfterFocus pass `
+            -PositionPersistedAfterHostRestart pass | Out-Null
+    }
+    catch {
+        $TamperRejected = $_.Exception.Message -match 'receipt does not bind'
+    }
+    if (-not $TamperRejected) {
+        throw "M10 toolbar finalizer accepted a capture changed after its receipt was emitted."
     }
 
     $SettingsSmokePath = Join-Path $Scratch "settings.json"
@@ -260,6 +580,120 @@ try {
         if ($Json -match '"(?:title|text|keystrokes?)"\s*:') {
             throw "M10 capture output exposed a prohibited title/text/keystroke field."
         }
+    }
+
+    $SyntheticBoundary = [DateTimeOffset]::UtcNow.AddMinutes(-10)
+    $SyntheticWatcherStart = $SyntheticBoundary.AddMinutes(1)
+    $SyntheticCaptureStart = $SyntheticBoundary.AddMinutes(2)
+    $SyntheticSampleOne = $SyntheticBoundary.AddMinutes(3)
+    $SyntheticSampleTwo = $SyntheticBoundary.AddMinutes(4)
+    $SyntheticCaptureComplete = $SyntheticBoundary.AddMinutes(5)
+    $SyntheticWatcherStop = $SyntheticBoundary.AddMinutes(6)
+    $SyntheticSentinelCheck = $SyntheticBoundary.AddMinutes(7)
+    $SyntheticWindowCaptured = [pscustomobject]@{
+        visible = $true
+        hwnd_hex = "0x1234"
+        process_name = "notepad"
+        foreground = [pscustomobject]@{
+            root_owner_matches_foreground_root_owner = $true
+        }
+        capture = [pscustomobject]@{ is_this_window = $true }
+    }
+    $SyntheticWindowReleased = [pscustomobject]@{
+        visible = $true
+        hwnd_hex = "0x1234"
+        process_name = "notepad"
+        foreground = [pscustomobject]@{
+            root_owner_matches_foreground_root_owner = $true
+        }
+        capture = [pscustomobject]@{ is_this_window = $false }
+    }
+    $SyntheticCapture = [pscustomobject]@{
+        schema_version = 1
+        evidence_kind = "m10_toolbar_topology_capture"
+        captured_at_utc = $SyntheticCaptureStart.ToString("o")
+        completed_at_utc = $SyntheticCaptureComplete.ToString("o")
+        host = [pscustomobject]@{
+            id = "notepad"
+            expected_process_name = "notepad"
+        }
+        sampling = [pscustomobject]@{
+            requested_sample_count = 2
+            captured_sample_count = 2
+        }
+        machine_observed = [pscustomobject]@{
+            maximum_visible_toolbar_windows = 999
+            settings_process_ids_started_during_capture = @()
+            settings_launch_sentinel = [pscustomobject]@{
+                name = "Local\YuneWindowsSettingsLaunchObserved.v1"
+                capture_mutex_name = "Local\YuneWindowsM10ToolbarCapture.v1"
+                capture_mutex_held = $true
+                created_new = $true
+                initialized_unsignaled_before_initial_process_snapshot = $true
+                held_for_complete_capture = $true
+                initialized_at_utc = $SyntheticWatcherStart.ToString("o")
+                checked_at_utc = $SyntheticSentinelCheck.ToString("o")
+                signaled = $false
+                coverage_complete = $true
+                failure = ""
+            }
+            settings_process_start_watcher = [pscustomobject]@{
+                provider = "Win32_ProcessStartTrace"
+                started_at_utc = $SyntheticWatcherStart.ToString("o")
+                stopped_at_utc = $SyntheticWatcherStop.ToString("o")
+                coverage_complete = $true
+                failure = ""
+                events = @()
+            }
+        }
+        operator_report = [pscustomobject]@{ verdict = "pending" }
+        gate_ready = $false
+        samples = @(
+            [pscustomobject]@{
+                sample_index = 0
+                captured_at_utc = $SyntheticSampleOne.ToString("o")
+                window_count = 1
+                windows = @($SyntheticWindowCaptured)
+            },
+            [pscustomobject]@{
+                sample_index = 1
+                captured_at_utc = $SyntheticSampleTwo.ToString("o")
+                window_count = 1
+                windows = @($SyntheticWindowReleased)
+            }
+        )
+    }
+    $SyntheticMetrics = Get-RecomputedToolbarCaptureMetrics `
+        -Capture $SyntheticCapture `
+        -EvidenceBoundary $SyntheticBoundary `
+        -Context "synthetic M10 capture"
+    if (-not [bool]$SyntheticMetrics.topology_ready -or
+        [int]$SyntheticMetrics.maximum_visible_toolbar_windows -ne 1) {
+        throw "M10 topology recomputation trusted a copied aggregate instead of source samples."
+    }
+    $SyntheticCapture.samples[0].captured_at_utc = $SyntheticBoundary.ToString("o")
+    $StaleSampleRejected = $false
+    try {
+        [void](Get-RecomputedToolbarCaptureMetrics `
+                -Capture $SyntheticCapture `
+                -EvidenceBoundary $SyntheticBoundary `
+                -Context "synthetic stale M10 capture")
+    }
+    catch {
+        $StaleSampleRejected = $_.Exception.Message -match 'outside its post-verification capture interval'
+    }
+    if (-not $StaleSampleRejected) {
+        throw "M10 topology recomputation accepted a sample at the deployment evidence boundary."
+    }
+    $SyntheticCapture.samples[0].captured_at_utc = $SyntheticSampleOne.ToString("o")
+    $SyntheticCapture.machine_observed.settings_launch_sentinel.signaled = $true
+    $SignaledMetrics = Get-RecomputedToolbarCaptureMetrics `
+        -Capture $SyntheticCapture `
+        -EvidenceBoundary $SyntheticBoundary `
+        -Context "synthetic signaled M10 capture"
+    if ([bool]$SignaledMetrics.topology_ready -or
+        -not [bool]$SignaledMetrics.settings_launch_sentinel_signaled) {
+        throw "M10 topology recomputation accepted a signaled settings launch sentinel."
     }
 }
 finally {
@@ -477,6 +911,16 @@ if ([int]$PostRestartVerification.schema_version -ne 1 -or
     -not [bool]$PostRestartVerification.installed.com_registration.path_matches) {
     throw "M10 post-restart verifier is not a passing proof for the exact deployed candidate."
 }
+$DeploymentCompletedAt = Convert-IsoTimestamp `
+    ([string]$CandidateManifest.deployment.completed_at) `
+    "M10 frozen-candidate deployment completion"
+$VerifierCapturedAt = Convert-IsoTimestamp `
+    ([string]$PostRestartVerification.captured_at) `
+    "M10 post-restart verification capture"
+if ($VerifierCapturedAt -le $DeploymentCompletedAt) {
+    throw "M10 post-restart verification must be strictly after deployment completion."
+}
+$InstalledEvidenceBoundary = $VerifierCapturedAt
 
 $ManifestArtifacts = @{}
 foreach ($ManifestArtifact in @($CandidateManifest.build.artifacts)) {
@@ -521,6 +965,8 @@ if ($ToolbarGate.verdict -ne "pass") {
     throw "M10 toolbar gate must pass before completion."
 }
 $ComputedTotalDrags = 0
+$SeenSessionEvidencePaths = [Collections.Generic.HashSet[string]]::new(
+    [StringComparer]::OrdinalIgnoreCase)
 foreach ($Host in $Hosts) {
     if ([int]$Host.grip_drags -lt 10 -or
         [int]$Host.settings_segment_drags -lt 10 -or
@@ -552,15 +998,18 @@ foreach ($Host in $Hosts) {
     $SessionGripDrags = 0
     $SessionSettingsDrags = 0
     $SessionMaximumVisible = 0
+    $SessionAllOwnersMatch = $true
+    $SessionAllHwndsStable = $true
+    $SessionAllReleasedCapture = $true
+    $SessionSettingsProcessLaunched = $false
     foreach ($SessionPath in $SessionPaths) {
         $ResolvedSession = Resolve-EvidencePath ([string]$SessionPath) "M10 $($Host.id) topology session"
+        if (-not $SeenSessionEvidencePaths.Add($ResolvedSession)) {
+            throw "M10 session_evidence path is duplicated: $SessionPath"
+        }
         $Session = Get-Content -Raw -LiteralPath $ResolvedSession | ConvertFrom-Json
         if ($Session.evidence_kind -ne "m10_toolbar_session_final" -or
             $Session.host.id -ne $Host.id -or
-            -not [bool]$Session.machine_observed.topology_ready -or
-            [int]$Session.machine_observed.final_sample_visible_toolbar_count -ne 1 -or
-            [bool]$Session.machine_observed.final_sample_has_toolbar_capture -or
-            -not [bool]$Session.machine_observed.final_sample_owner_matches_foreground_root -or
             -not [bool]$Session.operator_report.report_complete -or
             -not [bool]$Session.gate_ready) {
             throw "M10 $($Host.id) topology session is not a complete passing recorder result."
@@ -578,15 +1027,125 @@ foreach ($Host in $Hosts) {
         if ($SourceCaptureHash -ne [string]$Session.source_capture.sha256) {
             throw "M10 $($Host.id) finalized session source capture hash does not match."
         }
+        $SourceReceiptName = [string]$Session.source_capture.receipt_file_name
+        if ([string]::IsNullOrWhiteSpace($SourceReceiptName) -or
+            [IO.Path]::GetFileName($SourceReceiptName) -ne $SourceReceiptName) {
+            throw "M10 $($Host.id) finalized session has an unsafe capture receipt name."
+        }
+        $SourceReceiptPath = Join-Path `
+            (Split-Path -Parent $ResolvedSession) `
+            $SourceReceiptName
+        if (-not (Test-Path -LiteralPath $SourceReceiptPath -PathType Leaf)) {
+            throw "M10 $($Host.id) finalized session is missing its capture-time receipt."
+        }
+        $SourceReceiptHash = (Get-FileHash `
+                -LiteralPath $SourceReceiptPath `
+                -Algorithm SHA256).Hash
+        $SourceReceipt = Get-Content -Raw -LiteralPath $SourceReceiptPath |
+            ConvertFrom-Json
+        if ($SourceReceiptHash -ne [string]$Session.source_capture.receipt_sha256 -or
+            $SourceReceipt.evidence_kind -ne "m10_toolbar_capture_receipt" -or
+            $SourceReceipt.capture_file_name -ne $SourceCaptureName -or
+            $SourceReceipt.capture_sha256 -ne $SourceCaptureHash -or
+            -not [bool]$SourceReceipt.settings_launch_sentinel_coverage_complete -or
+            [bool]$SourceReceipt.settings_launch_sentinel_signaled) {
+            throw "M10 $($Host.id) capture-time receipt does not bind the immutable source capture."
+        }
+        $SourceCapture = Get-Content -Raw -LiteralPath $SourceCapturePath |
+            ConvertFrom-Json
+        if ($SourceCapture.host.id -ne $Host.id -or
+            $Session.source_capture.captured_at_utc -ne $SourceCapture.captured_at_utc -or
+            $Session.source_capture.completed_at_utc -ne $SourceCapture.completed_at_utc -or
+            $SourceReceipt.capture_completed_at_utc -ne $SourceCapture.completed_at_utc) {
+            throw "M10 $($Host.id) finalized source metadata disagrees with its source capture."
+        }
+        $CaptureMetrics = Get-RecomputedToolbarCaptureMetrics `
+            -Capture $SourceCapture `
+            -EvidenceBoundary $InstalledEvidenceBoundary `
+            -Context "M10 $($Host.id) source capture"
+        $ReceiptCreatedAt = Convert-IsoTimestamp `
+            ([string]$SourceReceipt.created_at_utc) `
+            "M10 $($Host.id) capture receipt"
+        $FinalizedAt = Convert-IsoTimestamp `
+            ([string]$Session.finalized_at_utc) `
+            "M10 $($Host.id) finalized session"
+        if ($ReceiptCreatedAt -lt $CaptureMetrics.capture_completed_at -or
+            $FinalizedAt -lt $ReceiptCreatedAt) {
+            throw "M10 $($Host.id) receipt/finalization chronology is inconsistent."
+        }
+        foreach ($MetricField in @(
+                "samples_with_visible_toolbar",
+                "samples_with_toolbar_capture",
+                "maximum_visible_toolbar_windows",
+                "samples_with_multiple_visible_toolbars",
+                "samples_with_foreground_owner_mismatch",
+                "samples_with_unexpected_host_process",
+                "sampled_visible_hwnd_stable",
+                "final_sample_visible_toolbar_count",
+                "final_sample_has_toolbar_capture",
+                "final_sample_owner_matches_foreground_root",
+                "topology_ready"
+            )) {
+            if ([string]$SourceCapture.machine_observed.$MetricField -ne
+                [string]$CaptureMetrics.$MetricField -or
+                [string]$Session.machine_observed.$MetricField -ne
+                [string]$CaptureMetrics.$MetricField) {
+                throw "M10 $($Host.id) $MetricField is not recomputed consistently from source samples."
+            }
+        }
+        foreach ($MetricArrayField in @(
+                "observed_visible_process_names",
+                "distinct_visible_hwnds",
+                "final_sample_visible_hwnds",
+                "settings_process_ids_started_during_capture"
+            )) {
+            $SourceProjection = @($SourceCapture.machine_observed.$MetricArrayField) -join ','
+            $FinalProjection = @($Session.machine_observed.$MetricArrayField) -join ','
+            $RecomputedProjection = @($CaptureMetrics.$MetricArrayField) -join ','
+            if ($SourceProjection -ne $RecomputedProjection -or
+                $FinalProjection -ne $RecomputedProjection) {
+                throw "M10 $($Host.id) $MetricArrayField is not bound to source samples."
+            }
+        }
+        if (-not [bool]$CaptureMetrics.topology_ready) {
+            throw "M10 $($Host.id) source samples do not independently satisfy topology readiness."
+        }
+        if ([bool]$SourceCapture.machine_observed.settings_launch_sentinel.signaled -ne
+                [bool]$CaptureMetrics.settings_launch_sentinel_signaled -or
+            [bool]$Session.machine_observed.settings_launch_sentinel.signaled -ne
+                [bool]$CaptureMetrics.settings_launch_sentinel_signaled -or
+            [bool]$SourceCapture.machine_observed.settings_launch_sentinel.coverage_complete -ne
+                [bool]$CaptureMetrics.settings_launch_sentinel_coverage_complete -or
+            [bool]$Session.machine_observed.settings_launch_sentinel.coverage_complete -ne
+                [bool]$CaptureMetrics.settings_launch_sentinel_coverage_complete) {
+            throw "M10 $($Host.id) settings launch sentinel projection is inconsistent."
+        }
         $SessionGripDrags += [int]$Session.operator_report.grip_drags_completed
         $SessionSettingsDrags += [int]$Session.operator_report.settings_segment_drags_completed
         $SessionMaximumVisible = [Math]::Max(
             $SessionMaximumVisible,
-            [int]$Session.machine_observed.maximum_visible_toolbar_windows)
+            [int]$CaptureMetrics.maximum_visible_toolbar_windows)
+        $SessionAllOwnersMatch = [bool](
+            $SessionAllOwnersMatch -and
+            [int]$CaptureMetrics.samples_with_foreground_owner_mismatch -eq 0)
+        $SessionAllHwndsStable = [bool](
+            $SessionAllHwndsStable -and
+            [bool]$CaptureMetrics.sampled_visible_hwnd_stable)
+        $SessionAllReleasedCapture = [bool](
+            $SessionAllReleasedCapture -and
+            -not [bool]$CaptureMetrics.final_sample_has_toolbar_capture)
+        $SessionSettingsProcessLaunched = [bool](
+            $SessionSettingsProcessLaunched -or
+            [bool]$CaptureMetrics.settings_launch_sentinel_signaled -or
+            @($CaptureMetrics.settings_process_ids_started_during_capture).Count -gt 0)
     }
     if ($SessionGripDrags -ne [int]$Host.grip_drags -or
         $SessionSettingsDrags -ne [int]$Host.settings_segment_drags -or
-        $SessionMaximumVisible -ne [int]$Host.maximum_visible_toolbar_windows) {
+        $SessionMaximumVisible -ne [int]$Host.maximum_visible_toolbar_windows -or
+        $SessionAllOwnersMatch -ne [bool]$Host.all_visible_owners_match_foreground_root -or
+        $SessionAllHwndsStable -ne [bool]$Host.sampled_visible_hwnd_stable -or
+        $SessionAllReleasedCapture -ne [bool]$Host.no_stuck_capture -or
+        $SessionSettingsProcessLaunched -ne [bool]$Host.settings_process_launched_by_drag) {
         throw "M10 host $($Host.id) summary counts do not match its SHA-pinned finalized session evidence."
     }
     if (-not [bool]$Host.no_stuck_capture) {
@@ -605,8 +1164,12 @@ if ($ToolbarGate.operator_visual_verdict.verdict -ne "pass" -or
     $ToolbarGate.operator_visual_verdict.reported_by -ne "user") {
     throw "M10 toolbar visual acceptance requires an explicit user pass verdict."
 }
-Assert-IsoTimestamp ([string]$ToolbarGate.operator_visual_verdict.recorded_at_utc) `
+$ToolbarVerdictAt = Convert-IsoTimestamp `
+    ([string]$ToolbarGate.operator_visual_verdict.recorded_at_utc) `
     "M10 toolbar user verdict"
+if ($ToolbarVerdictAt -le $InstalledEvidenceBoundary) {
+    throw "M10 toolbar user verdict must postdate the post-restart verifier."
+}
 
 $SettingsGate = Require-Property $Evidence "settings_gate" "M10 evidence"
 if ($SettingsGate.verdict -ne "pass" -or @($SettingsGate.exercised_dpi).Count -eq 0) {
@@ -651,10 +1214,14 @@ if ($SettingsGate.operator_visual_verdict.verdict -ne "pass" -or
     $SettingsGate.operator_visual_verdict.reported_by -ne "user") {
     throw "M10 settings visual acceptance requires an explicit user pass verdict."
 }
-Assert-IsoTimestamp ([string]$SettingsGate.operator_visual_verdict.recorded_at_utc) `
+$SettingsVerdictAt = Convert-IsoTimestamp `
+    ([string]$SettingsGate.operator_visual_verdict.recorded_at_utc) `
     "M10 settings user verdict"
+if ($SettingsVerdictAt -le $InstalledEvidenceBoundary) {
+    throw "M10 settings user verdict must postdate the post-restart verifier."
+}
 $GeometryPaths = @($SettingsGate.geometry_evidence)
-if ($GeometryPaths.Count -lt 5) {
+if ($GeometryPaths.Count -ne 5) {
     throw "M10 completed settings evidence requires initial, minimum, minimum-scrolled, larger, and reopened geometry captures."
 }
 $ObservedGeometryPhases = [Collections.Generic.HashSet[string]]::new(
@@ -663,14 +1230,47 @@ $ObservedGeometryThemes = [Collections.Generic.HashSet[string]]::new(
     [StringComparer]::OrdinalIgnoreCase)
 $ObservedSettingsOperatorPasses = [Collections.Generic.HashSet[string]]::new(
     [StringComparer]::OrdinalIgnoreCase)
+$ObservedGeometryDpi = [Collections.Generic.HashSet[int]]::new()
+$SeenGeometryPaths = [Collections.Generic.HashSet[string]]::new(
+    [StringComparer]::OrdinalIgnoreCase)
+$GeometryByPhase = @{}
 foreach ($GeometryPath in $GeometryPaths) {
     $ResolvedGeometry = Resolve-EvidencePath ([string]$GeometryPath) "M10 settings geometry"
+    if (-not $SeenGeometryPaths.Add($ResolvedGeometry)) {
+        throw "M10 settings geometry path is duplicated: $GeometryPath"
+    }
     $Geometry = Get-Content -Raw -LiteralPath $ResolvedGeometry | ConvertFrom-Json
     if ($Geometry.evidence_kind -ne "m10_settings_geometry" -or
-        [int]$Geometry.window_count -lt 1) {
-        throw "M10 settings geometry is not a populated settings-window capture: $GeometryPath"
+        [int]$Geometry.window_count -ne 1 -or
+        @($Geometry.windows).Count -ne 1) {
+        throw "M10 settings geometry must contain exactly one settings window: $GeometryPath"
     }
-    [void]$ObservedGeometryPhases.Add([string]$Geometry.phase)
+    $GeometryCapturedAt = Convert-IsoTimestamp `
+        ([string]$Geometry.captured_at_utc) `
+        "M10 settings geometry $GeometryPath"
+    if ($GeometryCapturedAt -le $InstalledEvidenceBoundary) {
+        throw "M10 settings geometry predates the post-restart verifier: $GeometryPath"
+    }
+    $Phase = [string]$Geometry.phase
+    if ($GeometryByPhase.ContainsKey($Phase)) {
+        throw "M10 settings geometry contains duplicate phase: $Phase"
+    }
+    $Window = @($Geometry.windows)[0]
+    if (-not [bool]$Window.visible -or
+        $Window.process_name -ne "YuneWindowsSettings" -or
+        -not [bool]$Window.client_rect.available -or
+        [int]$Window.client_rect.width -le 0 -or
+        [int]$Window.client_rect.height -le 0 -or
+        [int]$Window.dpi -lt 96 -or
+        [int]$Window.dpi -gt 768) {
+        throw "M10 settings geometry is not a usable installed settings window: $GeometryPath"
+    }
+    $GeometryByPhase[$Phase] = [pscustomobject]@{
+        geometry = $Geometry
+        window = $Window
+    }
+    [void]$ObservedGeometryDpi.Add([int]$Window.dpi)
+    [void]$ObservedGeometryPhases.Add($Phase)
     [void]$ObservedGeometryThemes.Add([string]$Geometry.theme_reported_by_operator)
     foreach ($OperatorField in @(
             "initial_viewport_usable",
@@ -697,6 +1297,46 @@ foreach ($GeometryPath in $GeometryPaths) {
 foreach ($RequiredPhase in @("initial", "minimum", "minimum_scrolled", "larger", "reopened")) {
     if (-not $ObservedGeometryPhases.Contains($RequiredPhase)) {
         throw "M10 settings geometry is missing phase: $RequiredPhase"
+    }
+}
+$SummaryDpi = @($SettingsGate.exercised_dpi | ForEach-Object { [int]$_ } | Sort-Object -Unique)
+$GeometryDpi = @($ObservedGeometryDpi | Sort-Object)
+if (($SummaryDpi -join ',') -ne ($GeometryDpi -join ',')) {
+    throw "M10 settings exercised_dpi is not derived from the geometry captures."
+}
+$PhaseToSizeField = @{
+    initial = "initial_client_size"
+    minimum = "minimum_client_size"
+    larger = "larger_client_size"
+}
+foreach ($Phase in $PhaseToSizeField.Keys) {
+    $SizeField = $PhaseToSizeField[$Phase]
+    $CapturedClient = $GeometryByPhase[$Phase].window.client_rect
+    $SummaryClient = $SettingsGate.$SizeField
+    if ([int]$SummaryClient.width -ne [int]$CapturedClient.width -or
+        [int]$SummaryClient.height -ne [int]$CapturedClient.height) {
+        throw "M10 settings $SizeField is not derived from the $Phase geometry capture."
+    }
+}
+$MinimumScrolledWindow = $GeometryByPhase["minimum_scrolled"].window
+foreach ($ScrollAxis in @("horizontal", "vertical")) {
+    $Scroll = $MinimumScrolledWindow.scroll.$ScrollAxis
+    $ComputedMaximumPosition = [Math]::Max(
+        [int]$Scroll.minimum,
+        [int]$Scroll.maximum - [int]$Scroll.page + 1)
+    $ComputedAtEnd = [bool](
+        [bool]$Scroll.available -and
+        [bool]$Scroll.can_scroll -and
+        [int]$Scroll.page -gt 0 -and
+        [int]$Scroll.position -ge $ComputedMaximumPosition)
+    if ([int]$Scroll.maximum_position -ne $ComputedMaximumPosition -or
+        [bool]$Scroll.at_end -ne $ComputedAtEnd -or
+        -not $ComputedAtEnd) {
+        throw "M10 minimum_scrolled geometry does not mechanically prove the $ScrollAxis scrollbar reached its end."
+    }
+    $SummaryScrollField = $ScrollAxis + "_scroll_reaches_canvas_end"
+    if (-not [bool]$SettingsGate.$SummaryScrollField) {
+        throw "M10 settings $SummaryScrollField is not bound to geometry."
     }
 }
 foreach ($RequiredTheme in @("light", "dark")) {

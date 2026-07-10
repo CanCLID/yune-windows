@@ -23,6 +23,14 @@ using GetProfileApiFn = RimeYuneWindowsProfileApi* (*)();
 constexpr int kMaxReturnedCandidates = 30;
 constexpr ULONGLONG kComposeSessionIdleTtlMs = 10ull * 60 * 1000;
 constexpr size_t kMaxComposeSessions = 64;
+constexpr const wchar_t* kProductionPipeName =
+    L"\\\\.\\pipe\\yune-windows-ime";
+
+enum class PersistFailureStage {
+    None,
+    Write,
+    Flush,
+};
 
 struct Args {
     std::wstring rime_dll;
@@ -30,6 +38,8 @@ struct Args {
     std::wstring user_dir;
     std::wstring pipe_name;
     bool once = false;
+    PersistFailureStage test_persist_failure_once =
+        PersistFailureStage::None;
 };
 
 struct Request {
@@ -62,6 +72,11 @@ struct YuneState {
     std::string toolbar_skin = "default";
     std::string boot_id;
     unsigned long long revision = 0;
+};
+
+class StatePersistenceError final : public std::runtime_error {
+public:
+    using std::runtime_error::runtime_error;
 };
 
 struct SchemaInfo {
@@ -150,6 +165,18 @@ Args ParseArgs(int argc, wchar_t** argv) {
             args.pipe_name = RequireValue(argc, argv, i);
         } else if (key == L"--once") {
             args.once = true;
+        } else if (key == L"--test-persist-failure-once") {
+            const std::wstring stage = RequireValue(argc, argv, i);
+            if (stage == L"write") {
+                args.test_persist_failure_once =
+                    PersistFailureStage::Write;
+            } else if (stage == L"flush") {
+                args.test_persist_failure_once =
+                    PersistFailureStage::Flush;
+            } else {
+                throw std::runtime_error(
+                    "unsupported test persistence failure stage");
+            }
         } else {
             throw std::runtime_error("unknown argument");
         }
@@ -158,6 +185,11 @@ Args ParseArgs(int argc, wchar_t** argv) {
         args.pipe_name.empty()) {
         throw std::runtime_error(
             "required arguments: --rime-dll --shared-dir --user-dir --pipe");
+    }
+    if (args.test_persist_failure_once != PersistFailureStage::None &&
+        _wcsicmp(args.pipe_name.c_str(), kProductionPipeName) == 0) {
+        throw std::runtime_error(
+            "test persistence failure injection is forbidden on the production pipe");
     }
     return args;
 }
@@ -679,6 +711,7 @@ public:
         staging_dir_ =
             Narrow((std::filesystem::path(args.user_dir) / L"build").wstring());
         state_file_ = StateFilePathForArgs(args);
+        test_persist_failure_once_ = args.test_persist_failure_once;
 
         RIME_STRUCT_INIT(RimeTraits, traits_);
         traits_.shared_data_dir = shared_dir_.c_str();
@@ -798,8 +831,10 @@ public:
                 return ProcessOperation(request);
             }
             return ProcessInput(request);
+        } catch (const StatePersistenceError& error) {
+            return ErrorResponseJson(error.what(), "persist_failed");
         } catch (const std::exception& error) {
-            return ErrorResponseJson(error.what());
+            return ErrorResponseJson(error.what(), "invalid");
         }
     }
 
@@ -854,7 +889,13 @@ private:
     }
 
     void PersistState(const YuneState& state) const {
-        std::filesystem::create_directories(state_file_.parent_path());
+        std::error_code directory_error;
+        std::filesystem::create_directories(state_file_.parent_path(),
+                                            directory_error);
+        if (directory_error) {
+            throw StatePersistenceError(
+                "failed to create IME state directory");
+        }
         const std::filesystem::path temporary_state_file =
             state_file_.wstring() + L".tmp";
         std::ofstream out(temporary_state_file,
@@ -862,7 +903,7 @@ private:
         if (!out) {
             std::error_code cleanup_error;
             std::filesystem::remove(temporary_state_file, cleanup_error);
-            throw std::runtime_error("failed to open IME state file");
+            throw StatePersistenceError("failed to open IME state file");
         }
         out << "{\n"
             << "  \"schema_id\": \"" << JsonEscape(state.schema_id) << "\",\n"
@@ -881,24 +922,32 @@ private:
             << "    \"skin\": \"" << JsonEscape(state.toolbar_skin) << "\"\n"
             << "  }\n"
             << "}\n";
+        if (ConsumeTestPersistFailure(PersistFailureStage::Write)) {
+            out.setstate(std::ios::badbit);
+        }
         const bool write_succeeded = static_cast<bool>(out);
         out.close();
         if (!write_succeeded || !out) {
             std::error_code cleanup_error;
             std::filesystem::remove(temporary_state_file, cleanup_error);
-            throw std::runtime_error("failed to write IME state file");
+            throw StatePersistenceError("failed to write IME state file");
         }
         HANDLE flush_file = CreateFileW(
             temporary_state_file.c_str(), GENERIC_WRITE, FILE_SHARE_READ,
             nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
-        if (flush_file == INVALID_HANDLE_VALUE ||
-            !FlushFileBuffers(flush_file)) {
+        bool flush_succeeded =
+            flush_file != INVALID_HANDLE_VALUE &&
+            FlushFileBuffers(flush_file) == TRUE;
+        if (ConsumeTestPersistFailure(PersistFailureStage::Flush)) {
+            flush_succeeded = false;
+        }
+        if (!flush_succeeded) {
             if (flush_file != INVALID_HANDLE_VALUE) {
                 CloseHandle(flush_file);
             }
             std::error_code cleanup_error;
             std::filesystem::remove(temporary_state_file, cleanup_error);
-            throw std::runtime_error("failed to flush IME state file");
+            throw StatePersistenceError("failed to flush IME state file");
         }
         CloseHandle(flush_file);
         if (!MoveFileExW(temporary_state_file.c_str(), state_file_.c_str(),
@@ -906,8 +955,16 @@ private:
                              MOVEFILE_WRITE_THROUGH)) {
             std::error_code cleanup_error;
             std::filesystem::remove(temporary_state_file, cleanup_error);
-            throw std::runtime_error("failed to replace IME state file");
+            throw StatePersistenceError("failed to replace IME state file");
         }
+    }
+
+    bool ConsumeTestPersistFailure(PersistFailureStage stage) const {
+        if (test_persist_failure_once_ != stage) {
+            return false;
+        }
+        test_persist_failure_once_ = PersistFailureStage::None;
+        return true;
     }
 
     std::string StateJson() const {
@@ -952,11 +1009,8 @@ private:
         return out.str();
     }
 
-    std::string ErrorResponseJson(std::string_view error) const {
-        const std::string_view outcome =
-            error.find("IME state file") != std::string_view::npos
-                ? std::string_view("persist_failed")
-                : std::string_view("invalid");
+    std::string ErrorResponseJson(std::string_view error,
+                                  std::string_view outcome) const {
         std::ostringstream out;
         out << "{\"ready\":false,\"applied\":false,\"outcome\":\""
             << outcome << "\""
@@ -1590,6 +1644,8 @@ private:
     std::string prebuilt_dir_;
     std::string staging_dir_;
     std::filesystem::path state_file_;
+    mutable PersistFailureStage test_persist_failure_once_ =
+        PersistFailureStage::None;
     YuneState state_;
     std::map<std::string, ComposeSession> compose_sessions_;
     unsigned long long next_compose_session_token_ = 1;

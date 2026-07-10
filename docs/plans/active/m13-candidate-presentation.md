@@ -38,7 +38,12 @@ Record median and p95 for cold first-show and warm-update latency, together with
 the build hash, machine/configuration, DPI, candidate count, window dimensions,
 and measurement method. Keep the baseline artifact immutable. No
 DirectComposition migration begins until the baseline is reproducible and the
-measurement harness passes a no-change rerun.
+measurement harness passes a no-change rerun. The rerun uses the same build
+hash/configuration and the complete 30-cold/500-warm protocol; its warm median
+and p95 must each be within 10% or 1 ms (whichever allowance is larger) of the
+recorded baseline, and its cold median and p95 must each be within 15% or 2 ms
+(whichever allowance is larger). Record the rerun beside the immutable baseline
+before opening Slice 1.
 
 ### Slice 1 - Generalize the composition lifecycle
 
@@ -53,6 +58,10 @@ measurement harness passes a no-change rerun.
    unnecessarily.
 4. Make device loss and surface recreation explicit and testable. A failed
    recreation must hide or fall back rather than expose a blank/stale surface.
+5. Keep the M08/M10 toolbar contracts and the language-bar smoke green after
+   lifecycle extraction. Any toolbar presentation, ownership, drag, backdrop,
+   HWND-lifetime, or focus behavior change is a blocking M13 defect; candidate
+   work cannot redefine or borrow M10 toolbar acceptance.
 
 ### Slice 2 - Implement the opaque/static DComp candidate
 
@@ -111,7 +120,8 @@ machine/configuration cannot close this gate.
 - The immutable 30-cold/500-warm GDI baseline and reproducibility check are
   recorded before renderer migration.
 - The generalized composition lifecycle has focused creation, resize,
-  device-loss, and fallback coverage independent of toolbar drawing.
+  device-loss, and fallback coverage independent of toolbar drawing, while the
+  M08/M10 toolbar contracts and language-bar smoke remain green.
 - The opaque/static-tint DComp candidate applies all M12 visual fields and passes
   the complete behavior gate.
 - Cold and warm median/p95 remain within the exact regression allowances.

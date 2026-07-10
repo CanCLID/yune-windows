@@ -49,16 +49,19 @@ the completed catalog.
 4. Enforce all of the following before a manifest can enter the catalog:
    - IDs match `[A-Za-z0-9][A-Za-z0-9_-]{0,63}`;
    - each manifest is at most 64 KiB;
+   - the display name is valid UTF-8 with at most 128 Unicode scalar values,
+     and each segment label has at most 16 Unicode scalar values;
    - at most 32 valid user skins are admitted;
    - every geometry value is finite and within its documented bound; and
    - every color is a valid RGBA value.
 5. Derive the lowercase canonical ID before collision checks. Reserve every
    built-in ID case-insensitively and reject a user manifest that collides with
    one. Reject Windows reserved device basenames (`con`, `prn`, `aux`, `nul`,
-   `com1`-`com9`, and `lpt1`-`lpt9`). Treat two externally supplied user
-   manifests whose IDs ASCII-fold to the same value as a catalog collision;
-   never let directory enumeration choose a winner. Do not partially recover an
-   otherwise invalid manifest.
+   `com0`-`com9`, and `lpt0`-`lpt9`). Treat two externally supplied user
+   manifests whose IDs ASCII-fold to the same value as a catalog collision.
+   Reject the entire user-catalog candidate and preserve the previously
+   published catalog; on first load publish built-ins only. Never let directory
+   enumeration choose a winner or partially recover a colliding manifest.
 6. Derive a stable `skin_revision` from canonical validated content, not file
    timestamps or directory enumeration order.
 7. If external state contains more than 32 otherwise valid user manifests,
@@ -134,14 +137,18 @@ skin-removal UI is not required for V1.
 
 - Reject malformed, truncated, oversized, duplicate-key, unknown-key, missing,
   non-finite, out-of-range, invalid-RGBA, unsafe-ID, built-in-ID collision, and
-  path-escape manifests.
+  path-escape manifests. Reject over-length display names and segment labels as
+  whole-manifest failures, with length measured in Unicode scalar values.
 - Prove `default`/`Default` built-in reservation and `Foo`/`foo` user identity,
   replacement, counting, list, reload, and `set-skin` behavior are consistent
   with one canonical directory and catalog entry.
-- Reject every Windows reserved device basename case-insensitively before any
-  destination directory is created.
+- Reject every Windows reserved device basename case-insensitively, including
+  `com0`-`com9` and `lpt0`-`lpt9`, before any destination directory is created.
 - Prove the 64 KiB cap, 32-user-skin limit, reserved IDs, whole-manifest
   rejection, deterministic enumeration, and content-stable `skin_revision`.
+- Prove a same-fold external collision rejects the user-catalog candidate as a
+  unit, preserves the previous catalog, and publishes built-ins only on first
+  load.
 - Prove invalid or deleted active skins fall back atomically to `default` with
   no transient unknown active ID.
 

@@ -193,6 +193,15 @@ function Get-ScrollSnapshot([IntPtr]$Window, [int]$Bar) {
         $Window,
         $Bar,
         [ref]$Info)
+    $CanScroll = [bool](
+        $Available -and
+        ($Info.nMax - $Info.nMin + 1) -gt [int64]$Info.nPage)
+    $MaximumPosition = if ($Available) {
+        [Math]::Max($Info.nMin, $Info.nMax - [int]$Info.nPage + 1)
+    }
+    else {
+        0
+    }
     return [pscustomobject][ordered]@{
         available = [bool]$Available
         minimum = if ($Available) { $Info.nMin } else { 0 }
@@ -200,9 +209,9 @@ function Get-ScrollSnapshot([IntPtr]$Window, [int]$Bar) {
         page = if ($Available) { $Info.nPage } else { 0 }
         position = if ($Available) { $Info.nPos } else { 0 }
         track_position = if ($Available) { $Info.nTrackPos } else { 0 }
-        can_scroll = [bool](
-            $Available -and
-            ($Info.nMax - $Info.nMin + 1) -gt [int64]$Info.nPage)
+        can_scroll = $CanScroll
+        maximum_position = $MaximumPosition
+        at_end = [bool]($CanScroll -and $Info.nPos -ge $MaximumPosition)
     }
 }
 

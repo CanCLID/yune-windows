@@ -163,4 +163,25 @@ inline ToolbarEligibilityReason EvaluateToolbarEligibility(
     return ToolbarEligibilityReason::Eligible;
 }
 
+inline const char* ToolbarEligibilityReasonName(
+    ToolbarEligibilityReason reason) {
+    switch (reason) {
+        case ToolbarEligibilityReason::Eligible:
+            return "eligible";
+        case ToolbarEligibilityReason::ProfileInactive:
+            return "profile_inactive";
+        case ToolbarEligibilityReason::NotCurrentGeneration:
+            return "not_current_generation";
+        case ToolbarEligibilityReason::NotFocused:
+            return "not_focused";
+        case ToolbarEligibilityReason::StateUnacknowledged:
+            return "state_unacknowledged";
+        case ToolbarEligibilityReason::OwnerInvalid:
+            return "owner_invalid";
+        case ToolbarEligibilityReason::ForegroundMismatch:
+            return "foreground_mismatch";
+    }
+    return "unknown";
+}
+
 }  // namespace yune_windows::reliability

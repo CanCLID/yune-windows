@@ -47,6 +47,10 @@ $FullOutputPath = [IO.Path]::GetFullPath($OutputPath)
 if (-not (Test-Path -LiteralPath $FullCapturePath -PathType Leaf)) {
     throw "capture file does not exist: $FullCapturePath"
 }
+$FullReceiptPath = $FullCapturePath + ".receipt.json"
+if (-not (Test-Path -LiteralPath $FullReceiptPath -PathType Leaf)) {
+    throw "capture receipt does not exist: $FullReceiptPath"
+}
 if ([IO.Path]::GetExtension($FullOutputPath) -ne ".json") {
     throw "-OutputPath must name a .json file."
 }
@@ -79,6 +83,25 @@ if ([int]$Capture.schema_version -ne 1 -or
 }
 
 $CaptureHash = (Get-FileHash -LiteralPath $FullCapturePath -Algorithm SHA256).Hash
+try {
+    $CaptureReceipt = Get-Content -Raw -LiteralPath $FullReceiptPath |
+        ConvertFrom-Json
+}
+catch {
+    throw "capture receipt is not valid JSON: $($_.Exception.Message)"
+}
+if ([int]$CaptureReceipt.schema_version -ne 1 -or
+    $CaptureReceipt.evidence_kind -ne "m10_toolbar_capture_receipt" -or
+    $CaptureReceipt.capture_file_name -ne [IO.Path]::GetFileName($FullCapturePath) -or
+    $CaptureReceipt.capture_sha256 -ne $CaptureHash -or
+    $CaptureReceipt.capture_completed_at_utc -ne [string]$Capture.completed_at_utc -or
+    [bool]$CaptureReceipt.settings_launch_sentinel_coverage_complete -ne
+        [bool]$Capture.machine_observed.settings_launch_sentinel.coverage_complete -or
+    [bool]$CaptureReceipt.settings_launch_sentinel_signaled -ne
+        [bool]$Capture.machine_observed.settings_launch_sentinel.signaled) {
+    throw "capture receipt does not bind the exact completed capture file."
+}
+$ReceiptHash = (Get-FileHash -LiteralPath $FullReceiptPath -Algorithm SHA256).Hash
 $TotalReportedDrags = $GripDragsCompleted + $SettingsSegmentDragsCompleted
 $OperatorReportComplete =
     $GripDragsCompleted -ge 10 -and
@@ -91,6 +114,11 @@ $OperatorReportComplete =
     $PositionPersistedAfterHostRestart -eq "pass"
 $NoSettingsProcessStarted =
     @($Capture.machine_observed.settings_process_ids_started_during_capture).Count -eq 0
+$SettingsLaunchSentinelReady = [bool](
+    $Capture.machine_observed.settings_launch_sentinel.coverage_complete -and
+    -not $Capture.machine_observed.settings_launch_sentinel.signaled -and
+    $CaptureReceipt.settings_launch_sentinel_coverage_complete -and
+    -not $CaptureReceipt.settings_launch_sentinel_signaled)
 
 $Report = [pscustomobject][ordered]@{
     schema_version = 1
@@ -102,6 +130,8 @@ $Report = [pscustomobject][ordered]@{
     source_capture = [pscustomobject][ordered]@{
         file_name = [IO.Path]::GetFileName($FullCapturePath)
         sha256 = $CaptureHash
+        receipt_file_name = [IO.Path]::GetFileName($FullReceiptPath)
+        receipt_sha256 = $ReceiptHash
         captured_at_utc = [string]$Capture.captured_at_utc
         completed_at_utc = [string]$Capture.completed_at_utc
     }
@@ -124,6 +154,7 @@ $Report = [pscustomobject][ordered]@{
     }
     gate_ready = [bool](
         [bool]$Capture.machine_observed.topology_ready -and
+        $SettingsLaunchSentinelReady -and
         $NoSettingsProcessStarted -and
         $OperatorReportComplete)
 }

@@ -33,7 +33,18 @@ $WindowSource = Read-RepoFile "src\candidate_window\yune_windows_candidate_windo
 $SkinManifestText = Read-RepoFile "skins\default\theme.json"
 $Evidence = Read-RepoFile "docs\evidence\m11\summary.md"
 $Roadmap = Read-RepoFile "docs\roadmap.md"
+$M10Plan = Read-RepoFile "docs\plans\active\m10-native-ui-presentation-closeout.md"
 $M11Plan = Read-RepoFile "docs\plans\active\m11-activation-state-reliability.md"
+
+foreach ($Required in @(
+        'not_exercised',
+        'Deterministic toolbar fallback',
+        '100%, 125%, 150%, and 200%',
+        'M10-only presentation run'
+    )) {
+    Require-Text $M10Plan ([regex]::Escape($Required)) `
+        "canonical M10 plan is missing guarded presentation semantic: $Required"
+}
 
 foreach ($Forbidden in @("WebView2", "Electron", "<html", "IWebBrowser", "msedgewebview2")) {
     if ($SettingsSource -match $Forbidden -or $WindowSource -match $Forbidden) {
@@ -69,6 +80,7 @@ foreach ($Required in @(
         'WM_GETMINMAXINFO',
         'LayoutEntry',
         'CalculateSettingsLayoutMetrics',
+        'CalculateSettingsScrollLayout',
         'CalculateSettingsWindowSize',
         'AdjustWindowRectExForDpi',
         'DpiForInitialMonitor',
@@ -82,6 +94,18 @@ foreach ($Required in @(
         'g_layout_smoke_dpi',
         'EffectiveWindowDpi',
         'IsSupportedLayoutSmokeDpi',
+        'controls_match_scroll_offset',
+        'synthetic_larger',
+        'scrollbar_probe',
+        'probe_has_both_scrollbars',
+        'grown_probe_style',
+        'vertical_wheel_remainder',
+        'horizontal_wheel_remainder',
+        'WM_MOUSEHWHEEL',
+        'ConfiguredWheelScrollUnits',
+        'YuneWindowsSettingsLaunchObserved.v1',
+        'SignalSettingsLaunchObserver',
+        'OpenEventW',
         'ApplyUIFontToControls',
         'InitCommonControlsEx',
         'ApplyDwmPolish',
@@ -110,6 +134,14 @@ foreach ($ExpectedLayout in @(
 foreach ($RequiredDpi in @('"96"', '"120"', '"144"', '"192"')) {
     Require-Text $SettingsSmoke ([regex]::Escape($RequiredDpi)) `
         "settings runtime layout smoke is missing DPI: $RequiredDpi"
+}
+foreach ($RequiredHandshake in @(
+        'YuneWindowsSettingsLaunchObserved.v1',
+        'LaunchSentinelCreatedNew',
+        'built settings executable did not signal the launch sentinel'
+    )) {
+    Require-Text $SettingsSmoke ([regex]::Escape($RequiredHandshake)) `
+        "settings runtime smoke is missing launch-sentinel handshake: $RequiredHandshake"
 }
 
 Require-Text $SettingsSource `

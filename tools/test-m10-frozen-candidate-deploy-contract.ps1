@@ -1,4 +1,8 @@
-param()
+param(
+    [switch]$RunPostRestartLiveVerification,
+    [string]$LiveCandidateManifest = "",
+    [string]$LiveVerificationResultPath = ""
+)
 
 $ErrorActionPreference = "Stop"
 
@@ -13,6 +17,22 @@ foreach ($RequiredScript in @($DeployScript, $VerifyScript)) {
 
 $Source = Get-Content -Raw -LiteralPath $DeployScript
 $VerifySource = Get-Content -Raw -LiteralPath $VerifyScript
+$ContractSource = Get-Content -Raw -LiteralPath $PSCommandPath
+
+foreach ($Required in @(
+        'RunPostRestartLiveVerification',
+        'opt_in_required_after_restart',
+        'LiveCandidateManifest',
+        'LiveVerificationResultPath'
+    )) {
+    if ($ContractSource -notmatch [regex]::Escape($Required)) {
+        throw "M10 deploy contract is missing static/live split marker: $Required"
+    }
+}
+$DisallowedAncientBoundary = "2000" + "-01-01T00:00"
+if ($ContractSource.Contains($DisallowedAncientBoundary)) {
+    throw "M10 deploy contract must not use an ancient timestamp as installed proof"
+}
 
 foreach ($Required in @(
         'ExpectedSourceCommit',
@@ -21,6 +41,11 @@ foreach ($Required in @(
         'ApprovedMachineStateChange',
         'ApprovalNote',
         'AllowLoadedTsfHolders',
+        'DurableManifestPath',
+        'docs\\evidence\\m10\\machine-state\\frozen-candidate\.json',
+        'durable candidate manifest must be outside the OS temp tree',
+        'Write-M10AtomicResultFile',
+        '\[System.IO.File\]::Replace',
         'build-tsf-shell\.ps1',
         'invocation_count = 1',
         'Get-FileHash -Algorithm SHA256',
@@ -66,6 +91,8 @@ foreach ($Forbidden in @(
 
 foreach ($Required in @(
         'CandidateManifest',
+        'ReadAllBytes',
+        'ManifestSha256',
         'Get-FileHash -Algorithm SHA256',
         'tsf_pe_size_of_image',
         'ModuleMemorySize',
@@ -78,12 +105,23 @@ foreach ($Required in @(
         'privacy_note',
         'source_post_build_verified',
         'package_post_build_verified',
+        'Assert-M10VerifyManifestAdmission',
+        'Assert-M10VerifyDurableManifestPath',
+        'Test-M10VerifyExactBoolean',
+        'deployed_restart_required',
+        'rollback_attempted',
+        'rollback_complete',
         'deployment_completed_at_valid',
         'all_started_strictly_after_deployment',
         'all_use_current_installed_path',
         'exactly_one_running_installed_server',
         'install_root_old_or_aside_path',
         'Get-M10VerifyNamedProcesses',
+        'total_processes_considered',
+        'module_enumeration_succeeded',
+        'module_enumeration_failure_count',
+        'coverage_incomplete',
+        'enumeration_failures',
         'm10_frozen_candidate_post_restart_verify'
     )) {
     if ($VerifySource -notmatch [regex]::Escape($Required)) {
@@ -201,6 +239,7 @@ try {
         throw "could not parse deploy helper for rollback fault contract"
     }
     foreach ($FunctionName in @(
+            "Write-M10AtomicResultFile",
             "New-M10AsidePath",
             "Restore-M10DeploymentOperations",
             "Set-M10FailedDeploymentSessionState"
@@ -214,6 +253,23 @@ try {
             throw "missing rollback function for fault contract: $FunctionName"
         }
         Invoke-Expression $FunctionAst.Extent.Text
+    }
+
+    $AtomicManifestPath = Join-Path $TempRoot "atomic-manifest.json"
+    Write-M10AtomicResultFile `
+        -Result ([ordered]@{ status = "deploying_restart_required" }) `
+        -Path $AtomicManifestPath
+    Write-M10AtomicResultFile `
+        -Result ([ordered]@{ status = "deployed_restart_required" }) `
+        -Path $AtomicManifestPath
+    $AtomicManifest = Get-Content -Raw -LiteralPath $AtomicManifestPath |
+        ConvertFrom-Json
+    if ($AtomicManifest.status -ne "deployed_restart_required" -or
+        @(Get-ChildItem `
+                -LiteralPath $TempRoot `
+                -Filter ".atomic-manifest.json.*.tmp*" `
+                -ErrorAction SilentlyContinue).Count -ne 0) {
+        throw "atomic manifest refresh did not leave exactly one complete current JSON file"
     }
 
     $FaultOriginal = Join-Path $FakeInstall "initial-move-failure.dll"
@@ -287,7 +343,11 @@ try {
     foreach ($FunctionName in @(
             "Resolve-M10VerifyFullPath",
             "Test-M10VerifyPathUnderRoot",
-            "Get-M10VerifyStartState"
+            "Get-M10VerifyStartState",
+            "Test-M10VerifyProperty",
+            "Test-M10VerifyExactBoolean",
+            "Assert-M10VerifyManifestAdmission",
+            "Assert-M10VerifyDurableManifestPath"
         )) {
         $FunctionAst = $VerifyAst.Find({
                 param($Node)
@@ -299,21 +359,23 @@ try {
         }
         Invoke-Expression $FunctionAst.Extent.Text
     }
-    $DeploymentBoundary = [DateTimeOffset]::Parse(
+    # Synthetic unit-only timestamps exercise strict comparison semantics.
+    # They are never presented as post-restart or installed temporal proof.
+    $SyntheticDeploymentBoundary = [DateTimeOffset]::Parse(
         "2026-07-10T12:00:00Z",
         [Globalization.CultureInfo]::InvariantCulture)
     $UnknownStart = Get-M10VerifyStartState `
         -StartedAt "" `
-        -DeploymentCompletedAt $DeploymentBoundary
+        -DeploymentCompletedAt $SyntheticDeploymentBoundary
     $OldStart = Get-M10VerifyStartState `
         -StartedAt "2026-07-10T11:59:59Z" `
-        -DeploymentCompletedAt $DeploymentBoundary
+        -DeploymentCompletedAt $SyntheticDeploymentBoundary
     $EqualStart = Get-M10VerifyStartState `
         -StartedAt "2026-07-10T12:00:00Z" `
-        -DeploymentCompletedAt $DeploymentBoundary
+        -DeploymentCompletedAt $SyntheticDeploymentBoundary
     $NewStart = Get-M10VerifyStartState `
         -StartedAt "2026-07-10T12:00:00.001Z" `
-        -DeploymentCompletedAt $DeploymentBoundary
+        -DeploymentCompletedAt $SyntheticDeploymentBoundary
     if ($UnknownStart.start_time_known -or
         $UnknownStart.started_strictly_after_deployment -or
         -not $OldStart.start_time_known -or
@@ -323,6 +385,87 @@ try {
         -not $NewStart.start_time_known -or
         -not $NewStart.started_strictly_after_deployment) {
         throw "post-restart verifier does not fail closed at the strict deployment-time boundary"
+    }
+
+    $SyntheticDurablePath = Join-Path $RepoRoot (
+        "docs\evidence\m10\machine-state\synthetic-never-written.json")
+    $SyntheticAdmissibleManifest = [ordered]@{
+        schema_version = 1
+        operation = "m10_frozen_candidate"
+        status = "deployed_restart_required"
+        source = [ordered]@{
+            expected_commit = "1111111111111111111111111111111111111111"
+            actual_commit = "1111111111111111111111111111111111111111"
+            clean = $true
+            post_build_verified = $true
+        }
+        package = [ordered]@{ post_build_verified = $true }
+        build = [ordered]@{ performed = $true }
+        manifest = [ordered]@{
+            durable_path = $SyntheticDurablePath
+            durable_outside_os_temp = $true
+            atomic_refresh = $true
+        }
+        deployment = [ordered]@{
+            performed = $true
+            error = ""
+            rollback_attempted = $false
+            rollback_complete = $false
+            completed_at = "2026-07-10T12:00:00Z"
+        }
+    } | ConvertTo-Json -Depth 8 | ConvertFrom-Json
+    Assert-M10VerifyManifestAdmission `
+        -Manifest $SyntheticAdmissibleManifest `
+        -DeploymentCompletedAtValid $true
+    Assert-M10VerifyDurableManifestPath `
+        -Manifest $SyntheticAdmissibleManifest `
+        -ManifestPath $SyntheticDurablePath
+    $SyntheticTempManifest = $SyntheticAdmissibleManifest |
+        ConvertTo-Json -Depth 8 | ConvertFrom-Json
+    $SyntheticTempManifest.manifest.durable_path =
+        (Join-Path $TempRoot "synthetic-manifest.json")
+    $RejectedTempManifest = $false
+    try {
+        Assert-M10VerifyDurableManifestPath `
+            -Manifest $SyntheticTempManifest `
+            -ManifestPath $SyntheticTempManifest.manifest.durable_path
+    }
+    catch {
+        $RejectedTempManifest = $true
+    }
+    if (-not $RejectedTempManifest) {
+        throw "post-restart verifier admitted a synthetic OS-temp manifest"
+    }
+
+    foreach ($RejectedCase in @(
+            [ordered]@{ field = "status"; value = "deploy_failed" },
+            [ordered]@{ field = "error"; value = "fault" },
+            [ordered]@{ field = "rollback_attempted"; value = $true },
+            [ordered]@{ field = "rollback_attempted"; value = "false" },
+            [ordered]@{ field = "rollback_complete"; value = $true },
+            [ordered]@{ field = "performed"; value = $false }
+        )) {
+        $RejectedManifest = $SyntheticAdmissibleManifest |
+            ConvertTo-Json -Depth 8 | ConvertFrom-Json
+        if ($RejectedCase.field -eq "status") {
+            $RejectedManifest.status = $RejectedCase.value
+        }
+        else {
+            $RejectedManifest.deployment.($RejectedCase.field) =
+                $RejectedCase.value
+        }
+        $Rejected = $false
+        try {
+            Assert-M10VerifyManifestAdmission `
+                -Manifest $RejectedManifest `
+                -DeploymentCompletedAtValid $true
+        }
+        catch {
+            $Rejected = $true
+        }
+        if (-not $Rejected) {
+            throw "post-restart verifier admitted synthetic invalid deployment field: $($RejectedCase.field)"
+        }
     }
     $PathRoot = Join-Path $TempRoot "path-root"
     if (-not (Test-M10VerifyPathUnderRoot `
@@ -334,106 +477,6 @@ try {
         throw "post-restart verifier does not classify install-root aside paths safely"
     }
 
-    # When a registered local install is available, exercise the read-only
-    # verifier end to end against a manifest synthesized from that exact
-    # installed artifact set. Portable source-only environments skip this lane.
-    $RealInstall = Join-Path $env:LOCALAPPDATA "Yune\WindowsIme"
-    $RealPaths = [ordered]@{
-        server = Join-Path $RealInstall "YuneWindowsServer.exe"
-        tsf = Join-Path $RealInstall "YuneWindowsTSF.dll"
-        settings = Join-Path $RealInstall "YuneWindowsSettings.exe"
-        profile = Join-Path $RealInstall "YuneWindowsProfileTool.exe"
-        default_skin = Join-Path $RealInstall "skins\default\theme.json"
-        rime = Join-Path $RealInstall "rime.dll"
-    }
-    $RealInstallReady = $true
-    foreach ($RealPath in $RealPaths.Values) {
-        if (-not (Test-Path -LiteralPath $RealPath -PathType Leaf)) {
-            $RealInstallReady = $false
-            break
-        }
-    }
-    if ($RealInstallReady) {
-        $ProfileText = (& $RealPaths.profile --state 2>&1 | Out-String).Trim()
-        $ProfileState = if ($LASTEXITCODE -eq 0) {
-            try { $ProfileText | ConvertFrom-Json } catch { $null }
-        }
-        else {
-            $null
-        }
-        if ($ProfileState -and
-            [bool]$ProfileState.registered -and
-            [bool]$ProfileState.active) {
-            $PeFunction = $VerifyAst.Find({
-                    param($Node)
-                    $Node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
-                    $Node.Name -eq "Get-M10VerifyPeSizeOfImage"
-                }, $true)
-            if (-not $PeFunction -or @($VerifyParseErrors).Count -gt 0) {
-                throw "could not load verifier PE parser for installed-state contract"
-            }
-            Invoke-Expression $PeFunction.Extent.Text
-
-            $InstalledArtifacts = @()
-            foreach ($Name in @("server", "tsf", "settings", "profile", "default_skin")) {
-                $Path = [string]$RealPaths[$Name]
-                $InstalledArtifacts += [ordered]@{
-                    name = $Name
-                    path = $Path
-                    length = [long](Get-Item -LiteralPath $Path).Length
-                    sha256 = (Get-FileHash -Algorithm SHA256 -LiteralPath $Path).Hash
-                }
-            }
-            $InstalledManifest = [ordered]@{
-                schema_version = 1
-                operation = "m10_frozen_candidate"
-                source = [ordered]@{
-                    expected_commit = "1111111111111111111111111111111111111111"
-                    actual_commit = "1111111111111111111111111111111111111111"
-                    clean = $true
-                    post_build_verified = $true
-                }
-                package = [ordered]@{
-                    post_build_verified = $true
-                    rime = [ordered]@{
-                        sha256 = (Get-FileHash -Algorithm SHA256 -LiteralPath $RealPaths.rime).Hash
-                    }
-                }
-                build = [ordered]@{
-                    performed = $true
-                    output_dir = "installed-contract-fixture"
-                    artifacts = $InstalledArtifacts
-                    tsf_pe_size_of_image =
-                        Get-M10VerifyPeSizeOfImage -Path $RealPaths.tsf
-                }
-                deployment = [ordered]@{
-                    performed = $true
-                    started_at = "2000-01-01T00:00:00Z"
-                    completed_at = "2000-01-01T00:00:01Z"
-                }
-            }
-            $InstalledManifestPath = Join-Path $TempRoot "installed-candidate.json"
-            $InstalledManifest | ConvertTo-Json -Depth 10 |
-                Out-File -LiteralPath $InstalledManifestPath -Encoding utf8
-            $VerifyOutput = @(& $VerifyScript `
-                    -CandidateManifest $InstalledManifestPath `
-                    -InstallDir $RealInstall `
-                    -AllowNoHolders)
-            $VerifyResult = (($VerifyOutput | Out-String).Trim() | ConvertFrom-Json)
-            if ($VerifyResult.pass -ne $true -or
-                $VerifyResult.operation -ne
-                    "m10_frozen_candidate_post_restart_verify" -or
-                -not $VerifyResult.candidate.deployment_completed_at_valid -or
-                -not $VerifyResult.holders.all_start_times_known -or
-                -not $VerifyResult.holders.all_started_strictly_after_deployment -or
-                -not $VerifyResult.holders.all_use_current_installed_path -or
-                -not $VerifyResult.installed_processes.server.exactly_one_running_installed_server -or
-                -not $VerifyResult.installed_processes.server.all_installed_started_strictly_after_deployment -or
-                -not $VerifyResult.installed_processes.settings.all_installed_started_strictly_after_deployment) {
-                throw "read-only installed-state verifier did not pass its exact-artifact fixture"
-            }
-        }
-    }
 }
 finally {
     if (Test-Path -LiteralPath $TempRoot) {
@@ -441,4 +484,47 @@ finally {
     }
 }
 
-Write-Host "M10 frozen-candidate deploy, rollback, dry-run, and post-restart verification contract passed."
+$LiveLane = [ordered]@{
+    operation = "m10_frozen_candidate_post_restart_live_lane"
+    status = "skipped"
+    reason = "opt_in_required_after_restart"
+    candidate_manifest = ""
+    verification_result_path = ""
+}
+if ($RunPostRestartLiveVerification) {
+    if ([string]::IsNullOrWhiteSpace($LiveCandidateManifest) -or
+        -not (Test-Path -LiteralPath $LiveCandidateManifest -PathType Leaf)) {
+        throw "post-restart live verification requires -LiveCandidateManifest"
+    }
+    if ([string]::IsNullOrWhiteSpace($LiveVerificationResultPath)) {
+        throw "post-restart live verification requires -LiveVerificationResultPath"
+    }
+    $LiveManifestPath = [System.IO.Path]::GetFullPath($LiveCandidateManifest)
+    $LiveResultPath = [System.IO.Path]::GetFullPath($LiveVerificationResultPath)
+    $TempPath = [System.IO.Path]::GetFullPath([System.IO.Path]::GetTempPath()).TrimEnd("\")
+    if ($LiveResultPath.StartsWith(
+            $TempPath + "\",
+            [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "post-restart live verification result must be outside the OS temp tree"
+    }
+    $VerifyOutput = @(& $VerifyScript `
+            -CandidateManifest $LiveManifestPath)
+    $VerifyText = ($VerifyOutput | Out-String).Trim()
+    $VerifyResult = $VerifyText | ConvertFrom-Json
+    if ($VerifyResult.pass -ne $true -or
+        $VerifyResult.operation -ne
+            "m10_frozen_candidate_post_restart_verify" -or
+        -not $VerifyResult.holders.coverage_complete) {
+        throw "opt-in post-restart installed verification did not pass"
+    }
+    $LiveResultParent = Split-Path -Parent $LiveResultPath
+    New-Item -Path $LiveResultParent -ItemType Directory -Force | Out-Null
+    $VerifyText | Out-File -LiteralPath $LiveResultPath -Encoding utf8
+    $LiveLane.status = "passed"
+    $LiveLane.reason = ""
+    $LiveLane.candidate_manifest = $LiveManifestPath
+    $LiveLane.verification_result_path = $LiveResultPath
+}
+
+Write-Host "M10 frozen-candidate static deploy, rollback, dry-run, and verifier-admission contract passed."
+Write-Output ($LiveLane | ConvertTo-Json -Depth 4)

@@ -2,7 +2,7 @@
 
 > **Status:** implementation complete; focused non-elevated checks pass;
 > expanded pre-deployment verification and installed acceptance remain pending.
-> Implementation last changed at `f67b9c1`; the older pre-rebaseline
+> Implementation last changed at `eb262fa`; the older pre-rebaseline
 > source/evidence baseline remains `337b9bd`. Pin the clean source and artifact
 > hashes used for deployment and record that provenance. No installed result
 > for this baseline is claimed yet. M12 and M13 remain blocked until both the redefined
@@ -178,7 +178,7 @@ unacknowledged state result, invalid owner, or foreground mismatch fails closed.
 
 ## Non-elevated evidence and remaining pre-deployment matrix
 
-The `f67b9c1` implementation baseline passes these focused build, state,
+The `eb262fa` implementation baseline passes these focused build, state,
 token/parity, trace, visibility, and concurrency checks:
 
 - `tools/build-tsf-shell.ps1`;

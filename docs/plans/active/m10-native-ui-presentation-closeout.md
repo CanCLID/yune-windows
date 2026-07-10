@@ -6,7 +6,7 @@
 > M10 is the canonical milestone for the native Cantonese UI, toolbar
 > presentation, and settings-window usability work previously planned and
 > evidenced under M11/M11C, plus only the settings DPI/resize/scroll portion of
-> M11D. Implementation last changed at `f67b9c1`; the older pre-rebaseline
+> M11D. Implementation last changed at `eb262fa`; the older pre-rebaseline
 > source/evidence baseline remains `337b9bd`. No fresh installed proof exists
 > for the current closeout tree.
 
@@ -26,11 +26,11 @@ cross-host visibility become deterministic; those are the redefined M11.
 
 ## Frozen closeout build
 
-Implementation last changed at `f67b9c1`; `337b9bd` remains historical
+Implementation last changed at `eb262fa`; `337b9bd` remains historical
 pre-rebaseline provenance. At deployment time, pin the clean source
 commit actually used to build the TSF DLL, server, settings executable, and
 default skin, then record their installed hashes before either live gate begins.
-If that source is a planning/contract-only descendant of `f67b9c1`, record the
+If that source is a planning/contract-only descendant of `eb262fa`, record the
 diff proving no product build input changed. Verify that loaded TSF holders map
 the pinned DLL.
 

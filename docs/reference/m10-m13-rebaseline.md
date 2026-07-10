@@ -50,11 +50,11 @@ M13 use `docs/evidence/m12/` and `docs/evidence/m13/` respectively.
 
 ## Execution order
 
-1. Record `f67b9c1` as the current implementation commit and `337b9bd` as the
+1. Record `eb262fa` as the current implementation commit and `337b9bd` as the
    older pre-rebaseline source/evidence baseline.
 2. At deployment time, pin the clean source commit and the TSF, server,
    settings, and skin artifact hashes actually built and installed. If the
-   source descends from `f67b9c1` without a new product change, record the diff
+   source descends from `eb262fa` without a new product change, record the diff
    proving the intervening changes are planning/contracts only.
 3. Publish separate verdicts: M10 presentation/settings and M11
    activation/state. M10 may deploy and close first. M11 may reuse that exact

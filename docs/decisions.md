@@ -309,7 +309,7 @@ termination, or cleanup.
 
 2026-07-10 - D-22 permits the already-preflighted M10 presentation/settings
 closeout to deploy independently of M11's remaining direct-TSF pre-deployment
-matrix. Implementation last changed at `f67b9c1`; its settings DPI matrix,
+matrix. Implementation last changed at `eb262fa`; its settings DPI matrix,
 Shift disposition tracing, server fault/reconciliation smoke, evidence binding,
 and frozen-candidate deployment safety contracts pass non-elevated checks. M11
 remains open, both installed verdicts still block M12, and no installed result

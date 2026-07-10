@@ -1,9 +1,9 @@
 # M11 UI Modernization + Cantonese Localization Evidence
 
 Status: installed clone/drag proof passed on 2026-07-09 PT
-(2026-07-10 UTC). Activation, lone-Shift state transition, and toolbar
-visibility are not deterministic, so M11/M11C remain active under M11D and M10
-remains blocked.
+(2026-07-10 UTC). The M11D reliability and settings-layout repairs now pass
+non-elevated gates, but their combined installed four-host/usability proof is
+pending. M11/M11C remain active and M10 remains blocked.
 
 ## Implemented Scope
 
@@ -126,7 +126,7 @@ The fresh installed drag proof then recorded:
 Acrylic therefore remains enabled; the static-tint and redirected-D2D fallback
 sequence was not invoked.
 
-## M11D Reliability Gate Still Open
+## M11D Installed Reliability Gate Still Open
 
 Clone-free dragging and reliable activation are separate gates. The same live
 run found that Chromium needed nine Shift attempts before its existing toolbar
@@ -135,8 +135,12 @@ follow-up. Several Shift taps produced no `ascii_mode` transition. Claude loaded
 the current DLL and received foreground composer focus, but no toolbar HWND
 appeared after twelve attempts.
 
-M11D owns deterministic Windows-profile activation, exactly-once lone-Shift
-state transition, server-state reconciliation, and eligible-host toolbar
-visibility. It must complete the Notepad/Chromium/Explorer/Electron matrix and
-prove final-position persistence across host restart. Until then M11/M11C stay
-active and M10 remains blocked.
+M11D implements generation-authoritative focus, event-correlated Shift routing,
+boot-ID/revision CAS, deadline-bound worker I/O, and generation-fresh toolbar
+eligibility. The settings panel now has DPI-aware initial sizing, safe resizing,
+and constrained-work-area scrolling. Non-elevated evidence is recorded in
+`docs/evidence/m11d/summary.md`.
+
+The hash-pinned build must still complete the Notepad/Chromium/Explorer/Electron
+matrix, installed settings usability, and final-position persistence across host
+restart. Until then M11/M11C/M11D stay active and M10 remains blocked.

@@ -3,7 +3,9 @@
 > **Status:** installed clone/drag proof passed on 2026-07-09 PT
 > (2026-07-10 UTC). Keep M11/M11C active under M11D until activation, lone-Shift
 > transition, and toolbar visibility are deterministic across all four hosts.
-> Do not begin M10 before M11D passes.
+> The settings DPI/resize/scroll repair passes non-elevated smoke; its installed
+> usability proof remains in the combined gate. Do not begin M10 before the
+> complete M11 closeout passes.
 
 ## What the probe established
 
@@ -86,8 +88,10 @@ The expanded language-bar smoke covers real owners, ownerless-show rejection,
 same- and cross-process arbitration, stale supersession rejection,
 foreground/watchdog hiding, capture-loss/cancel/DPI/hide finalization,
 owner/`WM_NCDESTROY` cleanup, and 50 drags with at least 100 move events each. It
-also guards zero movement renders, one final render, stable total HWND count and
-identity, one position callback, click semantics, and no focus steal.
+also guards zero movement renders, one final render, exactly one visible child
+toolbar with stable HWND identity throughout each drag, one position callback,
+click semantics, and no focus steal. Hidden per-thread toolbar HWNDs are
+permitted and are not counted as clones.
 Deterministic backdrop cases cover builds 22000/22621, attribute and frame
 failure, same-size transitions, effective opacity, and unchanged-present churn.
 
@@ -138,5 +142,5 @@ drag plus host-restart persistence before archival.
 
 M11 supplies the reusable composition device/surface foundation only. M10 owns
 skin breadth, catalog/import behavior, and candidate-window rendering. The
-candidate window remains unchanged in M11, and M10 stays blocked until M11D
-passes the complete installed gate.
+candidate window remains unchanged in M11, and M10 stays blocked until M11D plus
+installed settings usability pass the combined installed gate.

@@ -188,14 +188,14 @@ backdrop, and graphics changes queue until one non-reentrant finalizer persists
 the position at most once and renders at most once. Clone-free correctness
 outranks acrylic: an installed failure demotes the toolbar from acrylic to static
 DirectComposition, then to a normally redirected opaque native D2D HWND. M10 is
-blocked until this installed gate passes and retains ownership of candidate
-rendering.
+blocked until M11D plus installed settings usability pass the
+combined installed gate and retains ownership of candidate rendering.
 
 ### D-19 - M10 V1 skins are manifest-only and candidate proof is independent
 
-After the M11 installed gate passes, M10 introduces shared `SkinDefinition` and
-`SkinCatalog` code for server, TSF, and settings. V1 accepts bounded JSON
-manifests only: no PNG, SVG, executable content, or asset paths. User skins live
+After the combined M11 closeout gate passes, M10 introduces shared
+`SkinDefinition` and `SkinCatalog` code for server, TSF, and settings. V1 accepts
+bounded JSON manifests only: no PNG, SVG, executable content, or asset paths. User skins live
 under `%LOCALAPPDATA%\Yune\WindowsIme\skins-user`, are deleted by normal
 uninstall/reinstall, and survive non-elevated dev swaps. Catalog IPC uses
 `list-skins`, `reload-skins`, `set-skin`, and a stable `skin_revision`; invalid or
@@ -214,11 +214,25 @@ profile activation, the Yune lone-Shift toggle, server-state acknowledgement,
 and toolbar show eligibility are deterministic. M11D owns those activation and
 visibility layers and must preserve every M11C ownership/drag invariant.
 
+Paced lone-Shift presses require one durably acknowledged transition per
+accepted token under stable foreground ownership. Rapid accepted presses
+accumulate generation-scoped parity. Each detector report records an admission
+or rejection disposition, while the aggregate parity intent records the
+terminal applied, converged, cancelled, rejected, or unresolved outcome. The old
+250 ms guard is not the dedupe authority. State mutation uses boot-ID/revision
+compare-and-set, persist-temp-then-commit, and bounded reconciliation. Raw pipe
+I/O runs in a heap-owned worker with no COM/UI/service state; results are consumed
+only on the owning service STA. Retired dispatchers become ineligible before
+best-effort cleanup, so late work fails closed.
+
 M11/M11C/M11D archive together only after Notepad, Chromium, Explorer, and one
-Electron host show the toolbar without sacrificial toggles; each lone Shift
-causes exactly one acknowledged state transition; previous-host hiding remains
-within 250 ms; and the clone, focus, and position-persistence gates pass. M10
-remains blocked and continues to own skin breadth and candidate rendering.
+Electron host show the toolbar without sacrificial toggles; each paced lone
+Shift causes exactly one acknowledged state transition; rapid bursts end at the
+parity-correct state; previous-host hiding remains within 250 ms; and the clone,
+focus, and position-persistence gates pass. The M11 settings DPI/resize/scroll
+repair is implemented and non-elevated-smoke-covered, but its installed usability
+proof must precede the combined closeout. M10 remains blocked and continues to
+own skin breadth and candidate rendering.
 
 ## Last Updated
 

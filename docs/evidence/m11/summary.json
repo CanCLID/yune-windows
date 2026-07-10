@@ -1,12 +1,12 @@
 {
   "milestone": "M11",
   "title": "UI Modernization + Cantonese Localization",
-  "status": "installed clone/drag sub-gate passed; M11D activation/visibility gate open",
+  "status": "installed clone/drag sub-gate passed; M11D/settings implementation fixed; installed closeout open",
   "evidence": "docs/evidence/m11/summary.md",
-  "live_visual_status": "clone-free confirmed; activation and visibility unreliable",
+  "live_visual_status": "clone-free confirmed on prior build; repaired activation/settings build not yet installed",
   "live_machine_steps_run": true,
   "m10_blocked": true,
-  "m10_blocked_on": "M11D activation/toggle/toolbar-visibility reliability",
+  "m10_blocked_on": "combined M11D activation/settings four-host installed closeout",
   "verification_passed": [
     "tools\\test-tsf-shell-build.ps1",
     "tools\\test-language-bar-smoke.ps1",

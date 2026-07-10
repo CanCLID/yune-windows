@@ -1,0 +1,42 @@
+{
+  "milestone": "M11D",
+  "status": "implementation fixed; approval-gated installed proof pending",
+  "evidence": "docs/evidence/m11d/summary.md",
+  "m10_blocked": true,
+  "live_machine_steps_run_for_this_build": false,
+  "implemented": {
+    "boot_id_revision_cas": true,
+    "transactional_persistence": true,
+    "no_op_revision_stability": true,
+    "deadline_owned_tsf_pipe_worker": true,
+    "committed_focus_generation": true,
+    "event_correlated_shift_tokens": true,
+    "generation_scoped_parity": true,
+    "pending_intent_deadline_ms": 1500,
+    "generation_fresh_toolbar_state": true,
+    "steady_watchdog_no_render": true,
+    "settings_dpi_resize_scroll": true,
+    "settings_pipe_worker_timeout_ms": 750
+  },
+  "verification_passed": [
+    "tools\\build-tsf-shell.ps1",
+    "tools\\test-server-ime-state-protocol-contract.ps1",
+    "tools\\test-settings-window-smoke.ps1",
+    "tools\\test-language-bar-smoke.ps1",
+    "tools\\test-m06-key-path-fixes-contract.ps1",
+    "tools\\test-m11-ui-modernization-contract.ps1",
+    "tools\\test-m11c-dcomp-glass-toolbar-contract.ps1",
+    "tools\\test-m11d-activation-reliability-contract.ps1",
+    "tools\\test-m11d-activation-trace-contract.ps1",
+    "tools\\test-m11d-reliability-smoke.ps1",
+    "tools\\test-m11d-multiprocess-reliability-smoke.ps1"
+  ],
+  "concurrency_smoke_scope": "two isolated-server CAS clients plus separate process-local token/parity cores; not TSF host integration",
+  "remaining_installed_gate": {
+    "hash_pinned_deployment": false,
+    "hosts": ["Notepad", "Chromium", "Explorer", "Electron"],
+    "paced_toggle_count": 50,
+    "settings_usability": false,
+    "m11_archived": false
+  }
+}

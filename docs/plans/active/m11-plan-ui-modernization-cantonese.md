@@ -1,7 +1,9 @@
 # M11 UI Modernization + Cantonese Localization Plan
 
 > **Status:** installed clone/drag proof passed on 2026-07-09 PT
-> (2026-07-10 UTC); M11D activation/toggle/visibility reliability remains open.
+> (2026-07-10 UTC). M11D and the settings DPI/resize/scroll repair now pass
+> non-elevated gates; their combined installed four-host/usability proof remains
+> open.
 > Slices A/B modernize and localize the native settings and toolbar surfaces.
 > Slice C uses DirectComposition + Direct2D, fails closed on missing/invalid
 > owners, arbitrates the visible toolbar within and across processes, and moves
@@ -27,10 +29,11 @@ device/surface foundation. Candidate rendering must not be counted as M11 scope.
 
 **Stop-the-line dependency:** the installed clone/drag sub-gate passed, but no
 M10 slice begins until M11D makes activation, lone-Shift state transition, and
-eligible-host toolbar visibility deterministic and completes the four-host
-installed gate. After that gate, M10 may generalize the composition lifecycle
-for an opaque/static-tint candidate surface while preserving its independent
-latency and fallback requirements.
+eligible-host toolbar visibility deterministic, the settings panel is no longer
+cut off and is safely resizable, and the combined hash-pinned build completes the
+four-host installed gate. After that gate, M10 may generalize the composition
+lifecycle for an opaque/static-tint candidate surface while preserving its
+independent latency and fallback requirements.
 
 ---
 
@@ -344,9 +347,16 @@ contract clean.
 - [x] Non-elevated TSF build and expanded language-bar smoke.
 - [x] Approved installed Notepad/Chromium clone/drag proof: one stable,
   foreground-owned visible HWND and no user-observed copies/afterimages.
+- [x] **M11 settings layout implementation:** DPI-aware initial client sizing,
+  resizable minimum client dimensions, live-DPI min/max handling, and horizontal/
+  vertical scroll access when the fixed canvas exceeds the client/work area;
+  100-200% calculations and the host-DPI window smoke pass.
+- [ ] Installed settings visual/usability proof at the exercised DPI and
+  constrained size.
 - [ ] M11D deterministic activation/toggle/visibility plus complete
   Notepad/Chromium/Explorer/Electron proof.
-- [ ] Archive M11/M11C/M11D and unblock M10 only after M11D passes.
+- [ ] Build/pin the combined installed hashes; archive M11/M11C/M11D and unblock
+  M10 only after the combined gate passes.
 
 ## Contract coverage (sharpened)
 Because contracts are source-grep PowerShell, a blanket "no English" grep would
@@ -372,7 +382,10 @@ false-positive on legitimate ASCII (`op=` verbs, `schema_id`s like `jyut6ping3`,
 ## Completion Gates
 - Settings panel renders themed Win11-native controls in JhengHei/Segoe, rounded
   corners + dark mode correct in light/dark, crisp at 100–200% DPI (Mica present
-  but expected subtle on an opaque dialog).
+  but expected subtle on an opaque dialog). Its initial client area is not cut
+  off, every control remains reachable through native scrolling at constrained
+  sizes, and resizing from the functional minimum to a larger window preserves
+  the intended fixed-canvas layout.
 - **No English remains** on any user-facing surface (panel, title, dialog
   captions + bodies, toolbar labels incl. ascii-active and octagram); terminology
   matches `uiText.yue`; server `op=` calls still work (label/value split verified).
@@ -392,6 +405,7 @@ false-positive on legitimate ASCII (`op=` verbs, `schema_id`s like `jyut6ping3`,
 The fresh clone/drag run retained acrylic because one stable visible HWND and no
 visual copies/afterimages were observed. The static-DComp and redirected-D2D
 fallbacks remain available if M11D regresses that result. The open gate is now
-deterministic activation, exactly-once toggle acknowledgement, eligible-host
+installed settings usability plus deterministic activation, paced
+exactly-once toggle acknowledgement, rapid-burst parity, eligible-host
 visibility, Explorer/Electron breadth, and host-restart position persistence.
 Localization terminology is already implemented and is not reopened.

@@ -1,9 +1,9 @@
 # M11 Slice C Toolbar Stabilization Evidence
 
 Status: the installed clone/drag proof passed in Notepad and Chromium on
-2026-07-09 PT (2026-07-10 UTC). M11C remains active because M11D must make
-activation/toggle/toolbar visibility deterministic and complete the Explorer/
-Electron breadth before M10 begins.
+2026-07-09 PT (2026-07-10 UTC). The M11D repair now passes non-elevated gates;
+M11C remains active until the combined installed activation/settings and
+Explorer/Electron breadth gate passes.
 
 ## Diagnosed Topology
 
@@ -62,8 +62,9 @@ The expanded smoke includes 50 drags with at least 100 move events each, real
 owner windows, ownerless rejection, same- and cross-process arbitration, stale
 claimant rejection, watchdog hiding, DPI/hide/cancel/capture-loss finalization,
 owner/`WM_NCDESTROY` cleanup, zero movement renders, one final render, one
-position callback, stable HWND count/identity, preserved click semantics, and
-no focus steal. Deterministic backdrop coverage includes builds 22000/22621,
+position callback, one visible child toolbar with stable drag identity (hidden
+per-thread HWNDs are permitted), preserved click semantics, and no focus steal.
+Deterministic backdrop coverage includes builds 22000/22621,
 DWM and frame-extension failures, same-size transitions, effective opacity, and
 no unchanged-present DWM churn.
 
@@ -90,6 +91,7 @@ The complete host gate is still open for a different reason. Chromium needed
 nine toggle attempts to surface its toolbar; Explorer needed five and then
 eleven; several Shift taps did not change `ascii_mode`; and Claude produced no
 toolbar after twelve attempts despite loading the current DLL and receiving
-foreground composer focus. M11D owns this activation/toggle/visibility failure,
-the remaining Explorer/Electron drag breadth, and host-restart position proof.
-M11/M11C must not archive and M10 must not begin before M11D passes.
+foreground composer focus. M11D owns the implemented activation/toggle/
+visibility repair and the pending installed proof, remaining Explorer/Electron
+drag breadth, and host-restart position proof. M11/M11C must not archive and M10
+must not begin before the combined installed gate passes.

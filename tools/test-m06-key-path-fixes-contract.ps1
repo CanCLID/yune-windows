@@ -106,7 +106,10 @@ foreach ($Required in @(
         'g_published_focus_generation',
         'g_committed_focus_generation',
         'IsFocusedServiceWindow\(dispatcher, dispatcher_thread, service\)',
-        'target, kShiftHookToggleMessage'
+        'dispatch_message =',
+        'kShiftHookToggleMessage',
+        'ShiftHookRejectionMessage\(rejection\)',
+        'target, dispatch_message'
     )) {
     if ($Source -notmatch $Required) {
         throw "F5 low-level Shift hook contract missing pattern: $Required"
@@ -148,7 +151,7 @@ if ($KeyUpBody -notmatch 'HandleDeferredLoneShiftToggle' -or
 # legitimate fast second press is not discarded.
 $PerformBody = [regex]::Match(
     $Source,
-    'void PerformLoneShiftToggle\(unsigned long long token,\s*ITfContext\* context\) \{(?s:.*?)\n    \}').Value
+    'void PerformLoneShiftToggle\(unsigned long long token,\s*unsigned long long generation,\s*ShiftDetector detector,\s*ITfContext\* context\) \{(?s:.*?)\n    \}').Value
 if (-not $PerformBody -or
     $PerformBody -notmatch 'IsCurrentFocusedTextService' -or
     $PerformBody -notmatch 'CachedToolbarOwnerMatchesForeground') {

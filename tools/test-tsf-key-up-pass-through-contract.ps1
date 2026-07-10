@@ -75,11 +75,13 @@ foreach ($Required in @(
         'IsShiftKey\(key\)',
         'shift_down_',
         'shift_consumed_',
-        'ToggleBoolState\("ascii_mode", context\)'
+        'HandleDeferredLoneShiftToggle',
+        'ShiftDetector::Sink',
+        'SettleRejectedShiftToken'
     )) {
     if ($OnKeyUpBody -notmatch $Required) {
         throw "OnKeyUp must implement only the lone-Shift ascii_mode state machine: $Required"
     }
 }
 
-Write-Host "TSF key-up handlers pass through except for the M05 lone-Shift toggle."
+Write-Host "TSF key-up handlers pass through except for the token-arbitrated lone-Shift toggle."

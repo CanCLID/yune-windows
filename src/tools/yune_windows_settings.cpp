@@ -126,6 +126,15 @@ struct SettingsState {
 
 SettingsState g_state;
 bool g_layout_smoke = false;
+UINT g_layout_smoke_dpi = 0;
+
+UINT EffectiveWindowDpi(HWND hwnd) {
+    if (g_layout_smoke && g_layout_smoke_dpi != 0) {
+        return g_layout_smoke_dpi;
+    }
+    const UINT dpi = GetDpiForWindow(hwnd);
+    return dpi == 0 ? kDesignDpi : dpi;
+}
 
 int Scale(int value, UINT dpi) {
     return MulDiv(value, static_cast<int>(dpi == 0 ? kDesignDpi : dpi),
@@ -1223,7 +1232,7 @@ void PaintPreview(HWND hwnd) {
     state.full_shape = g_state.full_shape;
     state.output_standard = g_state.output_standard;
     state.schema_id = g_state.schema_id;
-    state.dpi = GetDpiForWindow(hwnd);
+    state.dpi = EffectiveWindowDpi(hwnd);
     state.skin_name = g_state.toolbar_skin;
 
     const yune_windows::ToolbarSkin skin =
@@ -1258,7 +1267,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM wparam,
             if (!minmax) {
                 return 0;
             }
-            const UINT dpi = GetDpiForWindow(hwnd);
+            const UINT dpi = EffectiveWindowDpi(hwnd);
             const LONG_PTR current_style = GetWindowLongPtrW(hwnd, GWL_STYLE);
             const LONG_PTR current_ex_style =
                 GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
@@ -1293,7 +1302,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM wparam,
             return 0;
         }
         case WM_CREATE:
-            g_state.dpi = GetDpiForWindow(hwnd);
+            g_state.dpi = EffectiveWindowDpi(hwnd);
             RefreshUIFont(g_state.dpi);
             ApplyDwmPolish(hwnd);
             CreatePanelControls(hwnd);
@@ -1582,7 +1591,7 @@ int LayoutWindowSmoke(HWND hwnd) {
                        reinterpret_cast<LPARAM>(&minmax));
     SIZE expected_minimum = {};
     if (!CalculateSettingsMinimumWindowSize(
-            GetDpiForWindow(hwnd), static_cast<DWORD>(style),
+            EffectiveWindowDpi(hwnd), static_cast<DWORD>(style),
             static_cast<DWORD>(GetWindowLongPtrW(hwnd, GWL_EXSTYLE)),
             &expected_minimum)) {
         std::cerr << "settings layout smoke minimum calculation failed\n";
@@ -1645,7 +1654,7 @@ int LayoutWindowSmoke(HWND hwnd) {
 
     SIZE design_window = {};
     if (!CalculateSettingsWindowSize(
-            GetDpiForWindow(hwnd), static_cast<DWORD>(style),
+            EffectiveWindowDpi(hwnd), static_cast<DWORD>(style),
             static_cast<DWORD>(GetWindowLongPtrW(hwnd, GWL_EXSTYLE)),
             &design_window)) {
         return 1;
@@ -1680,8 +1689,15 @@ int LayoutWindowSmoke(HWND hwnd) {
             return 1;
         }
     }
-    std::cout << "settings host-DPI layout smoke passed\n";
+    std::cout << "settings layout smoke passed at " << g_state.dpi
+              << " DPI\n";
     return 0;
+}
+
+bool IsSupportedLayoutSmokeDpi(UINT dpi) {
+    constexpr std::array<UINT, 4> supported = {96, 120, 144, 192};
+    return std::find(supported.begin(), supported.end(), dpi) !=
+           supported.end();
 }
 
 }  // namespace
@@ -1702,6 +1718,30 @@ int wmain(int argc, wchar_t** argv) {
     }
     g_layout_smoke =
         argc == 2 && std::wstring(argv[1]) == L"--layout-smoke";
+    if (argc >= 2 && std::wstring(argv[1]) == L"--layout-smoke-dpi") {
+        if (argc != 3) {
+            std::cerr << "--layout-smoke-dpi requires one DPI value\n";
+            if (should_uninit) {
+                CoUninitialize();
+            }
+            return 2;
+        }
+        try {
+            const unsigned long parsed = std::stoul(argv[2]);
+            if (!IsSupportedLayoutSmokeDpi(static_cast<UINT>(parsed))) {
+                throw std::out_of_range("unsupported settings smoke DPI");
+            }
+            g_layout_smoke = true;
+            g_layout_smoke_dpi = static_cast<UINT>(parsed);
+        }
+        catch (...) {
+            std::cerr << "unsupported settings layout smoke DPI\n";
+            if (should_uninit) {
+                CoUninitialize();
+            }
+            return 2;
+        }
+    }
 
     HANDLE instance_mutex = g_layout_smoke
                                 ? nullptr

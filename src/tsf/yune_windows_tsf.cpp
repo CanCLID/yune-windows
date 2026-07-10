@@ -66,6 +66,10 @@ constexpr DWORD kServerPipeMissingRetrySleepMs = 15;
 constexpr ULONGLONG kServerLaunchCooldownMs = 1500;
 constexpr UINT kShiftHookToggleMessage = WM_APP + 0x5a;
 constexpr UINT kFocusedServiceSupersededMessage = WM_APP + 0x5b;
+constexpr UINT kShiftHookRepeatMessage = WM_APP + 0x5c;
+constexpr UINT kShiftHookModifiedMessage = WM_APP + 0x5d;
+constexpr UINT kShiftHookMouseMessage = WM_APP + 0x5e;
+constexpr UINT kShiftHookConsumedMessage = WM_APP + 0x5f;
 constexpr UINT_PTR kFocusedServiceWatchdogTimer = 1;
 constexpr UINT kFocusedServiceWatchdogIntervalMs = 250;
 constexpr unsigned int kMaxAsciiToggleCasAttempts = 2;
@@ -80,6 +84,71 @@ enum class RefreshStateMode {
     ExistingServerOnly,
 };
 
+enum class ShiftDetector {
+    Sink,
+    Hook,
+};
+
+enum class ShiftRejectionReason {
+    None,
+    Repeat,
+    Modified,
+    MouseOrCapture,
+    Consumed,
+};
+
+constexpr const char* ShiftDetectorName(ShiftDetector detector) {
+    return detector == ShiftDetector::Hook ? "hook" : "sink";
+}
+
+constexpr const char* ShiftRejectionDisposition(
+    ShiftRejectionReason reason) {
+    switch (reason) {
+        case ShiftRejectionReason::Repeat:
+            return "rejected_repeat";
+        case ShiftRejectionReason::Modified:
+            return "rejected_modified";
+        case ShiftRejectionReason::MouseOrCapture:
+            return "rejected_mouse_or_capture";
+        case ShiftRejectionReason::Consumed:
+            return "rejected_consumed";
+        case ShiftRejectionReason::None:
+            break;
+    }
+    return "rejected_consumed";
+}
+
+constexpr UINT ShiftHookRejectionMessage(ShiftRejectionReason reason) {
+    switch (reason) {
+        case ShiftRejectionReason::Repeat:
+            return kShiftHookRepeatMessage;
+        case ShiftRejectionReason::Modified:
+            return kShiftHookModifiedMessage;
+        case ShiftRejectionReason::MouseOrCapture:
+            return kShiftHookMouseMessage;
+        case ShiftRejectionReason::Consumed:
+            return kShiftHookConsumedMessage;
+        case ShiftRejectionReason::None:
+            break;
+    }
+    return 0;
+}
+
+constexpr ShiftRejectionReason ShiftHookRejectionReason(UINT message) {
+    switch (message) {
+        case kShiftHookRepeatMessage:
+            return ShiftRejectionReason::Repeat;
+        case kShiftHookModifiedMessage:
+            return ShiftRejectionReason::Modified;
+        case kShiftHookMouseMessage:
+            return ShiftRejectionReason::MouseOrCapture;
+        case kShiftHookConsumedMessage:
+            return ShiftRejectionReason::Consumed;
+        default:
+            return ShiftRejectionReason::None;
+    }
+}
+
 class TextService;
 
 HINSTANCE g_instance = nullptr;
@@ -89,6 +158,8 @@ std::atomic<unsigned long> g_structural_event_sequence = 0;
 std::atomic<bool> g_server_warmup_inflight = false;
 std::atomic<bool> g_hook_shift_down = false;
 std::atomic<bool> g_hook_shift_consumed = false;
+std::atomic<ShiftRejectionReason> g_hook_shift_rejection_reason =
+    ShiftRejectionReason::None;
 std::atomic<unsigned long long> g_shift_sequence = 0;
 std::atomic<unsigned long long> g_hook_shift_snapshot = 0;
 std::atomic<unsigned long long> g_focused_service_generation = 0;
@@ -140,6 +211,8 @@ unsigned long NextNonzeroSequence(
 }
 
 void ResetShiftCorrelationHistory() {
+    g_hook_shift_rejection_reason.store(ShiftRejectionReason::None,
+                                        std::memory_order_release);
     for (auto& snapshot : g_hook_shift_history) {
         snapshot.store(0, std::memory_order_release);
     }
@@ -149,6 +222,16 @@ void ResetShiftCorrelationHistory() {
     for (auto& consumed : g_hook_shift_history_consumed) {
         consumed.store(false, std::memory_order_release);
     }
+}
+
+void SetHookShiftRejectionIfNone(ShiftRejectionReason reason) {
+    if (reason == ShiftRejectionReason::None) {
+        return;
+    }
+    ShiftRejectionReason expected = ShiftRejectionReason::None;
+    (void)g_hook_shift_rejection_reason.compare_exchange_strong(
+        expected, reason, std::memory_order_acq_rel,
+        std::memory_order_acquire);
 }
 
 unsigned long long FindShiftHookSnapshot(unsigned long generation,
@@ -230,6 +313,12 @@ bool IsHandledKey(WPARAM key) {
 
 bool IsShiftKey(WPARAM key) {
     return key == VK_SHIFT || key == VK_LSHIFT || key == VK_RSHIFT;
+}
+
+bool IsShortcutModifierKey(WPARAM key) {
+    return key == VK_CONTROL || key == VK_LCONTROL || key == VK_RCONTROL ||
+           key == VK_MENU || key == VK_LMENU || key == VK_RMENU ||
+           key == VK_LWIN || key == VK_RWIN;
 }
 
 bool IsShiftPressed() {
@@ -1878,6 +1967,7 @@ public:
                 language_bar_.Hide();
                 return S_OK;
             }
+            RecordFocusGained();
             RefreshStateFromServer(nullptr, RefreshStateMode::ExistingServerOnly);
             RequestSharedServerWarmupAsync();
         }
@@ -1901,7 +1991,15 @@ public:
         if (IsShiftKey(key)) {
             if ((lparam & kKeyWasDownMask) == 0) {
                 shift_down_ = true;
-                shift_consumed_ = IsShortcutModifierDown() || IsMouseButtonDown();
+                const bool modified = IsShortcutModifierDown();
+                const bool mouse_or_capture = IsMouseButtonDown();
+                shift_consumed_ = modified || mouse_or_capture;
+                shift_rejection_reason_ =
+                    modified
+                        ? ShiftRejectionReason::Modified
+                        : (mouse_or_capture
+                               ? ShiftRejectionReason::MouseOrCapture
+                               : ShiftRejectionReason::None);
                 const unsigned long current_generation =
                     static_cast<unsigned long>(
                         focused_service_generation_.load());
@@ -1939,11 +2037,22 @@ public:
                         shift_token_generation_ = current_generation;
                     }
                 }
+            } else if (shift_down_) {
+                shift_consumed_ = true;
+                if (shift_rejection_reason_ == ShiftRejectionReason::None) {
+                    shift_rejection_reason_ = ShiftRejectionReason::Repeat;
+                }
             }
             return S_OK;
         }
         if (shift_down_) {
             shift_consumed_ = true;
+            if (shift_rejection_reason_ == ShiftRejectionReason::None) {
+                shift_rejection_reason_ =
+                    IsShortcutModifierKey(key) || IsShortcutModifierDown()
+                        ? ShiftRejectionReason::Modified
+                        : ShiftRejectionReason::Consumed;
+            }
         }
         const bool shift_pressed = IsShiftPressed();
         if (!ShouldHandleKeyDown(key, shift_pressed)) {
@@ -2097,21 +2206,40 @@ public:
         }
         *eaten = FALSE;
         if (IsShiftKey(key)) {
-            if (shift_down_ &&
-                (MouseButtonTransitionOrDown() ||
-                 ShiftHookTokenWasConsumed(
-                     static_cast<unsigned long>(shift_token_),
-                     static_cast<unsigned long>(shift_token_generation_)))) {
+            const bool mouse_or_capture = MouseButtonTransitionOrDown() ||
+                                          IsMouseButtonDown();
+            const bool modified = IsShortcutModifierDown();
+            const bool hook_consumed =
+                ShiftHookTokenWasConsumed(
+                    static_cast<unsigned long>(shift_token_),
+                    static_cast<unsigned long>(shift_token_generation_));
+            if (shift_down_ && (mouse_or_capture || modified || hook_consumed)) {
                 shift_consumed_ = true;
+                if (shift_rejection_reason_ == ShiftRejectionReason::None) {
+                    shift_rejection_reason_ =
+                        mouse_or_capture
+                            ? ShiftRejectionReason::MouseOrCapture
+                            : (modified ? ShiftRejectionReason::Modified
+                                        : ShiftRejectionReason::Consumed);
+                }
             }
             if (shift_down_ && !shift_consumed_ &&
+                !modified && !mouse_or_capture &&
                 !IsShortcutModifierDown() && !IsMouseButtonDown()) {
                 HandleDeferredLoneShiftToggle(
-                    shift_token_, shift_token_generation_, context);
-            } else if (shift_down_ && shift_token_ != 0) {
+                    shift_token_, shift_token_generation_, ShiftDetector::Sink,
+                    context);
+            } else if (shift_down_) {
+                if (shift_rejection_reason_ == ShiftRejectionReason::None) {
+                    shift_rejection_reason_ = ShiftRejectionReason::Consumed;
+                }
+                const unsigned long long generation =
+                    shift_token_generation_ != 0
+                        ? shift_token_generation_
+                        : focused_service_generation_.load();
                 SettleRejectedShiftToken(
-                    shift_token_, shift_token_generation_,
-                    "rejected_modified_mouse_or_capture");
+                    shift_token_, generation, ShiftDetector::Sink,
+                    ShiftRejectionDisposition(shift_rejection_reason_));
             }
             ClearShiftState();
         }
@@ -2145,40 +2273,50 @@ public:
 
     void HandleDeferredLoneShiftToggle(unsigned long long token,
                                        unsigned long long generation,
+                                       ShiftDetector detector,
                                        ITfContext* context = nullptr) {
         using yune_windows::reliability::ShiftClaimDisposition;
         const ShiftClaimDisposition disposition =
             shift_token_arbiter_.Claim(token, generation);
         switch (disposition) {
             case ShiftClaimDisposition::InvalidToken:
-                RecordShiftDisposition(token, generation,
+                RecordShiftDisposition(token, generation, detector,
                                        "rejected_invalid_token");
                 return;
             case ShiftClaimDisposition::StaleGeneration:
-                RecordShiftDisposition(token, generation,
+                RecordShiftDisposition(token, generation, detector,
                                        "rejected_stale_generation");
                 return;
             case ShiftClaimDisposition::Duplicate:
-                RecordShiftDisposition(token, generation,
+                RecordShiftDisposition(token, generation, detector,
                                        "rejected_duplicate");
                 return;
             case ShiftClaimDisposition::ExpiredToken:
-                RecordShiftDisposition(token, generation,
+                RecordShiftDisposition(token, generation, detector,
                                        "rejected_capacity_expired");
                 return;
             case ShiftClaimDisposition::Accepted:
                 break;
         }
-        RecordShiftDisposition(token, generation, "accepted");
-        PerformLoneShiftToggle(token, context);
+        if (pending_ascii_intent_.active() &&
+            pending_ascii_deadline_ms_ != 0 &&
+            GetTickCount64() >= pending_ascii_deadline_ms_) {
+            CancelPendingAsciiToggle("deadline_expired");
+            RecordShiftDisposition(token, generation, detector,
+                                   "rejected_expired_intent");
+            return;
+        }
+        PerformLoneShiftToggle(token, generation, detector, context);
     }
 
     void RecordShiftDisposition(unsigned long long token,
                                 unsigned long long generation,
+                                ShiftDetector detector,
                                 const char* disposition) {
         std::ostringstream attributes;
         attributes << "toggle_token=" << token
                    << " generation=" << generation
+                   << " detector=" << ShiftDetectorName(detector)
                    << " disposition="
                    << (disposition ? disposition : "unknown")
                    << " state_revision=" << state_.revision;
@@ -2189,28 +2327,37 @@ public:
 
     void SettleRejectedShiftToken(unsigned long long token,
                                   unsigned long long generation,
+                                  ShiftDetector detector,
                                   const char* disposition) {
         if (token != 0 && generation != 0) {
             (void)shift_token_arbiter_.Claim(token, generation);
         }
-        RecordShiftDisposition(token, generation, disposition);
+        RecordShiftDisposition(token, generation, detector, disposition);
     }
 
     // The TSF sink and low-level-hook fallback carry the same physical token
     // when both observe a press. The first delivery claims it; token and
     // generation identity replace the old 250 ms time suppression window.
     void PerformLoneShiftToggle(unsigned long long token,
+                                unsigned long long generation,
+                                ShiftDetector detector,
                                 ITfContext* context) {
         if (!IsCurrentFocusedTextService(
-                this, focused_service_generation_.load()) ||
+                this, generation) ||
             !CachedToolbarOwnerMatchesForeground()) {
-            RecordShiftDisposition(
-                token, focused_service_generation_.load(),
+            RecordShiftDisposition(token, generation, detector,
                 "rejected_background_or_noncurrent");
             return;
         }
-        ClearShiftState();
-        QueueAsciiToggle(token, context);
+        RecordShiftDisposition(token, generation, detector, "accepted");
+        // A hook fallback can reach the dispatcher before the TSF sink's
+        // key-up report. Preserve matching sink correlation state so that
+        // report can still receive its own duplicate disposition. The sink
+        // path clears its state after OnTestKeyUp/OnKeyUp completes.
+        if (detector == ShiftDetector::Sink) {
+            ClearShiftState();
+        }
+        QueueAsciiToggle(token, detector, context);
     }
 
     void HideLanguageBarForSupersededFocus() {
@@ -2452,6 +2599,36 @@ private:
         compartment_mgr->Release();
     }
 
+    void RecordFocusGained() {
+        bool context_available = false;
+        const char* context_source = "none";
+        if (thread_mgr_) {
+            ITfDocumentMgr* document_mgr = nullptr;
+            if (SUCCEEDED(thread_mgr_->GetFocus(&document_mgr)) &&
+                document_mgr) {
+                ITfContext* context = nullptr;
+                if (SUCCEEDED(document_mgr->GetTop(&context)) && context) {
+                    context_available = true;
+                    context_source = "thread_mgr_focus_top";
+                    context->Release();
+                }
+                document_mgr->Release();
+            }
+        }
+
+        std::ostringstream attributes;
+        attributes << "generation=" << focused_service_generation_.load()
+                   << " dispatcher="
+                   << static_cast<unsigned long long>(
+                          reinterpret_cast<ULONG_PTR>(
+                              focused_service_window_.load()))
+                   << " context_available="
+                   << (context_available ? 1 : 0)
+                   << " context_source=" << context_source;
+        const std::string fields = attributes.str();
+        WriteStructuralEvent("focus_gained", -1, -1, ERROR_SUCCESS, fields);
+    }
+
     void ClearToolbarAnchorCache() {
         last_toolbar_owner_ = nullptr;
         last_toolbar_anchor_ = {};
@@ -2485,11 +2662,17 @@ private:
                acknowledged_state_generation_ == generation;
     }
 
-    void RecordToolbarVisibilityReason(const char* reason) {
-        if (!reason || last_toolbar_visibility_reason_ == reason) {
+    void RecordToolbarVisibilityReason(const char* reason,
+                                       const char* context_source) {
+        const std::string normalized_context_source =
+            context_source ? context_source : "none";
+        if (!reason ||
+            (last_toolbar_visibility_reason_ == reason &&
+             last_toolbar_context_source_ == normalized_context_source)) {
             return;
         }
         last_toolbar_visibility_reason_ = reason;
+        last_toolbar_context_source_ = normalized_context_source;
         const HWND foreground = GetForegroundWindow();
         std::ostringstream attributes;
         attributes << "reason=" << reason
@@ -2503,6 +2686,7 @@ private:
                           reinterpret_cast<ULONG_PTR>(foreground))
                    << " foreground_match="
                    << (CachedToolbarOwnerMatchesForeground() ? 1 : 0)
+                   << " context_source=" << normalized_context_source
                    << " state_revision=" << state_.revision;
         const std::string fields = attributes.str();
         WriteStructuralEvent("toolbar_visibility", -1, -1, ERROR_SUCCESS,
@@ -2514,19 +2698,22 @@ private:
     }
 
     void ReconcileLanguageBarVisibility(ITfContext* context) {
+        const char* context_source = context ? "explicit" : "none";
         if (!focused_) {
-            RecordToolbarVisibilityReason("not_focused");
+            RecordToolbarVisibilityReason("not_focused", context_source);
             language_bar_.Hide();
             return;
         }
         if (!IsCurrentFocusedTextService(
                 this, focused_service_generation_.load())) {
-            RecordToolbarVisibilityReason("not_current_generation");
+            RecordToolbarVisibilityReason("not_current_generation",
+                                          context_source);
             language_bar_.Hide();
             return;
         }
         if (!StateAcknowledgedForCurrentGeneration()) {
-            RecordToolbarVisibilityReason("state_unacknowledged");
+            RecordToolbarVisibilityReason("state_unacknowledged",
+                                          context_source);
             language_bar_.Hide();
             return;
         }
@@ -2540,6 +2727,7 @@ private:
                 if (SUCCEEDED(document_mgr->GetTop(&resolved_context)) &&
                     resolved_context) {
                     release_resolved_context = true;
+                    context_source = "thread_mgr_focus_top";
                 }
                 document_mgr->Release();
             }
@@ -2584,18 +2772,22 @@ private:
             // A concrete context must establish its own owner. Reusing the
             // previous context's cache here can expose a bar over the wrong host.
             ClearToolbarAnchorCache();
-            RecordToolbarVisibilityReason("no_owner_for_context");
+            RecordToolbarVisibilityReason("no_owner_for_context",
+                                          context_source);
             language_bar_.Hide();
             return;
+        } else if (last_toolbar_owner_ && IsWindow(last_toolbar_owner_)) {
+            context_source = "cached_owner";
         }
         if (!last_toolbar_owner_ || !IsWindow(last_toolbar_owner_)) {
             ClearToolbarAnchorCache();
-            RecordToolbarVisibilityReason("owner_invalid");
+            RecordToolbarVisibilityReason("owner_invalid", context_source);
             language_bar_.Hide();
             return;
         }
         if (!CachedToolbarOwnerMatchesForeground()) {
-            RecordToolbarVisibilityReason("foreground_mismatch");
+            RecordToolbarVisibilityReason("foreground_mismatch",
+                                          context_source);
             language_bar_.Hide();
             return;
         }
@@ -2634,12 +2826,14 @@ private:
             }
         }
         if (!still_current) {
-            RecordToolbarVisibilityReason("superseded_before_show");
+            RecordToolbarVisibilityReason("superseded_before_show",
+                                          context_source);
             language_bar_.Hide();
         } else if (update_succeeded) {
-            RecordToolbarVisibilityReason("eligible_show");
+            RecordToolbarVisibilityReason("eligible_show", context_source);
         } else {
-            RecordToolbarVisibilityReason("window_update_failed");
+            RecordToolbarVisibilityReason("window_update_failed",
+                                          context_source);
         }
     }
 
@@ -2753,6 +2947,7 @@ private:
     void ClearShiftState() {
         shift_down_ = false;
         shift_consumed_ = false;
+        shift_rejection_reason_ = ShiftRejectionReason::None;
         shift_token_ = 0;
         shift_token_generation_ = 0;
     }
@@ -2771,6 +2966,9 @@ private:
 
     void CancelLoneShiftToggle() {
         shift_consumed_ = true;
+        if (shift_rejection_reason_ == ShiftRejectionReason::None) {
+            shift_rejection_reason_ = ShiftRejectionReason::Consumed;
+        }
     }
 
     bool AppendStateExpectation(std::string* payload) const {
@@ -2904,7 +3102,9 @@ private:
         if (response.rejected &&
             response.reason != L"revision_conflict" &&
             response.reason != L"epoch_conflict") {
-            WritePendingAsciiOutcome("server_rejected");
+            WritePendingAsciiOutcome(
+                response.outcome == L"persist_failed" ? "persist_failed"
+                                                        : "server_rejected");
             ClearPendingAsciiToggle();
             return;
         }
@@ -2934,7 +3134,9 @@ private:
                              ERROR_SUCCESS, fields);
     }
 
-    void QueueAsciiToggle(unsigned long long token, ITfContext* context) {
+    void QueueAsciiToggle(unsigned long long token, ShiftDetector detector,
+                          ITfContext* context,
+                          bool record_shift_disposition = true) {
         CommitOrClearCompositionBeforeStateChange(context);
         const unsigned long long generation =
             focused_service_generation_.load();
@@ -2949,8 +3151,15 @@ private:
             pending_ascii_deadline_ms_ =
                 GetTickCount64() + kPendingAsciiToggleDeadlineMs;
         }
-        if (coalesced) {
-            RecordShiftDisposition(token, generation, "parity_coalesced");
+        if (coalesced && record_shift_disposition) {
+            std::ostringstream attributes;
+            attributes << "toggle_token=" << token
+                       << " generation=" << generation
+                       << " detector=" << ShiftDetectorName(detector)
+                       << " state_revision=" << state_.revision;
+            const std::string fields = attributes.str();
+            WriteStructuralEvent("shift_parity_coalesced", -1, -1,
+                                 ERROR_SUCCESS, fields);
         }
 
         if (!StateAcknowledgedForCurrentGeneration()) {
@@ -3076,7 +3285,8 @@ private:
     void HandleLanguageBarClick(yune_windows::LanguageBarSegment segment) {
         switch (segment) {
             case yune_windows::LanguageBarSegment::AsciiMode:
-                QueueAsciiToggle(++g_shift_sequence, nullptr);
+                QueueAsciiToggle(++g_shift_sequence, ShiftDetector::Sink,
+                                 nullptr, false);
                 break;
             case yune_windows::LanguageBarSegment::FullShape:
                 ToggleBoolState("full_shape", nullptr);
@@ -3369,6 +3579,8 @@ private:
     unsigned long long acknowledged_state_generation_ = 0;
     bool shift_down_ = false;
     bool shift_consumed_ = false;
+    ShiftRejectionReason shift_rejection_reason_ =
+        ShiftRejectionReason::None;
     unsigned long long shift_token_ = 0;
     unsigned long long shift_token_generation_ = 0;
     unsigned long last_hook_shift_token_adopted_ = 0;
@@ -3385,6 +3597,7 @@ private:
     bool retire_focused_service_window_ = false;
     HWND last_toolbar_owner_ = nullptr;
     std::string last_toolbar_visibility_reason_;
+    std::string last_toolbar_context_source_;
     RECT last_toolbar_anchor_ = {};
     UINT last_toolbar_dpi_ = 96;
     bool has_toolbar_anchor_ = false;
@@ -3566,7 +3779,16 @@ LRESULT CALLBACK FocusedServiceWindowProc(HWND hwnd, UINT message,
     if (message == kShiftHookToggleMessage && service) {
         service->HandleDeferredLoneShiftToggle(
             static_cast<unsigned long long>(wparam),
-            static_cast<unsigned long long>(lparam));
+            static_cast<unsigned long long>(lparam), ShiftDetector::Hook);
+        return 0;
+    }
+    const ShiftRejectionReason hook_rejection =
+        ShiftHookRejectionReason(message);
+    if (hook_rejection != ShiftRejectionReason::None && service) {
+        service->SettleRejectedShiftToken(
+            static_cast<unsigned long long>(wparam),
+            static_cast<unsigned long long>(lparam), ShiftDetector::Hook,
+            ShiftRejectionDisposition(hook_rejection));
         return 0;
     }
     if (message == WM_TIMER &&
@@ -3827,8 +4049,16 @@ LRESULT CALLBACK LowLevelKeyboardProc(int code, WPARAM wparam, LPARAM lparam) {
                                                     ? 0
                                                     : NextNonzeroSequence(
                                                           &g_shift_sequence);
+                    const bool modified = IsShortcutModifierDown();
+                    const bool mouse_or_capture = IsMouseButtonDown();
+                    const ShiftRejectionReason initial_rejection =
+                        modified
+                            ? ShiftRejectionReason::Modified
+                            : (mouse_or_capture
+                                   ? ShiftRejectionReason::MouseOrCapture
+                                   : ShiftRejectionReason::None);
                     const bool initially_consumed =
-                        IsShortcutModifierDown() || IsMouseButtonDown();
+                        initial_rejection != ShiftRejectionReason::None;
                     const unsigned long long snapshot =
                         PackShiftSnapshot(token, generation);
                     if (token != 0) {
@@ -3846,11 +4076,19 @@ LRESULT CALLBACK LowLevelKeyboardProc(int code, WPARAM wparam, LPARAM lparam) {
                     }
                     g_hook_shift_snapshot.store(snapshot,
                                                 std::memory_order_release);
+                    g_hook_shift_rejection_reason.store(
+                        initial_rejection, std::memory_order_release);
                     g_hook_shift_consumed.store(initially_consumed,
                                                 std::memory_order_release);
                     // Publish "down" last so TSF cannot observe a pressed
                     // state paired with an uninitialized token/generation.
                     g_hook_shift_down.store(true, std::memory_order_release);
+                } else {
+                    SetHookShiftRejectionIfNone(
+                        ShiftRejectionReason::Repeat);
+                    g_hook_shift_consumed.store(true,
+                                                std::memory_order_release);
+                    MarkCurrentShiftHookTokenConsumed();
                 }
             } else if (key_up) {
                 const bool was_down = g_hook_shift_down.exchange(
@@ -3864,17 +4102,34 @@ LRESULT CALLBACK LowLevelKeyboardProc(int code, WPARAM wparam, LPARAM lparam) {
                 const unsigned long generation =
                     ShiftSnapshotGeneration(snapshot);
                 const bool mouse_gesture = MouseButtonTransitionOrDown();
-                if (consumed || mouse_gesture) {
+                ShiftRejectionReason rejection =
+                    g_hook_shift_rejection_reason.exchange(
+                        ShiftRejectionReason::None,
+                        std::memory_order_acq_rel);
+                if (mouse_gesture &&
+                    rejection == ShiftRejectionReason::None) {
+                    rejection = ShiftRejectionReason::MouseOrCapture;
+                }
+                if (IsShortcutModifierDown() &&
+                    rejection == ShiftRejectionReason::None) {
+                    rejection = ShiftRejectionReason::Modified;
+                }
+                if (consumed && rejection == ShiftRejectionReason::None) {
+                    rejection = ShiftRejectionReason::Consumed;
+                }
+                if (rejection != ShiftRejectionReason::None) {
                     MarkShiftHookSnapshotConsumed(snapshot);
                 }
-                if (was_down && !consumed && !mouse_gesture &&
-                    !IsShortcutModifierDown() &&
-                    !IsMouseButtonDown() && token != 0 && generation != 0) {
+                if (was_down && token != 0 && generation != 0) {
                     const HWND target = g_shift_hook_dispatcher.load(
                         std::memory_order_acquire);
                     if (target) {
+                        const UINT dispatch_message =
+                            rejection == ShiftRejectionReason::None
+                                ? kShiftHookToggleMessage
+                                : ShiftHookRejectionMessage(rejection);
                         (void)PostMessageW(
-                            target, kShiftHookToggleMessage,
+                            target, dispatch_message,
                             static_cast<WPARAM>(token),
                             static_cast<LPARAM>(generation));
                     }
@@ -3882,6 +4137,10 @@ LRESULT CALLBACK LowLevelKeyboardProc(int code, WPARAM wparam, LPARAM lparam) {
             }
         } else if (key_down &&
                    g_hook_shift_down.load(std::memory_order_acquire)) {
+            SetHookShiftRejectionIfNone(
+                IsShortcutModifierKey(info->vkCode)
+                    ? ShiftRejectionReason::Modified
+                    : ShiftRejectionReason::Consumed);
             g_hook_shift_consumed.store(true, std::memory_order_release);
             MarkCurrentShiftHookTokenConsumed();
         }

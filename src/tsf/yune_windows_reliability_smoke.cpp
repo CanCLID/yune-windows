@@ -123,6 +123,41 @@ int main() {
         return 1;
     }
 
+    struct EligibilityCase {
+        ToolbarEligibilityInput input;
+        ToolbarEligibilityReason expected;
+        const char* message;
+    };
+    const ToolbarEligibilityInput eligible = {
+        true, true, true, true, true, true,
+    };
+    const EligibilityCase rejected_cases[] = {
+        {{false, true, true, true, true, true},
+         ToolbarEligibilityReason::ProfileInactive,
+         "inactive profile was not rejected"},
+        {{true, true, false, true, true, true},
+         ToolbarEligibilityReason::NotFocused,
+         "unfocused service was not rejected"},
+        {{true, true, true, false, true, true},
+         ToolbarEligibilityReason::StateUnacknowledged,
+         "unacknowledged state generation was not rejected"},
+        {{true, true, true, true, false, true},
+         ToolbarEligibilityReason::OwnerInvalid,
+         "invalid owner was not rejected"},
+    };
+    for (const EligibilityCase& test_case : rejected_cases) {
+        if (!Require(yune_windows::reliability::EvaluateToolbarEligibility(
+                         test_case.input) == test_case.expected,
+                     test_case.message)) {
+            return 1;
+        }
+    }
+    if (!Require(yune_windows::reliability::EvaluateToolbarEligibility(
+                     eligible) == ToolbarEligibilityReason::Eligible,
+                 "eligibility baseline was mutated by rejection cases")) {
+        return 1;
+    }
+
     std::cout << "M11D reliability core smoke passed.\n";
     return 0;
 }

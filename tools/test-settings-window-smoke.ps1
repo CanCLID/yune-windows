@@ -43,9 +43,16 @@ if ($Subsystem -ne 2) {
     throw "settings executable PE subsystem is $Subsystem, expected 2 (Windows GUI)."
 }
 
-foreach ($Mode in @("--self-test", "--layout-smoke")) {
+foreach ($Arguments in @(
+        @("--self-test"),
+        @("--layout-smoke-dpi", "96"),
+        @("--layout-smoke-dpi", "120"),
+        @("--layout-smoke-dpi", "144"),
+        @("--layout-smoke-dpi", "192")
+    )) {
+    $Mode = $Arguments -join " "
     $Process = Start-Process -FilePath $SettingsExe `
-        -ArgumentList $Mode `
+        -ArgumentList $Arguments `
         -WindowStyle Hidden `
         -PassThru
     if (-not $Process.WaitForExit(5000)) {
@@ -57,4 +64,16 @@ foreach ($Mode in @("--self-test", "--layout-smoke")) {
     }
 }
 
-Write-Host "Settings self-test and host-DPI layout smoke passed."
+$InvalidDpi = Start-Process -FilePath $SettingsExe `
+    -ArgumentList @("--layout-smoke-dpi", "97") `
+    -WindowStyle Hidden `
+    -PassThru
+if (-not $InvalidDpi.WaitForExit(5000)) {
+    $InvalidDpi.Kill()
+    throw "settings layout smoke accepted unsupported DPI or hung"
+}
+if ($InvalidDpi.ExitCode -ne 2) {
+    throw "settings layout smoke accepted unsupported DPI 97"
+}
+
+Write-Host "Settings self-test and 100/125/150/200% layout smokes passed."

@@ -27,6 +27,7 @@ $UiStringsHeader = Read-RepoFile "src\tools\yune_windows_ui_strings.h"
 $UiStringsSource = Read-RepoFile "src\tools\yune_windows_ui_strings.cpp"
 $SettingsManifest = Read-RepoFile "src\tools\YuneWindowsSettings.exe.manifest"
 $BuildScript = Read-RepoFile "tools\build-tsf-shell.ps1"
+$SettingsSmoke = Read-RepoFile "tools\test-settings-window-smoke.ps1"
 $Header = Read-RepoFile "src\candidate_window\yune_windows_candidate_window.h"
 $WindowSource = Read-RepoFile "src\candidate_window\yune_windows_candidate_window.cpp"
 $SkinManifestText = Read-RepoFile "skins\default\theme.json"
@@ -77,6 +78,10 @@ foreach ($Required in @(
         'ptMinTrackSize',
         'LayoutWindowSmoke',
         '--layout-smoke',
+        '--layout-smoke-dpi',
+        'g_layout_smoke_dpi',
+        'EffectiveWindowDpi',
+        'IsSupportedLayoutSmokeDpi',
         'ApplyUIFontToControls',
         'InitCommonControlsEx',
         'ApplyDwmPolish',
@@ -100,6 +105,11 @@ foreach ($ExpectedLayout in @(
     )) {
     Require-Text $SettingsSource ([regex]::Escape($ExpectedLayout)) `
         "settings DPI layout self-test is missing: $ExpectedLayout"
+}
+
+foreach ($RequiredDpi in @('"96"', '"120"', '"144"', '"192"')) {
+    Require-Text $SettingsSmoke ([regex]::Escape($RequiredDpi)) `
+        "settings runtime layout smoke is missing DPI: $RequiredDpi"
 }
 
 Require-Text $SettingsSource `

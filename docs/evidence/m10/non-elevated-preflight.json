@@ -1,58 +1,229 @@
-{
-  "schema_version": 1,
-  "milestone": "M10",
-  "evidence_kind": "non_elevated_preflight",
-  "captured_at": "2026-07-10T10:38:13.7737061-07:00",
-  "implementation_commit": "eb262fad85320d4410365d1214ee2be9837fae53",
-  "checked_tree_commit": "eb262fad85320d4410365d1214ee2be9837fae53",
-  "deployment_source_commit": "pending_until_frozen_docs_commit",
-  "verdict": "pass",
-  "settings_dpi_percent_matrix": [100, 125, 150, 200],
-  "settings_minimum_larger_scroll_each_dpi": true,
-  "checks": [
-    {"command": "git diff --check", "passed": true},
-    {"command": "tools/test-tsf-shell-build.ps1", "passed": true},
-    {"command": "tools/test-language-bar-smoke.ps1", "passed": true},
-    {"command": "tools/test-settings-window-smoke.ps1", "passed": true},
-    {"command": "tools/test-m08-modern-toolbar-contract.ps1", "passed": true},
-    {"command": "tools/test-m09-settings-panel-contract.ps1", "passed": true},
-    {"command": "tools/test-m11-ui-modernization-contract.ps1", "passed": true},
-    {"command": "tools/test-m11c-dcomp-glass-toolbar-contract.ps1", "passed": true},
-    {"command": "tools/test-language-bar-window-contract.ps1", "passed": true},
-    {"command": "tools/test-language-bar-topology-diagnostic-contract.ps1", "passed": true},
-    {"command": "tools/test-settings-ime-state-contract.ps1", "passed": true},
-    {"command": "tools/test-server-ime-state-protocol-contract.ps1", "passed": true},
-    {"command": "tools/test-tsf-server-response-validation-contract.ps1", "passed": true},
-    {"command": "tools/test-m11d-activation-reliability-contract.ps1", "passed": true},
-    {"command": "tools/test-m11d-activation-trace-contract.ps1", "passed": true},
-    {"command": "tools/test-m11d-reliability-smoke.ps1", "passed": true},
-    {"command": "tools/test-m11d-multiprocess-reliability-smoke.ps1", "passed": true},
-    {"command": "tools/test-tsf-ime-state-hotkey-contract.ps1", "passed": true},
-    {"command": "tools/test-candidate-window-smoke.ps1", "passed": true},
-    {"command": "tools/test-m10-evidence-summary-contract.ps1", "passed": true},
-    {"command": "tools/test-m10-frozen-candidate-deploy-contract.ps1", "passed": true}
-  ],
-  "stress_results": {
-    "language_bar_repeated_drags": 50,
-    "intermediate_moves_per_drag": 100,
-    "movement_renders": 0,
-    "final_renders_per_completed_drag": 1,
-    "paced_server_cas_actions": 100,
-    "paced_server_revision_advances": 100,
-    "timeout_after_commit_reconciled_once": true,
-    "persistence_failure_atomic_and_recovered_once": true
-  },
-  "review": {
-    "remaining_p0_or_p1_findings": 0,
-    "partial_rollback_fail_closed_contract_passed": true,
-    "post_restart_process_boundary_contract_passed": true,
-    "completion_binding_contract_passed": true,
-    "current_candidate_post_restart_machine_verified": false,
-    "completed_summary_exists": false
-  },
-  "m11_boundary": {
-    "m11_acceptance_claimed": false,
-    "remaining_direct_tsf_matrix": "pending",
-    "note": "This record supports M10 presentation readiness only. D-22 leaves M11 direct-TSF and installed activation/state acceptance open."
-  }
+﻿{
+    "schema_version":  2,
+    "milestone":  "M10",
+    "evidence_kind":  "non_elevated_preflight",
+    "captured_at":  "2026-07-10T12:19:49.7433813-07:00",
+    "started_at":  "2026-07-10T12:17:13.0828634-07:00",
+    "completed_at":  "2026-07-10T12:19:49.7433813-07:00",
+    "duration_ms":  156660.518,
+    "implementation_commit":  "eb262fad85320d4410365d1214ee2be9837fae53",
+    "checked_tree_commit":  "d0f75e8e9d0a2d388ba0ee1fd437de629d2a3c6f",
+    "checked_tree_clean_before":  true,
+    "checked_tree_clean_after":  true,
+    "commit_role_order_verified":  true,
+    "deployment_source_commit":  "7622305322a8ec6a45e2d2e36fd8c245232f60a2",
+    "candidate_equivalence":  {
+                                  "from_deployment_source_commit":  "7622305322a8ec6a45e2d2e36fd8c245232f60a2",
+                                  "to_checked_tree_commit":  "d0f75e8e9d0a2d388ba0ee1fd437de629d2a3c6f",
+                                  "checked_pathspec":  [
+                                                           "src/**",
+                                                           "skins/**",
+                                                           "tools/build-tsf-shell.ps1"
+                                                       ],
+                                  "changed_paths":  [
+
+                                                    ],
+                                  "product_build_inputs_unchanged":  true
+                              },
+    "candidate_manifest_path":  "docs/evidence/m10/machine-state/frozen-candidate.json",
+    "candidate_manifest_sha256":  "CFC5AA4D0F0115C69E97CB1A9F854983928171C2814E057D8CFFA33B8E082E2C",
+    "verdict":  "pass",
+    "settings_dpi_percent_matrix":  [
+                                        100,
+                                        125,
+                                        150,
+                                        200
+                                    ],
+    "settings_minimum_larger_scroll_each_dpi":  true,
+    "checks":  [
+                   {
+                       "command":  "git diff --check",
+                       "started_at":  "2026-07-10T12:17:13.0868640-07:00",
+                       "completed_at":  "2026-07-10T12:17:13.1108640-07:00",
+                       "duration_ms":  24,
+                       "exit_code":  0,
+                       "passed":  true
+                   },
+                   {
+                       "command":  "tools/test-tsf-shell-build.ps1",
+                       "started_at":  "2026-07-10T12:17:13.1218654-07:00",
+                       "completed_at":  "2026-07-10T12:17:30.0135429-07:00",
+                       "duration_ms":  16891.678,
+                       "exit_code":  0,
+                       "passed":  true
+                   },
+                   {
+                       "command":  "tools/test-language-bar-smoke.ps1",
+                       "started_at":  "2026-07-10T12:17:30.0315431-07:00",
+                       "completed_at":  "2026-07-10T12:17:51.4454151-07:00",
+                       "duration_ms":  21413.872,
+                       "exit_code":  0,
+                       "passed":  true
+                   },
+                   {
+                       "command":  "tools/test-settings-window-smoke.ps1",
+                       "started_at":  "2026-07-10T12:17:51.4564178-07:00",
+                       "completed_at":  "2026-07-10T12:18:08.8721899-07:00",
+                       "duration_ms":  17415.772,
+                       "exit_code":  0,
+                       "passed":  true
+                   },
+                   {
+                       "command":  "tools/test-m08-modern-toolbar-contract.ps1",
+                       "started_at":  "2026-07-10T12:18:08.8811896-07:00",
+                       "completed_at":  "2026-07-10T12:18:09.1002158-07:00",
+                       "duration_ms":  219.026,
+                       "exit_code":  0,
+                       "passed":  true
+                   },
+                   {
+                       "command":  "tools/test-m09-settings-panel-contract.ps1",
+                       "started_at":  "2026-07-10T12:18:09.1012180-07:00",
+                       "completed_at":  "2026-07-10T12:18:09.3022156-07:00",
+                       "duration_ms":  200.998,
+                       "exit_code":  0,
+                       "passed":  true
+                   },
+                   {
+                       "command":  "tools/test-m11-ui-modernization-contract.ps1",
+                       "started_at":  "2026-07-10T12:18:09.3032171-07:00",
+                       "completed_at":  "2026-07-10T12:18:09.5332153-07:00",
+                       "duration_ms":  229.998,
+                       "exit_code":  0,
+                       "passed":  true
+                   },
+                   {
+                       "command":  "tools/test-m11c-dcomp-glass-toolbar-contract.ps1",
+                       "started_at":  "2026-07-10T12:18:09.5342157-07:00",
+                       "completed_at":  "2026-07-10T12:18:09.7217214-07:00",
+                       "duration_ms":  187.506,
+                       "exit_code":  0,
+                       "passed":  true
+                   },
+                   {
+                       "command":  "tools/test-language-bar-window-contract.ps1",
+                       "started_at":  "2026-07-10T12:18:09.7227224-07:00",
+                       "completed_at":  "2026-07-10T12:18:09.8891466-07:00",
+                       "duration_ms":  166.424,
+                       "exit_code":  0,
+                       "passed":  true
+                   },
+                   {
+                       "command":  "tools/test-language-bar-topology-diagnostic-contract.ps1",
+                       "started_at":  "2026-07-10T12:18:09.8901464-07:00",
+                       "completed_at":  "2026-07-10T12:18:10.3626794-07:00",
+                       "duration_ms":  472.533,
+                       "exit_code":  0,
+                       "passed":  true
+                   },
+                   {
+                       "command":  "tools/test-settings-ime-state-contract.ps1",
+                       "started_at":  "2026-07-10T12:18:10.3636795-07:00",
+                       "completed_at":  "2026-07-10T12:18:10.5166490-07:00",
+                       "duration_ms":  152.97,
+                       "exit_code":  0,
+                       "passed":  true
+                   },
+                   {
+                       "command":  "tools/test-server-ime-state-protocol-contract.ps1",
+                       "started_at":  "2026-07-10T12:18:10.5186484-07:00",
+                       "completed_at":  "2026-07-10T12:18:34.1964217-07:00",
+                       "duration_ms":  23677.773,
+                       "exit_code":  0,
+                       "passed":  true
+                   },
+                   {
+                       "command":  "tools/test-tsf-server-response-validation-contract.ps1",
+                       "started_at":  "2026-07-10T12:18:34.2074212-07:00",
+                       "completed_at":  "2026-07-10T12:18:34.3869324-07:00",
+                       "duration_ms":  179.511,
+                       "exit_code":  0,
+                       "passed":  true
+                   },
+                   {
+                       "command":  "tools/test-m11d-activation-reliability-contract.ps1",
+                       "started_at":  "2026-07-10T12:18:34.3879327-07:00",
+                       "completed_at":  "2026-07-10T12:18:34.5939332-07:00",
+                       "duration_ms":  206.001,
+                       "exit_code":  0,
+                       "passed":  true
+                   },
+                   {
+                       "command":  "tools/test-m11d-activation-trace-contract.ps1",
+                       "started_at":  "2026-07-10T12:18:34.5949325-07:00",
+                       "completed_at":  "2026-07-10T12:18:35.0948217-07:00",
+                       "duration_ms":  499.889,
+                       "exit_code":  0,
+                       "passed":  true
+                   },
+                   {
+                       "command":  "tools/test-m11d-reliability-smoke.ps1",
+                       "started_at":  "2026-07-10T12:18:35.0968208-07:00",
+                       "completed_at":  "2026-07-10T12:18:55.1375181-07:00",
+                       "duration_ms":  20040.697,
+                       "exit_code":  0,
+                       "passed":  true
+                   },
+                   {
+                       "command":  "tools/test-m11d-multiprocess-reliability-smoke.ps1",
+                       "started_at":  "2026-07-10T12:18:55.1485179-07:00",
+                       "completed_at":  "2026-07-10T12:19:22.0334815-07:00",
+                       "duration_ms":  26884.964,
+                       "exit_code":  0,
+                       "passed":  true
+                   },
+                   {
+                       "command":  "tools/test-tsf-ime-state-hotkey-contract.ps1",
+                       "started_at":  "2026-07-10T12:19:22.0424818-07:00",
+                       "completed_at":  "2026-07-10T12:19:22.1994819-07:00",
+                       "duration_ms":  157,
+                       "exit_code":  0,
+                       "passed":  true
+                   },
+                   {
+                       "command":  "tools/test-candidate-window-smoke.ps1",
+                       "started_at":  "2026-07-10T12:19:22.2004818-07:00",
+                       "completed_at":  "2026-07-10T12:19:42.6003387-07:00",
+                       "duration_ms":  20399.857,
+                       "exit_code":  0,
+                       "passed":  true
+                   },
+                   {
+                       "command":  "tools/test-m10-evidence-summary-contract.ps1",
+                       "started_at":  "2026-07-10T12:19:42.6113397-07:00",
+                       "completed_at":  "2026-07-10T12:19:48.2895850-07:00",
+                       "duration_ms":  5678.245,
+                       "exit_code":  0,
+                       "passed":  true
+                   },
+                   {
+                       "command":  "tools/test-m10-frozen-candidate-deploy-contract.ps1",
+                       "started_at":  "2026-07-10T12:19:48.3205863-07:00",
+                       "completed_at":  "2026-07-10T12:19:49.7393812-07:00",
+                       "duration_ms":  1418.795,
+                       "exit_code":  0,
+                       "passed":  true
+                   }
+               ],
+    "stress_results":  {
+                           "language_bar_repeated_drags":  50,
+                           "intermediate_moves_per_drag":  100,
+                           "movement_renders":  0,
+                           "final_renders_per_completed_drag":  1,
+                           "paced_server_cas_actions":  100,
+                           "paced_server_revision_advances":  100,
+                           "timeout_after_commit_reconciled_once":  true,
+                           "persistence_failure_atomic_and_recovered_once":  true
+                       },
+    "review":  {
+                   "scope":  "automated_non_elevated_checks_only",
+                   "manual_review_findings_claimed":  false,
+                   "current_candidate_post_restart_machine_verified":  false,
+                   "completed_summary_exists":  false
+               },
+    "m11_boundary":  {
+                         "m11_acceptance_claimed":  false,
+                         "remaining_direct_tsf_matrix":  "pending",
+                         "note":  "This record supports M10 presentation readiness only. D-22 leaves M11 direct-TSF and installed activation/state acceptance open."
+                     }
 }

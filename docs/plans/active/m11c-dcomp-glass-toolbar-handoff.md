@@ -1,9 +1,9 @@
 # M11 Slice C — Toolbar Clone Repair Handoff
 
-> **Status:** implementation fixed in the non-elevated tree; approval-gated
-> installed visual proof pending. Keep M11/M11C active until the live gate proves
-> one foreground-owned toolbar with clone-free dragging. Do not begin M10 before
-> that proof.
+> **Status:** installed clone/drag proof passed on 2026-07-09 PT
+> (2026-07-10 UTC). Keep M11/M11C active under M11D until activation, lone-Shift
+> transition, and toolbar visibility are deterministic across all four hosts.
+> Do not begin M10 before M11D passes.
 
 ## What the probe established
 
@@ -96,11 +96,23 @@ Current confirmed checks:
 - `tools\test-tsf-shell-build.ps1`
 - `tools\test-language-bar-smoke.ps1`
 
-## Approval-gated installed gate
+## Installed clone/drag result and remaining gate
 
-Installed proof must cover Notepad, Chromium, Explorer, and one Electron host,
-including repeated grip/settings-segment drags and rapid focus changes. Accept
-only when:
+The approved run deployed source commit
+`1f419837b0575dc1ea47dba2785cbb6949b7e73c`; the installed TSF SHA-256 was
+`76254CE522413F9283192FBC0A599767F1BC636002A2B564E900DC0F834937D0`.
+After the stale Explorer holder restarted, all mapped images were current and
+the old swap residue was removed without a reboot or delayed delete.
+
+Twenty Notepad drags and one Chromium drag, each with 100 movement events,
+retained one valid foreground-owned HWND. The settings segment did not launch
+settings while dragging, capture did not stick, one Notepad-to-Chromium
+previous-host hide was seen in 34 ms, and the user reported no fresh copies or
+afterimages. Acrylic is therefore retained.
+
+The complete gate still requires Notepad, Chromium, Explorer, and one Electron
+host, including repeated grip/settings-segment drags and rapid focus changes.
+Accept only when:
 
 - at most one toolbar HWND is visible system-wide;
 - every visible toolbar has a valid owner whose root is foreground;
@@ -110,18 +122,21 @@ only when:
 - typing focus is never stolen; and
 - the final position survives focus changes and host restart.
 
-If one real HWND remains but acrylic still trails, make static-tint
+If one real HWND remains but acrylic ever trails, make static-tint
 DirectComposition the default and defer acrylic. If static DirectComposition
 also trails, replace only the toolbar presentation with a normally redirected,
 opaque native D2D HWND (no `WS_EX_NOREDIRECTIONBITMAP`, no toolbar DComp path).
 Clone-free behavior outranks glass.
 
-Current non-dev processes hold the TSF DLL. Do not force-close unrelated apps or
-schedule cleanup. Deployment and any sign-out/reboot path require fresh approval.
+M11D now owns the blocking result: Chromium required nine attempts to show its
+toolbar, Explorer required five and then eleven, several Shift taps did not
+change `ascii_mode`, and Claude showed no toolbar after twelve attempts. It must
+make activation/toggle/visibility deterministic and complete Explorer/Electron
+drag plus host-restart persistence before archival.
 
 ## M10 boundary
 
 M11 supplies the reusable composition device/surface foundation only. M10 owns
 skin breadth, catalog/import behavior, and candidate-window rendering. The
-candidate window remains unchanged in M11, and M10 stays blocked until the
-installed M11 gate passes.
+candidate window remains unchanged in M11, and M10 stays blocked until M11D
+passes the complete installed gate.

@@ -1,12 +1,11 @@
 # M11 UI Modernization + Cantonese Localization Plan
 
-> **Status:** implementation fixed in the non-elevated tree; approval-gated
-> installed proof pending. Slices A/B modernize and localize the native settings
-> and toolbar surfaces. Slice C now uses DirectComposition + Direct2D, fails
-> closed on missing/invalid owners, arbitrates the visible toolbar within and
-> across processes, and moves the HWND without presenting during drag. M11 stays
-> active until an installed run proves one foreground-owned toolbar with no
-> clones or afterimages. Native only; no WebView2.
+> **Status:** installed clone/drag proof passed on 2026-07-09 PT
+> (2026-07-10 UTC); M11D activation/toggle/visibility reliability remains open.
+> Slices A/B modernize and localize the native settings and toolbar surfaces.
+> Slice C uses DirectComposition + Direct2D, fails closed on missing/invalid
+> owners, arbitrates the visible toolbar within and across processes, and moves
+> the HWND without presenting during drag. Native only; no WebView2.
 >
 > **2026-07-09 stabilization amendment:** a topology probe proved the screenshot
 > was primarily multiple real toolbar HWNDs across processes, not merely painted
@@ -26,11 +25,12 @@ M10 owns skin breadth, catalog/import behavior, and candidate-window rendering.
 M11 owns the toolbar stabilization and supplies only the reusable composition
 device/surface foundation. Candidate rendering must not be counted as M11 scope.
 
-**Stop-the-line dependency:** no M10 slice begins until an approval-gated
-installed M11 run proves one foreground-owned toolbar with clone-free dragging.
-After that gate, M10 may generalize the composition lifecycle for an
-opaque/static-tint candidate surface while preserving its independent latency and
-fallback requirements.
+**Stop-the-line dependency:** the installed clone/drag sub-gate passed, but no
+M10 slice begins until M11D makes activation, lone-Shift state transition, and
+eligible-host toolbar visibility deterministic and completes the four-host
+installed gate. After that gate, M10 may generalize the composition lifecycle
+for an opaque/static-tint candidate surface while preserving its independent
+latency and fallback requirements.
 
 ---
 
@@ -105,8 +105,9 @@ fallback requirements.
    with one real HWND, default to static-tint DComp; if static DComp trails, use a
    normally redirected opaque native D2D toolbar.
 5. **M10 reconciliation — UPDATED 2026-07-09:** M11 supplies the reusable
-   composition foundation, but M10 owns candidate rendering. No M10 work begins
-   until the installed M11 clone-free gate passes.
+   composition foundation, but M10 owns candidate rendering. The clone/drag
+   sub-gate passed; no M10 work begins until M11D completes deterministic
+   activation/visibility and the four-host installed gate.
 6. **Output-standard glyphs:** `uiText.yue` is authoritative — change the C++
    literals (`繁→傳`, `臺→台`, `拼→朙`) and `L"EN"→英` to match the appendix.
 7. **Windows 10 — LOCKED: flat-native fallback.** Glass/Mica/rounded are
@@ -341,8 +342,11 @@ contract clean.
   static fallback, same-size transition cleanup, and removal of inert V1 fields.
 - [x] Privacy-safe topology diagnostic and expanded non-elevated drag smoke.
 - [x] Non-elevated TSF build and expanded language-bar smoke.
-- [ ] Approval-gated installed Notepad/Chromium/Explorer/Electron proof.
-- [ ] Archive M11/M11C and unblock M10 only after the installed gate passes.
+- [x] Approved installed Notepad/Chromium clone/drag proof: one stable,
+  foreground-owned visible HWND and no user-observed copies/afterimages.
+- [ ] M11D deterministic activation/toggle/visibility plus complete
+  Notepad/Chromium/Explorer/Electron proof.
+- [ ] Archive M11/M11C/M11D and unblock M10 only after M11D passes.
 
 ## Contract coverage (sharpened)
 Because contracts are source-grep PowerShell, a blanket "no English" grep would
@@ -385,7 +389,9 @@ false-positive on legitimate ASCII (`op=` verbs, `schema_id`s like `jyut6ping3`,
 
 ## Remaining Decision Gate
 
-The only open architecture choice is live visual: retain acrylic, default to
-static-tint DComp, or use a normally redirected opaque native D2D toolbar. The
-installed acceptance result determines that choice. Localization terminology is
-already implemented and is not reopened by the clone repair.
+The fresh clone/drag run retained acrylic because one stable visible HWND and no
+visual copies/afterimages were observed. The static-DComp and redirected-D2D
+fallbacks remain available if M11D regresses that result. The open gate is now
+deterministic activation, exactly-once toggle acknowledgement, eligible-host
+visibility, Explorer/Electron breadth, and host-restart position persistence.
+Localization terminology is already implemented and is not reopened.

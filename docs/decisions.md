@@ -207,7 +207,29 @@ semantics, and recreates a normally redirected GDI window if composition fails
 before first show. Cold and warm candidate performance must be compared with a
 recorded GDI baseline before M10 can close.
 
+### D-20 - Clone topology and activation reliability are separate gates
+
+The installed M11C clone/drag sub-gate may pass without proving that Windows
+profile activation, the Yune lone-Shift toggle, server-state acknowledgement,
+and toolbar show eligibility are deterministic. M11D owns those activation and
+visibility layers and must preserve every M11C ownership/drag invariant.
+
+M11/M11C/M11D archive together only after Notepad, Chromium, Explorer, and one
+Electron host show the toolbar without sacrificial toggles; each lone Shift
+causes exactly one acknowledged state transition; previous-host hiding remains
+within 250 ms; and the clone, focus, and position-persistence gates pass. M10
+remains blocked and continues to own skin breadth and candidate rendering.
+
 ## Last Updated
+
+2026-07-09 PT / 2026-07-10 UTC - Approved installed M11 proof deployed commit
+`1f419837b0575dc1ea47dba2785cbb6949b7e73c` with TSF SHA-256
+`76254CE522413F9283192FBC0A599767F1BC636002A2B564E900DC0F834937D0`.
+Fresh Notepad/Chromium dragging retained one valid foreground-owned HWND and the
+user reported no copies or afterimages. Activation/visibility failed separately:
+Chromium needed nine attempts, Explorer needed five and then eleven, several
+Shift taps produced no state transition, and Claude produced no toolbar after
+twelve attempts. D-20 creates M11D for that stop-the-line work before M10.
 
 2026-07-09 - M11 toolbar stabilization corrected the diagnosed real-window
 topology: owner recovery/cache now fails closed, focused-service replacement is
@@ -215,23 +237,24 @@ identity-aware and asynchronously generation-guarded, visibility arbitrates
 within/across processes, and a 250 ms watchdog enforces foreground ownership.
 Drag movement no longer renders or commits; one finalizer persists and flushes
 once. DWM backdrop use is gated at build 22621 and requires successful frame plus
-backdrop setup, otherwise using an opaque static fallback. Installed visual proof
-remains approval-gated, so M11/M11C stay active and M10 remains blocked.
+backdrop setup, otherwise using an opaque static fallback. At that implementation
+landing, installed visual proof was still approval-gated; the later result and
+remaining M11D blocker are recorded in D-20.
 
 2026-07-07 - M11 Slice C replaces the language-bar toolbar's layered/ULW
 presentation with `WS_EX_NOREDIRECTIONBITMAP`, DirectComposition, Direct2D, and
 DWM Desktop Acrylic. The DComp surface render path uses a fixed 96-DPI D2D target
 and `D2D1_BITMAP_OPTIONS_TARGET | D2D1_BITMAP_OPTIONS_CANNOT_DRAW`; device loss
-recreates the graphics stack. Evidence is non-elevated under
-`docs/evidence/m11c/`; installed clone-free/glass proof remains approval-gated.
+recreates the graphics stack. Evidence was initially non-elevated under
+`docs/evidence/m11c/`; the later installed clone result is recorded in D-20.
 
 2026-07-03 - M11 UI Modernization + Cantonese Localization added the embedded
 common-controls v6/PerMonitorV2 settings manifest, Microsoft JhengHei UI font
 and DPI relayout, build-gated DWM settings polish, centralized Cantonese UI
 strings, settings combo label/value split, toolbar glyph fixes including
 `luna_pinyin_octagram`, default-skin glass fields, and the initial `GlassSurface`
-shell. Evidence is non-elevated under `docs/evidence/m11/`; live TSF-host glass
-visual proof remains approval-gated.
+shell. Evidence was initially non-elevated under `docs/evidence/m11/`; the later
+installed clone result is recorded in D-20.
 
 2026-07-03 - M08/M09 live-test follow-up: reduced the toolbar "clone trail" on
 drag (made `SetWindowPos` the single position authority with a NULL

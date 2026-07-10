@@ -1,8 +1,9 @@
 # M11 UI Modernization + Cantonese Localization Evidence
 
-Status: implementation fixed in the non-elevated tree; approval-gated installed
-visual proof pending. Keep M11 active. M10 must not begin until the installed
-gate proves one foreground-owned toolbar with clone-free dragging.
+Status: installed clone/drag proof passed on 2026-07-09 PT
+(2026-07-10 UTC). Activation, lone-Shift state transition, and toolbar
+visibility are not deterministic, so M11/M11C remain active under M11D and M10
+remains blocked.
 
 ## Implemented Scope
 
@@ -91,18 +92,51 @@ per-present DWM churn.
 These are non-elevated source/build/protocol/UI-smoke results only. They do not
 substitute for the installed visual/topology gate below.
 
-## Approval-Gated Installed Proof Not Run
+## Approved Installed Clone/Drag Proof
 
-No installed DLL swap, TSF registration, registry mutation, AppVerifier/PageHeap,
-forced holder shutdown, or reboot-prone cleanup was run. Current non-dev
-processes hold the TSF DLL.
+The approved live run deployed source commit
+`1f419837b0575dc1ea47dba2785cbb6949b7e73c` to the registered install path.
+The installed TSF SHA-256 was
+`76254CE522413F9283192FBC0A599767F1BC636002A2B564E900DC0F834937D0`;
+the installed default-skin SHA-256 was
+`D7771F05AEB1F4D4DFFDA809073E2FAC75D17810F130D4D0D2AF9D6950DF6C6F`.
+No delayed-delete operation or reboot was scheduled.
 
-After fresh approval, exercise Notepad, Chromium, Explorer, and one Electron
-host. Accept only when at most one toolbar is visible system-wide; each visible
-toolbar has a valid foreground root owner; one drag retains one HWND; the old
-host hides within 250 ms; no copies/afterimages appear; focus is never stolen;
-and position survives focus changes and host restart.
+The first post-deploy report of four copies was a mixed-image result: three
+visible ownerless HWNDs belonged to an Explorer process still mapping the old
+552,960-byte image, while the restarted Codex process had one hidden,
+correctly owned toolbar from the new 569,344-byte image. After Explorer was
+restarted, every holder mapped the new image, the old swap file was removed,
+and no old-image holder remained.
 
-If acrylic fails with one real HWND, default to static-tint DirectComposition.
-If static DirectComposition also trails, use a normally redirected opaque native
-D2D toolbar. Do not archive M11/M11C or begin M10 before this gate passes.
+The fresh installed drag proof then recorded:
+
+- 20 Notepad drags (10 grip and 10 settings-segment) plus one Chromium grip
+  drag, with 100 intermediate movement events per drag;
+- at most one visible toolbar HWND in every topology sample;
+- one stable HWND per drag, a valid foreground-root owner throughout, no
+  settings-process launch, and no stuck capture;
+- one Notepad-to-Chromium transfer hid the previous host in 34 ms, below the
+  250 ms limit;
+- server-owned final-position persistence after the repeated Notepad sequence;
+  and
+- the user's fresh visual verdict that the prior copies/afterimages no longer
+  appeared.
+
+Acrylic therefore remains enabled; the static-tint and redirected-D2D fallback
+sequence was not invoked.
+
+## M11D Reliability Gate Still Open
+
+Clone-free dragging and reliable activation are separate gates. The same live
+run found that Chromium needed nine Shift attempts before its existing toolbar
+became visible. Explorer needed five attempts on one focus and eleven on a
+follow-up. Several Shift taps produced no `ascii_mode` transition. Claude loaded
+the current DLL and received foreground composer focus, but no toolbar HWND
+appeared after twelve attempts.
+
+M11D owns deterministic Windows-profile activation, exactly-once lone-Shift
+state transition, server-state reconciliation, and eligible-host toolbar
+visibility. It must complete the Notepad/Chromium/Explorer/Electron matrix and
+prove final-position persistence across host restart. Until then M11/M11C stay
+active and M10 remains blocked.

@@ -143,7 +143,8 @@ foreach ($Required in @(
         'WS_EX_NOREDIRECTIONBITMAP',
         'D2D1_BITMAP_OPTIONS_CANNOT_DRAW',
         'SetDpi\(96,96\)',
-        'installed visual proof has not run'
+        'Installed Clone/Drag Proof Passed',
+        'M11D'
     )) {
     Require-Text $Evidence $Required "M11C evidence summary missing: $Required"
 }

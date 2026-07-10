@@ -1,11 +1,12 @@
 {
   "milestone": "M11",
   "title": "UI Modernization + Cantonese Localization",
-  "status": "implementation fixed; approval-gated installed proof pending",
+  "status": "installed clone/drag sub-gate passed; M11D activation/visibility gate open",
   "evidence": "docs/evidence/m11/summary.md",
-  "live_visual_status": "approval-gated",
-  "live_machine_steps_run": false,
+  "live_visual_status": "clone-free confirmed; activation and visibility unreliable",
+  "live_machine_steps_run": true,
   "m10_blocked": true,
+  "m10_blocked_on": "M11D activation/toggle/toolbar-visibility reliability",
   "verification_passed": [
     "tools\\test-tsf-shell-build.ps1",
     "tools\\test-language-bar-smoke.ps1",
@@ -43,6 +44,48 @@
     "effective_static_fallback": true,
     "deterministic_backdrop_regression_smoke": true,
     "privacy_safe_topology_diagnostic": true,
-    "installed_clone_free_visual_proof": false
+    "installed_clone_free_visual_proof": true
+  },
+  "installed_clone_proof": {
+    "date_local": "2026-07-09",
+    "date_utc": "2026-07-10",
+    "source_commit": "1f419837b0575dc1ea47dba2785cbb6949b7e73c",
+    "installed_tsf_sha256": "76254CE522413F9283192FBC0A599767F1BC636002A2B564E900DC0F834937D0",
+    "installed_skin_sha256": "D7771F05AEB1F4D4DFFDA809073E2FAC75D17810F130D4D0D2AF9D6950DF6C6F",
+    "notepad_drags": 20,
+    "chromium_drags": 1,
+    "move_events_per_drag": 100,
+    "grip_drags": 10,
+    "settings_segment_drags": 10,
+    "max_visible_toolbar_hwnds": 1,
+    "stable_hwnd": true,
+    "foreground_owned": true,
+    "settings_process_launched_by_drag": false,
+    "stuck_capture": false,
+    "old_host_hide_ms_observed": [34],
+    "visual_copies_or_afterimages": false,
+    "user_visual_confirmation": true,
+    "acrylic_fallback_invoked": false
+  },
+  "deployment": {
+    "pre_deploy_installed_tsf_sha256": "B7EC5B4DAFF4B9980740721052FA0D6480AB22448288FF2D05E7A2EC9A023E38",
+    "pre_deploy_old_image_size": 552960,
+    "deployed_image_size": 569344,
+    "old_image_holders_after_restart": 0,
+    "swap_residue_removed": true,
+    "pending_file_rename_operations": false,
+    "reboot_required": false
+  },
+  "remaining_gate": {
+    "milestone": "M11D",
+    "activation_and_visibility_reliable": false,
+    "chromium_attempts_before_visible": 9,
+    "explorer_attempts_before_visible": [5, 11],
+    "electron_host": "Claude",
+    "electron_attempts_without_toolbar": 12,
+    "shift_taps_without_state_change_observed": true,
+    "explorer_drag_gate_complete": false,
+    "electron_drag_gate_complete": false,
+    "position_survives_host_restart_proven": false
   }
 }

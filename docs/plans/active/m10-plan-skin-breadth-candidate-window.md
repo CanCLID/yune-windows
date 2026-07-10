@@ -1,9 +1,10 @@
 # M10 Skin Breadth + Candidate-Window Skinning Plan
 
-> **Status:** blocked on the M11 installed gate. No M10 implementation begins
-> until an approval-gated installed run proves one foreground-owned toolbar with
-> clone-free dragging. M11 supplies the reusable native composition foundation;
-> M10 retains ownership of skin breadth, catalog/import behavior, and candidate
+> **Status:** blocked on M11D. The installed M11 clone/drag sub-gate passed, but
+> no M10 implementation begins until profile activation, lone-Shift state
+> transition, toolbar visibility, and the complete four-host installed gate are
+> deterministic. M11 supplies the reusable native composition foundation; M10
+> retains ownership of skin breadth, catalog/import behavior, and candidate
 > rendering.
 
 ## Goal

@@ -1,8 +1,9 @@
 # M11 Slice C Toolbar Stabilization Evidence
 
-Status: DirectComposition toolbar plus ownership/drag/backdrop repair is
-implemented non-elevated. Approval-gated installed visual proof has not run, so
-M11C remains active and M10 remains blocked.
+Status: the installed clone/drag proof passed in Notepad and Chromium on
+2026-07-09 PT (2026-07-10 UTC). M11C remains active because M11D must make
+activation/toggle/toolbar visibility deterministic and complete the Explorer/
+Electron breadth before M10 begins.
 
 ## Diagnosed Topology
 
@@ -70,19 +71,25 @@ The broader M11 evidence summary records the passed settings, candidate,
 state-protocol, hotkey, response-validation, and dev-REPL gates. None of these
 non-elevated checks pre-claims the installed visual result.
 
-## Installed Proof Not Run
+## Installed Clone/Drag Proof Passed
 
-The installed host matrix remains approval-gated because non-dev processes hold
-the TSF DLL and deployment may require closing holders or signing out/rebooting.
-No unrelated process may be force-closed and no cleanup may be scheduled without
-fresh approval.
+The approved live run deployed source commit
+`1f419837b0575dc1ea47dba2785cbb6949b7e73c`; the registered TSF path matched
+SHA-256 `76254CE522413F9283192FBC0A599767F1BC636002A2B564E900DC0F834937D0`.
+After the one stale Explorer holder was restarted, all holders mapped the new
+image and no delayed delete or reboot remained.
 
-Acceptance requires at most one visible toolbar system-wide, a valid foreground
-root owner, stable HWND identity through drag, previous-host hide within 250 ms,
-no visual copies/afterimages, no focus steal, and persisted final position across
-focus changes and host restart in Notepad, Chromium, Explorer, and one Electron
-host.
+The installed proof covered 20 Notepad drags and one Chromium drag with 100
+movement events each. It observed at most one visible toolbar, stable HWND
+identity, valid foreground ownership, no settings launch, no stuck capture, and
+one Notepad-to-Chromium old-host hide in 34 ms. The user reported no copies or
+afterimages in the fresh run. Acrylic therefore remains enabled; the
+deterministic fallback was not needed for the clone defect.
 
-If any visual condition fails, use the deterministic acrylic -> static DComp ->
-normally redirected opaque native D2D fallback. Clone-free behavior has priority
-over glass.
+The complete host gate is still open for a different reason. Chromium needed
+nine toggle attempts to surface its toolbar; Explorer needed five and then
+eleven; several Shift taps did not change `ascii_mode`; and Claude produced no
+toolbar after twelve attempts despite loading the current DLL and receiving
+foreground composer focus. M11D owns this activation/toggle/visibility failure,
+the remaining Explorer/Electron drag breadth, and host-restart position proof.
+M11/M11C must not archive and M10 must not begin before M11D passes.

@@ -1,22 +1,27 @@
 # Active Plans
 
-- `m11-plan-ui-modernization-cantonese.md` - **current stop-the-line focus.**
-  Slices A/B and the Slice C renderer are implemented. The toolbar-clone repair
-  now fails closed on missing/invalid owners, arbitrates the visible toolbar
-  within and across processes, watches foreground ownership every 250 ms, and
-  keeps drag motion presentation-free until one final flush. Non-elevated build
-  and expanded drag smoke pass; approval-gated installed visual proof is still
-  required before M11 can close.
-- `m11c-dcomp-glass-toolbar-handoff.md` - **implementation fixed; installed proof
-  pending.** Records the current per-process TSF architecture, ownership and
-  supersession rules, movement-only drag contract, effective-backdrop fallback,
-  topology diagnostics, and deterministic live fallback order.
-- `m10-plan-skin-breadth-candidate-window.md` - **blocked on the M11 installed
-  gate.** M10 still owns built-in/user skin breadth and the native candidate
+- `m11d-ime-activation-toolbar-visibility.md` - **current stop-the-line
+  focus.** The installed clone/drag sub-gate passed, but Chromium needed nine
+  toggle attempts, Explorer needed five and then eleven, and Claude produced no
+  toolbar after twelve attempts. M11D separates Windows profile activation,
+  exactly-once lone-Shift state transition, server acknowledgement, and toolbar
+  show eligibility, then completes the four-host gate.
+- `m11-plan-ui-modernization-cantonese.md` - **installed clone/drag proof
+  passed; M11D pending.** Slices A/B and the Slice C renderer are implemented.
+  Fresh Notepad/Chromium dragging retained one foreground-owned HWND with no
+  visual copies; M11 remains active until M11D makes activation/visibility
+  deterministic and completes Explorer/Electron breadth.
+- `m11c-dcomp-glass-toolbar-handoff.md` - **clone repair proven; reliability
+  gate pending.** Records the current per-process TSF architecture, ownership
+  and supersession rules, movement-only drag contract, effective-backdrop
+  fallback, topology diagnostics, and installed clone-free result.
+- `m10-plan-skin-breadth-candidate-window.md` - **blocked on M11D.** M10 still
+  owns built-in/user skin breadth and the native candidate
   restyle. Its locked V1 continuation is manifest-only, bounded, revisioned, and
   keeps candidate behavior/performance evidence separate. No M10 slice begins
-  until an installed run proves one foreground-owned toolbar with clone-free
-  dragging; M11 supplies only the reusable composition foundation.
+  until deterministic activation/visibility and the complete installed
+  Notepad/Chromium/Explorer/Electron gate pass; M11 supplies only the reusable
+  composition foundation.
 
 Later / unplanned, noted so the settings panel is designed for them:
 - Server `customize`+`deploy` path to actually apply the deploy-time **engine

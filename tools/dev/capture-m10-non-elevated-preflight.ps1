@@ -71,6 +71,44 @@ function Invoke-RecordedCheck {
     }
 }
 
+function Write-M10AtomicPreflightReport {
+    param(
+        [Parameter(Mandatory = $true)][object]$Report,
+        [Parameter(Mandatory = $true)][string]$OutputPath
+    )
+
+    $ParentDirectory = Split-Path -Parent $OutputPath
+    if (-not (Test-Path -LiteralPath $ParentDirectory -PathType Container)) {
+        New-Item -Path $ParentDirectory -ItemType Directory -Force | Out-Null
+    }
+    $Token = [Guid]::NewGuid().ToString('N')
+    $TemporaryOutput = "$OutputPath.tmp-$Token"
+    $BackupOutput = "$OutputPath.backup-$Token"
+    $WriteSucceeded = $false
+    try {
+        $Report | ConvertTo-Json -Depth 8 |
+            Set-Content -LiteralPath $TemporaryOutput -Encoding utf8
+        if (Test-Path -LiteralPath $OutputPath -PathType Leaf) {
+            # Windows PowerShell's three-argument File.Replace overload rejects
+            # a null backup path, so use a real same-directory backup and remove
+            # it only after the atomic replacement succeeds.
+            [IO.File]::Replace($TemporaryOutput, $OutputPath, $BackupOutput)
+        }
+        else {
+            [IO.File]::Move($TemporaryOutput, $OutputPath)
+        }
+        $WriteSucceeded = $true
+    }
+    finally {
+        if (Test-Path -LiteralPath $TemporaryOutput) {
+            Remove-Item -LiteralPath $TemporaryOutput -Force
+        }
+        if ($WriteSucceeded -and (Test-Path -LiteralPath $BackupOutput)) {
+            Remove-Item -LiteralPath $BackupOutput -Force
+        }
+    }
+}
+
 if (-not (Test-Path -LiteralPath $CandidateManifestPath -PathType Leaf)) {
     throw "missing durable candidate manifest: $CandidateManifestPath"
 }
@@ -255,26 +293,7 @@ $Report = [pscustomobject][ordered]@{
     }
 }
 
-$ParentDirectory = Split-Path -Parent $OutputPath
-if (-not (Test-Path -LiteralPath $ParentDirectory -PathType Container)) {
-    New-Item -Path $ParentDirectory -ItemType Directory -Force | Out-Null
-}
-$TemporaryOutput = "$OutputPath.tmp-$([Guid]::NewGuid().ToString('N'))"
-try {
-    $Report | ConvertTo-Json -Depth 8 |
-        Set-Content -LiteralPath $TemporaryOutput -Encoding utf8
-    if (Test-Path -LiteralPath $OutputPath -PathType Leaf) {
-        [IO.File]::Replace($TemporaryOutput, $OutputPath, $null)
-    }
-    else {
-        Move-Item -LiteralPath $TemporaryOutput -Destination $OutputPath
-    }
-}
-finally {
-    if (Test-Path -LiteralPath $TemporaryOutput) {
-        Remove-Item -LiteralPath $TemporaryOutput -Force
-    }
-}
+Write-M10AtomicPreflightReport -Report $Report -OutputPath $OutputPath
 
 Write-Host (
     "M10 non-elevated preflight verdict={0} checks={1} started={2} completed={3}" -f

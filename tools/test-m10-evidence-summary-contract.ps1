@@ -378,6 +378,8 @@ $PreflightCaptureSource = Get-Content -Raw -LiteralPath $PreflightCapture
 foreach ($Required in @(
         'schema_version = 2',
         'Invoke-RecordedCheck',
+        'Write-M10AtomicPreflightReport',
+        '[IO.File]::Replace($TemporaryOutput, $OutputPath, $BackupOutput)',
         'started_at = Convert-ToIsoTimestamp $RunStarted',
         'completed_at = Convert-ToIsoTimestamp $RunCompleted',
         'source commit/tree changed during the M10 preflight run',
@@ -393,6 +395,42 @@ foreach ($Required in @(
     )) {
     Require-Text $PreflightCaptureSource ([regex]::Escape($Required)) `
         "M10 preflight capture helper is missing measured-run marker: $Required"
+}
+$PreflightTokens = $null
+$PreflightParseErrors = $null
+$PreflightAst = [Management.Automation.Language.Parser]::ParseFile(
+    $PreflightCapture,
+    [ref]$PreflightTokens,
+    [ref]$PreflightParseErrors)
+$AtomicWriterAst = $PreflightAst.Find({
+        param($Node)
+        $Node -is [Management.Automation.Language.FunctionDefinitionAst] -and
+        $Node.Name -eq 'Write-M10AtomicPreflightReport'
+    }, $true)
+if (@($PreflightParseErrors).Count -ne 0 -or $null -eq $AtomicWriterAst) {
+    throw "M10 preflight capture helper has no parseable atomic writer."
+}
+Invoke-Expression $AtomicWriterAst.Extent.Text
+$AtomicWriterScratch = Join-Path $env:TEMP (
+    "yune-windows\m10-preflight-atomic-$PID-$([Guid]::NewGuid().ToString('N'))")
+try {
+    New-Item -Path $AtomicWriterScratch -ItemType Directory -Force | Out-Null
+    $AtomicWriterOutput = Join-Path $AtomicWriterScratch 'preflight.json'
+    Set-Content -LiteralPath $AtomicWriterOutput -Value '{"verdict":"old"}' `
+        -Encoding utf8
+    Write-M10AtomicPreflightReport `
+        -Report ([pscustomobject]@{ verdict = 'pass' }) `
+        -OutputPath $AtomicWriterOutput
+    $AtomicWriterResult = Get-Content -Raw -LiteralPath $AtomicWriterOutput |
+        ConvertFrom-Json
+    if ($AtomicWriterResult.verdict -ne 'pass' -or
+        @(Get-ChildItem -LiteralPath $AtomicWriterScratch -Force).Count -ne 1) {
+        throw "M10 preflight atomic writer did not replace an existing record cleanly."
+    }
+}
+finally {
+    Remove-Item -LiteralPath $AtomicWriterScratch -Recurse -Force `
+        -ErrorAction SilentlyContinue
 }
 
 $ToolbarSource = Get-Content -Raw -LiteralPath $ToolbarCapture

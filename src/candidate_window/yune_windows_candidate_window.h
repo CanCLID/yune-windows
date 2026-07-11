@@ -222,6 +222,12 @@ public:
     bool Update(const LanguageBarState& state, bool show);
     void Hide();
     void HideForSupersededFocus();
+    bool RequiresForegroundStateRefresh() const {
+        return foreground_state_refresh_required_;
+    }
+    void AcknowledgeForegroundStateRefresh() {
+        foreground_state_refresh_required_ = false;
+    }
     bool IsVisible() const {
         return hwnd_ && IsWindow(hwnd_) && IsWindowVisible(hwnd_);
     }
@@ -246,6 +252,7 @@ public:
 private:
     LRESULT HandleMessage(UINT message, WPARAM wparam, LPARAM lparam);
     bool ForegroundMatchesOwner() const;
+    void HideForForegroundLoss();
     void ClaimVisibleToolbar();
     void ReleaseVisibleToolbar();
     void QueueRender(bool layout_changed = false,
@@ -288,6 +295,7 @@ private:
     bool render_pending_ = false;
     bool layout_pending_ = false;
     bool surface_reset_pending_ = false;
+    bool foreground_state_refresh_required_ = false;
 #ifdef YUNE_WINDOWS_LANGUAGE_BAR_SMOKE_HOOKS
     unsigned long render_count_ = 0;
     bool ignore_activate_app_for_testing_ = false;

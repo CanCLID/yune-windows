@@ -25,7 +25,9 @@ constexpr DWORD kBackdropNone = 1;
 constexpr DWORD kBackdropTransientWindow = 3;
 constexpr UINT_PTR kToolbarForegroundTimerForSmoke = 0x59554e45;
 constexpr const wchar_t* kToolbarSupersededMessageName =
-    L"YuneWindows.ToolbarSuperseded.v1";
+    L"YuneWindows.ToolbarSuperseded.v1.Smoke";
+
+std::wstring g_language_bar_class_filter;
 
 struct BackdropCallTrace {
     HRESULT transient_result = S_OK;
@@ -157,8 +159,11 @@ BOOL CALLBACK FindLanguageBarWindowProc(HWND hwnd, LPARAM lparam) {
     wchar_t class_name[128] = {};
     GetClassNameW(hwnd, class_name, ARRAYSIZE(class_name));
     const std::wstring name(class_name);
-    if (name == L"YuneWindowsLanguageBar" ||
-        name.rfind(L"YuneWindowsLanguageBar_", 0) == 0) {
+    if ((!g_language_bar_class_filter.empty() &&
+         name == g_language_bar_class_filter) ||
+        (g_language_bar_class_filter.empty() &&
+         (name == L"YuneWindowsLanguageBar" ||
+          name.rfind(L"YuneWindowsLanguageBar_", 0) == 0))) {
         *reinterpret_cast<HWND*>(lparam) = hwnd;
         return FALSE;
     }
@@ -176,8 +181,11 @@ BOOL CALLBACK CollectLanguageBarWindowProc(HWND hwnd, LPARAM lparam) {
     wchar_t class_name[128] = {};
     GetClassNameW(hwnd, class_name, ARRAYSIZE(class_name));
     const std::wstring name(class_name);
-    if (name == L"YuneWindowsLanguageBar" ||
-        name.rfind(L"YuneWindowsLanguageBar_", 0) == 0) {
+    if ((!g_language_bar_class_filter.empty() &&
+         name == g_language_bar_class_filter) ||
+        (g_language_bar_class_filter.empty() &&
+         (name == L"YuneWindowsLanguageBar" ||
+          name.rfind(L"YuneWindowsLanguageBar_", 0) == 0))) {
         reinterpret_cast<std::vector<HWND>*>(lparam)->push_back(hwnd);
     }
     return TRUE;
@@ -475,14 +483,50 @@ bool RunCrossProcessSupersessionSmoke(
             std::cerr << "cross-process supersession message did not hide old toolbar\n";
             break;
         }
+        if (!toolbar.RequiresForegroundStateRefresh()) {
+            std::cerr << "cross-process supersession did not require a fresh state\n";
+            break;
+        }
 
-        if (!MakeForeground(owner, 1500) || !toolbar.Update(state, true)) {
-            std::cerr << "parent toolbar could not reclaim foreground visibility\n";
+        RECT hidden_rect = {};
+        GetWindowRect(bar_hwnd, &hidden_rect);
+        RECT owner_rect = {};
+        GetWindowRect(owner, &owner_rect);
+        yune_windows::LanguageBarState stale_state = state;
+        stale_state.toolbar_position = {
+            true, owner_rect.left + 8, owner_rect.top + 8};
+        if (!MakeForeground(owner, 1500) ||
+            !toolbar.Update(stale_state, true)) {
+            std::cerr << "parent toolbar stale reclaim update failed\n";
             break;
         }
         PumpMessages(100);
-        if (!IsWindowVisible(bar_hwnd) || IsWindowVisible(child_bar)) {
-            std::cerr << "parent reclaim did not supersede child toolbar\n";
+        RECT blocked_rect = {};
+        GetWindowRect(bar_hwnd, &blocked_rect);
+        if (IsWindowVisible(bar_hwnd) ||
+            toolbar.native_handle_for_testing() != bar_hwnd ||
+            blocked_rect.left != hidden_rect.left ||
+            blocked_rect.top != hidden_rect.top) {
+            std::cerr << "cross-process stale state moved or exposed parent toolbar\n";
+            break;
+        }
+
+        yune_windows::LanguageBarState fresh_state = state;
+        fresh_state.toolbar_position = {
+            true, owner_rect.left + 72, owner_rect.top + 72};
+        toolbar.AcknowledgeForegroundStateRefresh();
+        if (!toolbar.Update(fresh_state, true)) {
+            std::cerr << "parent toolbar fresh reclaim update failed\n";
+            break;
+        }
+        PumpMessages(100);
+        RECT refreshed_rect = {};
+        GetWindowRect(bar_hwnd, &refreshed_rect);
+        if (!IsWindowVisible(bar_hwnd) || IsWindowVisible(child_bar) ||
+            toolbar.native_handle_for_testing() != bar_hwnd ||
+            refreshed_rect.left != fresh_state.toolbar_position.x ||
+            refreshed_rect.top != fresh_state.toolbar_position.y) {
+            std::cerr << "fresh parent reclaim did not supersede child toolbar\n";
             break;
         }
 
@@ -862,6 +906,14 @@ int SelfTest() {
         DestroyWindow(owner);
         return 1;
     }
+    wchar_t smoke_class_name[128] = {};
+    if (!GetClassNameW(bar_hwnd, smoke_class_name,
+                       ARRAYSIZE(smoke_class_name))) {
+        std::cerr << "language bar smoke class could not be resolved\n";
+        DestroyWindow(owner);
+        return 1;
+    }
+    g_language_bar_class_filter = smoke_class_name;
     if (GetWindow(bar_hwnd, GW_OWNER) != owner) {
         std::cerr << "language bar did not retain its concrete owner\n";
         DestroyWindow(owner);
@@ -884,6 +936,10 @@ int SelfTest() {
             std::cerr << "same-process toolbar arbitration failed: visible="
                       << visible_count << " first=" << first_visible
                       << " second=" << second_visible
+                      << " first_refresh_required="
+                      << toolbar.RequiresForegroundStateRefresh()
+                      << " second_refresh_required="
+                      << second_toolbar.RequiresForegroundStateRefresh()
                       << " foreground=" << GetForegroundWindow()
                       << " owner=" << owner
                       << " first_owner=" << GetWindow(bar_hwnd, GW_OWNER)
@@ -896,6 +952,12 @@ int SelfTest() {
         }
         second_toolbar.Hide();
     }
+    if (!toolbar.RequiresForegroundStateRefresh()) {
+        std::cerr << "same-process supersession did not require a fresh state\n";
+        DestroyWindow(owner);
+        return 1;
+    }
+    toolbar.AcknowledgeForegroundStateRefresh();
     if (!toolbar.Update(state, true)) {
         std::cerr << "primary language bar did not reclaim visibility\n";
         DestroyWindow(owner);
@@ -1214,8 +1276,41 @@ int SelfTest() {
     }
     DestroyWindow(other_owner);
 
-    if (!MakeForeground(owner) || !toolbar.Update(state, true)) {
-        std::cerr << "toolbar did not recover after watchdog test\n";
+    RECT owner_rect = {};
+    GetWindowRect(owner, &owner_rect);
+    RECT hidden_rect = {};
+    GetWindowRect(bar_hwnd, &hidden_rect);
+    state.toolbar_position = {
+        true, owner_rect.left + 8, owner_rect.top + 8};
+    if (!MakeForeground(owner) || !toolbar.Update(state, true) ||
+        IsWindowVisible(bar_hwnd) ||
+        !toolbar.RequiresForegroundStateRefresh()) {
+        std::cerr << "stale cached toolbar position was shown before refresh\n";
+        DestroyWindow(owner);
+        return 1;
+    }
+    RECT blocked_rect = {};
+    GetWindowRect(bar_hwnd, &blocked_rect);
+    if (blocked_rect.left != hidden_rect.left ||
+        blocked_rect.top != hidden_rect.top) {
+        std::cerr << "stale cached toolbar position moved the hidden HWND\n";
+        DestroyWindow(owner);
+        return 1;
+    }
+
+    state.toolbar_position = {
+        true, owner_rect.left + 72, owner_rect.top + 72};
+    toolbar.AcknowledgeForegroundStateRefresh();
+    if (!toolbar.Update(state, true) || !IsWindowVisible(bar_hwnd)) {
+        std::cerr << "toolbar did not recover after fresh state acknowledgement\n";
+        DestroyWindow(owner);
+        return 1;
+    }
+    RECT refreshed_rect = {};
+    GetWindowRect(bar_hwnd, &refreshed_rect);
+    if (refreshed_rect.left != state.toolbar_position.x ||
+        refreshed_rect.top != state.toolbar_position.y) {
+        std::cerr << "toolbar did not apply the refreshed server position\n";
         DestroyWindow(owner);
         return 1;
     }

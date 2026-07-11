@@ -2386,6 +2386,35 @@ public:
             return;
         }
         (void)RefreshShiftHookForFocusedService(this);
+        if (language_bar_.RequiresForegroundStateRefresh()) {
+            // A window-level foreground loss can be observed without a TSF
+            // focus generation change. The old generation may therefore still
+            // look acknowledged even though another process just persisted a
+            // newer toolbar position. Refresh the already-running server and
+            // fail closed if it cannot answer; this watchdog must never launch
+            // the server merely to re-show UI.
+            // Resolve GetFocus/GetTop while the latch is still closed so a
+            // same-process foreground root change (or a replaced Explorer
+            // HWND) can update the cached owner without exposing stale state.
+            UpdateLanguageBar(nullptr);
+            if (!CachedToolbarOwnerMatchesForeground()) {
+                // An acknowledged snapshot does not need another 4 Hz query
+                // merely because GetFocus/GetTop has not exposed the new root
+                // yet. Keep reconciling locally on each tick. Only a
+                // same-process mismatch with lost acknowledgement needs the
+                // non-launching query to recover from a prior refresh failure.
+                if (!ForegroundRootBelongsToCurrentProcess() ||
+                    StateAcknowledgedForCurrentGeneration()) {
+                    language_bar_.Hide();
+                    return;
+                }
+            }
+            RefreshStateFromServer(nullptr,
+                                   RefreshStateMode::ExistingServerOnly);
+            if (language_bar_.RequiresForegroundStateRefresh()) {
+                return;
+            }
+        }
         if (!StateAcknowledgedForCurrentGeneration()) {
             RefreshStateFromServer(nullptr,
                                    RefreshStateMode::ExistingServerOnly);
@@ -2572,6 +2601,17 @@ private:
                                      ? kServerFocusRefreshTimeoutMs
                                      : kServerQueryTimeoutMs;
         (void)QueryOperation("op=get-state\n.\n", context, mode, timeout_ms);
+        if (mode == RefreshStateMode::ExistingServerOnly &&
+            StateAcknowledgedForCurrentGeneration() &&
+            language_bar_.RequiresForegroundStateRefresh() &&
+            CachedToolbarOwnerMatchesForeground()) {
+            // ReconcileState intentionally leaves the foreground-loss latch
+            // closed while it caches the fresh state and resolves its owner.
+            // Only this explicit non-launching refresh may reopen the show
+            // path, after which the freshly reconciled position is applied.
+            language_bar_.AcknowledgeForegroundStateRefresh();
+            UpdateLanguageBar(context);
+        }
     }
 
     void UpdateInputModeCompartment() {
@@ -2653,6 +2693,23 @@ private:
             owner_root = last_toolbar_owner_;
         }
         return owner_root == foreground_root;
+    }
+
+    bool ForegroundRootBelongsToCurrentProcess() const {
+        HWND foreground = GetForegroundWindow();
+        if (!foreground || !IsWindow(foreground)) {
+            return false;
+        }
+        HWND foreground_root = GetAncestor(foreground, GA_ROOTOWNER);
+        if (!foreground_root) {
+            foreground_root = foreground;
+        }
+        DWORD foreground_process_id = 0;
+        if (GetWindowThreadProcessId(foreground_root,
+                                     &foreground_process_id) == 0) {
+            return false;
+        }
+        return foreground_process_id == GetCurrentProcessId();
     }
 
     bool StateAcknowledgedForCurrentGeneration() const {
@@ -2801,6 +2858,12 @@ private:
                 ClearToolbarAnchorCache();
             }
             RecordToolbarVisibilityReason(reason, context_source);
+            language_bar_.Hide();
+            return;
+        }
+        if (language_bar_.RequiresForegroundStateRefresh()) {
+            RecordToolbarVisibilityReason(
+                "foreground_state_refresh_required", context_source);
             language_bar_.Hide();
             return;
         }

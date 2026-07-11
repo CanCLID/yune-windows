@@ -41,9 +41,17 @@ foreach ($Required in @(
         'set_ignore_activate_app_for_testing\(true\)',
         'activate_app_bypass_count_for_testing',
         'LanguageBarWindowsForProcess',
+        'g_language_bar_class_filter',
+        'YuneWindows\.ToolbarSuperseded\.v1\.Smoke',
         'WM_DPICHANGED',
         'WM_CANCELMODE',
         'DestroyWindow\(bar_hwnd\)',
+        'stale cached toolbar position was shown before refresh',
+        'cross-process stale state moved or exposed parent toolbar',
+        'cross-process supersession did not require a fresh state',
+        'same-process supersession did not require a fresh state',
+        'RequiresForegroundStateRefresh',
+        'AcknowledgeForegroundStateRefresh',
         'render_count_for_testing\(\) != 0',
         'render_count_for_testing\(\) != 1'
     )) {
@@ -74,6 +82,7 @@ foreach ($Required in @(
         'ReleaseCapture',
         'kLanguageBarDragThreshold',
         'YuneWindows\.ToolbarSuperseded\.v1',
+        'YuneWindows\.ToolbarSuperseded\.v1\.Smoke',
         'RegisterWindowMessageW',
         'SetTimer',
         'KillTimer',
@@ -90,6 +99,7 @@ foreach ($Required in @(
         'QueueRender',
         'FinishPointerInteraction',
         'HideForSupersededFocus',
+        'HideForForegroundLoss',
         'SWP_NOACTIVATE',
         'WM_LBUTTONUP',
         'WM_NCHITTEST',
@@ -100,6 +110,31 @@ foreach ($Required in @(
     if ($WindowSource -notmatch $Required) {
         throw "language bar window implementation missing pattern: $Required"
     }
+}
+
+$SupersessionHandler = [regex]::Match(
+    $WindowSource,
+    'if \(message == ToolbarSupersededMessage\(\)\) \{(?s:.*?)\n    \}').Value
+if (-not $SupersessionHandler -or
+    $SupersessionHandler -notmatch 'WindowOwnerMatchesForeground\(claimant\)' -or
+    $SupersessionHandler -notmatch 'HideForSupersededFocus\(\)') {
+    throw "validated cross-process supersession must latch a refresh before re-show."
+}
+
+$SupersessionHideBody = [regex]::Match(
+    $WindowSource,
+    'void LanguageBarWindow::HideForSupersededFocus\(\) \{(?s:.*?)\n\}').Value
+if (-not $SupersessionHideBody -or
+    $SupersessionHideBody -notmatch 'HideForForegroundLoss\(\)') {
+    throw "same-process and focused-service supersession must latch a refresh before re-show."
+}
+
+$UpdateBody = [regex]::Match(
+    $WindowSource,
+    'bool LanguageBarWindow::Update\(const LanguageBarState& state, bool show\) \{(?s:.*?)\n\}').Value
+if (-not $UpdateBody -or
+    $UpdateBody -notmatch 'if \(!ForegroundMatchesOwner\(\)\) \{\s*HideForForegroundLoss\(\);') {
+    throw "foreground-mismatched updates must latch a refresh before re-show."
 }
 
 foreach ($Forbidden in @(
@@ -140,11 +175,51 @@ foreach ($Required in @(
         'QueueSupersededFocus',
         'FocusedServiceWindowProc',
         'contextless_update',
-        'else if \(!contextless_update\)'
+        'else if \(!contextless_update\)',
+        'ForegroundRootBelongsToCurrentProcess'
     )) {
     if ($TsfSource -notmatch $Required) {
         throw "TSF source is missing language bar lifecycle/click wiring: $Required"
     }
+}
+
+$WatchdogBody = [regex]::Match(
+    $TsfSource,
+    'void HandleFocusedServiceWatchdog\(HWND dispatcher\) \{(?s:.*?)\n    \}').Value
+if (-not $WatchdogBody -or
+    $WatchdogBody -notmatch 'if \(language_bar_\.RequiresForegroundStateRefresh\(\)\) \{(?s:.*?)UpdateLanguageBar\(nullptr\);(?s:.*?)if \(!CachedToolbarOwnerMatchesForeground\(\)\) \{(?s:.*?)if \(!ForegroundRootBelongsToCurrentProcess\(\) \|\|\s*StateAcknowledgedForCurrentGeneration\(\)\) \{(?s:.*?)language_bar_\.Hide\(\);(?s:.*?)return;(?s:.*?)RefreshStateFromServer\(nullptr,\s*RefreshStateMode::ExistingServerOnly\)' -or
+    $WatchdogBody -notmatch 'RefreshStateFromServer\(nullptr,\s*RefreshStateMode::ExistingServerOnly\);\s*if \(language_bar_\.RequiresForegroundStateRefresh\(\)\) \{\s*return;' -or
+    $WatchdogBody -match 'RefreshStateMode::AllowLaunch') {
+    throw "focused-service watchdog must refresh an existing server and fail closed before foreground re-show."
+}
+
+$ForegroundProcessBody = [regex]::Match(
+    $TsfSource,
+    'bool ForegroundRootBelongsToCurrentProcess\(\) const \{(?s:.*?)\n    \}').Value
+if (-not $ForegroundProcessBody -or
+    $ForegroundProcessBody -notmatch 'GetForegroundWindow\(\)' -or
+    $ForegroundProcessBody -notmatch 'GetAncestor\(foreground, GA_ROOTOWNER\)' -or
+    $ForegroundProcessBody -notmatch 'GetWindowThreadProcessId\(foreground_root,\s*&foreground_process_id\)' -or
+    $ForegroundProcessBody -notmatch 'foreground_process_id == GetCurrentProcessId\(\)') {
+    throw "foreground retry discrimination must compare the foreground root PID with the current process."
+}
+
+$RefreshBody = [regex]::Match(
+    $TsfSource,
+    'void RefreshStateFromServer\((?s:.*?)\n    \}').Value
+foreach ($Required in @(
+        'mode == RefreshStateMode::ExistingServerOnly',
+        'RequiresForegroundStateRefresh\(\)',
+        'CachedToolbarOwnerMatchesForeground\(\)',
+        'AcknowledgeForegroundStateRefresh\(\)',
+        'UpdateLanguageBar\(context\)'
+    )) {
+    if (-not $RefreshBody -or $RefreshBody -notmatch $Required) {
+        throw "state refresh does not gate foreground toolbar reacquisition: $Required"
+    }
+}
+if ($RefreshBody -notmatch 'acknowledged_state_generation_ = 0;(?s:.*?)QueryOperation\("op=get-state\\n\.\\n", context, mode, timeout_ms\);(?s:.*?)if \(mode == RefreshStateMode::ExistingServerOnly &&\s*StateAcknowledgedForCurrentGeneration\(\) &&\s*language_bar_\.RequiresForegroundStateRefresh\(\) &&\s*CachedToolbarOwnerMatchesForeground\(\)\) \{(?s:.*?)language_bar_\.AcknowledgeForegroundStateRefresh\(\);\s*UpdateLanguageBar\(context\);') {
+    throw "foreground reacquisition must remain closed until the non-launching query is acknowledged, then apply only the fresh state."
 }
 
 $MoveBody = [regex]::Match(

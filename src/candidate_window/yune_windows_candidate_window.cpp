@@ -40,6 +40,10 @@ constexpr UINT_PTR kLanguageBarForegroundTimer = 0x59554e45;
 constexpr UINT kLanguageBarForegroundIntervalMs = 250;
 constexpr const wchar_t* kToolbarSupersededMessageName =
     L"YuneWindows.ToolbarSuperseded.v1";
+#ifdef YUNE_WINDOWS_LANGUAGE_BAR_SMOKE_HOOKS
+constexpr const wchar_t* kToolbarSupersededSmokeMessageName =
+    L"YuneWindows.ToolbarSuperseded.v1.Smoke";
+#endif
 
 #ifndef DWMWA_SYSTEMBACKDROP_TYPE
 #define DWMWA_SYSTEMBACKDROP_TYPE 38
@@ -98,7 +102,11 @@ const std::wstring& LanguageBarClassName() {
 
 UINT ToolbarSupersededMessage() {
     static const UINT message =
+#ifdef YUNE_WINDOWS_LANGUAGE_BAR_SMOKE_HOOKS
+        RegisterWindowMessageW(kToolbarSupersededSmokeMessageName);
+#else
         RegisterWindowMessageW(kToolbarSupersededMessageName);
+#endif
     return message;
 }
 
@@ -1680,6 +1688,15 @@ bool LanguageBarWindow::Update(const LanguageBarState& state, bool show) {
         Hide();
         return true;
     }
+    if (foreground_state_refresh_required_) {
+        // WM_ACTIVATEAPP and the foreground watchdog can hide this HWND without
+        // delivering a matching TSF focus transition. Do not briefly expose
+        // the last per-process server snapshot when the owner regains the
+        // foreground; the TSF service must acknowledge an ExistingServerOnly
+        // refresh first.
+        Hide();
+        return true;
+    }
     if ((pointer_captured_ || finishing_pointer_interaction_) &&
         owner_ != state_.owner) {
         // Ownership changes mean focus moved. Finish the old drag before any
@@ -1690,7 +1707,7 @@ bool LanguageBarWindow::Update(const LanguageBarState& state, bool show) {
         return false;
     }
     if (!ForegroundMatchesOwner()) {
-        Hide();
+        HideForForegroundLoss();
         return true;
     }
 
@@ -1740,6 +1757,11 @@ void LanguageBarWindow::Hide() {
 }
 
 void LanguageBarWindow::HideForSupersededFocus() {
+    HideForForegroundLoss();
+}
+
+void LanguageBarWindow::HideForForegroundLoss() {
+    foreground_state_refresh_required_ = true;
     Hide();
 }
 
@@ -1837,7 +1859,7 @@ LRESULT LanguageBarWindow::HandleMessage(UINT message, WPARAM wparam,
         if (claimant && claimant != hwnd_ &&
             IsLanguageBarWindow(claimant) &&
             WindowOwnerMatchesForeground(claimant)) {
-            Hide();
+            HideForSupersededFocus();
         }
         return 0;
     }
@@ -1877,13 +1899,13 @@ LRESULT LanguageBarWindow::HandleMessage(UINT message, WPARAM wparam,
                     return 0;
                 }
 #endif
-                Hide();
+                HideForForegroundLoss();
             }
             return 0;
         case WM_TIMER:
             if (wparam == kLanguageBarForegroundTimer &&
                 !ForegroundMatchesOwner()) {
-                Hide();
+                HideForForegroundLoss();
             }
             return 0;
         case WM_MOUSEACTIVATE:

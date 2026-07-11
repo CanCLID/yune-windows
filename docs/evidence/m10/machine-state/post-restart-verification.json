@@ -1,0 +1,965 @@
+﻿{
+    "schema_version":  1,
+    "operation":  "m10_frozen_candidate_post_restart_verify",
+    "captured_at":  "2026-07-10T17:50:13.7872773-07:00",
+    "privacy_note":  "Records artifact hashes, boot time, verifier provenance, registration state, process identity/path/start time, and module sizes only; no window titles, typed text, composition text, or arbitrary keystrokes are read.",
+    "tooling":  {
+                    "verifier_script_path":  "C:\\Users\\laubonghaudoi\\Documents\\GitHub\\yune-windows\\tools\\dev\\verify-m10-frozen-candidate.ps1",
+                    "verifier_repo_relative_path":  "tools/dev/verify-m10-frozen-candidate.ps1",
+                    "verifier_script_sha256":  "CED9BF31F6A13B396CAAA06088D74C36C3385831F96D9BA3215118F1EC667597",
+                    "repository_root":  "C:\\Users\\laubonghaudoi\\Documents\\GitHub\\yune-windows",
+                    "repository_detected":  true,
+                    "tooling_source_commit":  "b81252312f030ab159a61faf15d4a2b93f56787b",
+                    "tooling_source_commit_known":  true,
+                    "verifier_matches_tooling_commit":  true,
+                    "working_tree_clean":  true,
+                    "git_query_error":  ""
+                },
+    "restart_boundary":  {
+                             "query_method":  "Win32_OperatingSystem.LastBootUpTime",
+                             "query_succeeded":  true,
+                             "query_error":  "",
+                             "last_boot_up_time":  "2026-07-10T17:46:10.5000000-07:00",
+                             "boot_time_known":  true,
+                             "booted_strictly_after_deployment":  true,
+                             "proof_complete":  true
+                         },
+    "candidate":  {
+                      "manifest_path":  "C:\\Users\\laubonghaudoi\\Documents\\GitHub\\yune-windows\\docs\\evidence\\m10\\machine-state\\frozen-candidate.json",
+                      "manifest_sha256":  "CFC5AA4D0F0115C69E97CB1A9F854983928171C2814E057D8CFFA33B8E082E2C",
+                      "deployment_status":  "deployed_restart_required",
+                      "deployment_error":  "",
+                      "deployment_performed":  true,
+                      "rollback_attempted":  false,
+                      "rollback_complete":  false,
+                      "source_expected_commit":  "7622305322a8ec6a45e2d2e36fd8c245232f60a2",
+                      "source_actual_commit":  "7622305322a8ec6a45e2d2e36fd8c245232f60a2",
+                      "source_clean":  true,
+                      "source_post_build_verified":  true,
+                      "package_post_build_verified":  true,
+                      "build_output_dir":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Temp\\yune-windows\\m10-frozen-candidate-34048-e4ae6b61\\build",
+                      "tsf_pe_size_of_image":  614400,
+                      "deployment_started_at":  "2026-07-10T10:39:46.5769968-07:00",
+                      "deployment_completed_at":  "2026-07-10T10:39:46.8545101-07:00",
+                      "deployment_completed_at_valid":  true
+                  },
+    "installed":  {
+                      "install_dir":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Yune\\WindowsIme",
+                      "artifacts":  [
+                                        {
+                                            "name":  "server",
+                                            "path":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Yune\\WindowsIme\\YuneWindowsServer.exe",
+                                            "exists":  true,
+                                            "length":  461312,
+                                            "expected_sha256":  "8A44966E6EF5BCC0CABC7E746C48ADF2335F742653E65034A15503DB17E3678A",
+                                            "actual_sha256":  "8A44966E6EF5BCC0CABC7E746C48ADF2335F742653E65034A15503DB17E3678A",
+                                            "matches_candidate":  true
+                                        },
+                                        {
+                                            "name":  "tsf",
+                                            "path":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Yune\\WindowsIme\\YuneWindowsTSF.dll",
+                                            "exists":  true,
+                                            "length":  589824,
+                                            "expected_sha256":  "1171840861AD47B01E20BEFA07B3830BA64CF6C7C7A6C54FF3CBD1F169A4D8E4",
+                                            "actual_sha256":  "1171840861AD47B01E20BEFA07B3830BA64CF6C7C7A6C54FF3CBD1F169A4D8E4",
+                                            "matches_candidate":  true
+                                        },
+                                        {
+                                            "name":  "settings",
+                                            "path":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Yune\\WindowsIme\\YuneWindowsSettings.exe",
+                                            "exists":  true,
+                                            "length":  530432,
+                                            "expected_sha256":  "277CE8763B2E27A64D377CE6EAEED914131FDAE9BBBAFA05EC99BF9A01920888",
+                                            "actual_sha256":  "277CE8763B2E27A64D377CE6EAEED914131FDAE9BBBAFA05EC99BF9A01920888",
+                                            "matches_candidate":  true
+                                        },
+                                        {
+                                            "name":  "profile",
+                                            "path":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Yune\\WindowsIme\\YuneWindowsProfileTool.exe",
+                                            "exists":  true,
+                                            "length":  282112,
+                                            "expected_sha256":  "86FE3D9BA6221B584366C69055D541CFC6DBAA574019120A242C550C0BDAA0AB",
+                                            "actual_sha256":  "86FE3D9BA6221B584366C69055D541CFC6DBAA574019120A242C550C0BDAA0AB",
+                                            "matches_candidate":  true
+                                        },
+                                        {
+                                            "name":  "default_skin",
+                                            "path":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Yune\\WindowsIme\\skins\\default\\theme.json",
+                                            "exists":  true,
+                                            "length":  715,
+                                            "expected_sha256":  "D7771F05AEB1F4D4DFFDA809073E2FAC75D17810F130D4D0D2AF9D6950DF6C6F",
+                                            "actual_sha256":  "D7771F05AEB1F4D4DFFDA809073E2FAC75D17810F130D4D0D2AF9D6950DF6C6F",
+                                            "matches_candidate":  true
+                                        },
+                                        {
+                                            "name":  "rime",
+                                            "path":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Yune\\WindowsIme\\rime.dll",
+                                            "exists":  true,
+                                            "length":  3428864,
+                                            "expected_sha256":  "179ABE5EEF0BEE62C22D21CBC7EB2E29EE160C1EB606EF4D2B671ED0460E68D5",
+                                            "actual_sha256":  "179ABE5EEF0BEE62C22D21CBC7EB2E29EE160C1EB606EF4D2B671ED0460E68D5",
+                                            "matches_candidate":  true
+                                        }
+                                    ],
+                      "tsf_pe_size_of_image":  614400,
+                      "pending_delete":  {
+                                             "read_succeeded":  true,
+                                             "read_error":  "",
+                                             "install_root_entry_count":  0,
+                                             "install_root_entries":  [
+
+                                                                      ]
+                                         },
+                      "profile":  {
+                                      "available":  true,
+                                      "query_succeeded":  true,
+                                      "registered":  true,
+                                      "active":  true,
+                                      "langid":  3076,
+                                      "profile_guid":  "{3AE69B8D-19B4-4267-8F21-E239666D6632}",
+                                      "clsid":  "{1788DBA7-CC9A-49E2-9C4C-E9DBF0BE2567}",
+                                      "error":  ""
+                                  },
+                      "com_registration":  {
+                                               "key_path":  "Registry::HKEY_CLASSES_ROOT\\CLSID\\{1788DBA7-CC9A-49E2-9C4C-E9DBF0BE2567}\\InprocServer32",
+                                               "key_exists":  true,
+                                               "registered_path":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Yune\\WindowsIme\\YuneWindowsTSF.dll",
+                                               "expected_path":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Yune\\WindowsIme\\YuneWindowsTSF.dll",
+                                               "path_matches":  true,
+                                               "threading_model":  "Apartment",
+                                               "error":  ""
+                                           },
+                      "aside_entry_count":  10,
+                      "aside_entries":  [
+                                            {
+                                                "name":  "skins.m10-old-20260710-012746-cea6bcd2",
+                                                "is_directory":  true,
+                                                "length":  0
+                                            },
+                                            {
+                                                "name":  "skins.m10-old-20260710-103946-764c3a7c",
+                                                "is_directory":  true,
+                                                "length":  0
+                                            },
+                                            {
+                                                "name":  "YuneWindowsProfileTool.exe.m10-old-20260710-012746-cea6bcd2",
+                                                "is_directory":  false,
+                                                "length":  282112
+                                            },
+                                            {
+                                                "name":  "YuneWindowsProfileTool.exe.m10-old-20260710-103946-764c3a7c",
+                                                "is_directory":  false,
+                                                "length":  282112
+                                            },
+                                            {
+                                                "name":  "YuneWindowsServer.exe.m10-old-20260710-012746-cea6bcd2",
+                                                "is_directory":  false,
+                                                "length":  444416
+                                            },
+                                            {
+                                                "name":  "YuneWindowsServer.exe.m10-old-20260710-103946-764c3a7c",
+                                                "is_directory":  false,
+                                                "length":  459264
+                                            },
+                                            {
+                                                "name":  "YuneWindowsSettings.exe.m10-old-20260710-012746-cea6bcd2",
+                                                "is_directory":  false,
+                                                "length":  465408
+                                            },
+                                            {
+                                                "name":  "YuneWindowsSettings.exe.m10-old-20260710-103946-764c3a7c",
+                                                "is_directory":  false,
+                                                "length":  523264
+                                            },
+                                            {
+                                                "name":  "YuneWindowsTSF.dll.m10-old-20260710-012746-cea6bcd2",
+                                                "is_directory":  false,
+                                                "length":  549888
+                                            },
+                                            {
+                                                "name":  "YuneWindowsTSF.dll.m10-old-20260710-103946-764c3a7c",
+                                                "is_directory":  false,
+                                                "length":  589824
+                                            }
+                                        ]
+                  },
+    "holders":  {
+                    "allow_no_holders":  false,
+                    "coverage_complete":  true,
+                    "current_session_inventory_complete":  false,
+                    "coverage":  {
+                                     "scope":  "targeted_yune_tsf_modules_plus_current_session_inventory",
+                                     "session_id":  1,
+                                     "methods":  [
+                                                     "managed_process_modules",
+                                                     "native_psapi_fallback",
+                                                     "targeted_tasklist_module_filter"
+                                                 ],
+                                     "targeted_scan":  {
+                                                           "method":  "targeted_tasklist_module_filter",
+                                                           "query_succeeded":  true,
+                                                           "query_error":  "",
+                                                           "process_count":  6,
+                                                           "processes":  [
+                                                                             {
+                                                                                 "process_id":  11248,
+                                                                                 "process_name":  "explorer",
+                                                                                 "reported_modules":  "YuneWindowsTSF.dll"
+                                                                             },
+                                                                             {
+                                                                                 "process_id":  12612,
+                                                                                 "process_name":  "Widgets",
+                                                                                 "reported_modules":  "YuneWindowsTSF.dll"
+                                                                             },
+                                                                             {
+                                                                                 "process_id":  2412,
+                                                                                 "process_name":  "NVIDIA Overlay",
+                                                                                 "reported_modules":  "YuneWindowsTSF.dll"
+                                                                             },
+                                                                             {
+                                                                                 "process_id":  18332,
+                                                                                 "process_name":  "ChatGPT",
+                                                                                 "reported_modules":  "YuneWindowsTSF.dll"
+                                                                             },
+                                                                             {
+                                                                                 "process_id":  21296,
+                                                                                 "process_name":  "msedgewebview2",
+                                                                                 "reported_modules":  "YuneWindowsTSF.dll"
+                                                                             },
+                                                                             {
+                                                                                 "process_id":  23832,
+                                                                                 "process_name":  "claude",
+                                                                                 "reported_modules":  "YuneWindowsTSF.dll"
+                                                                             }
+                                                                         ],
+                                                           "informational_output":  [
+
+                                                                                    ]
+                                                       },
+                                     "targeted_coverage_complete":  true,
+                                     "targeted_unresolved_count":  0,
+                                     "targeted_unresolved":  [
+
+                                                             ],
+                                     "total_processes_considered":  216,
+                                     "module_enumeration_succeeded":  172,
+                                     "managed_enumeration_accepted":  172,
+                                     "suspicious_managed_module_count":  14,
+                                     "native_fallback_attempted":  14,
+                                     "native_fallback_succeeded":  0,
+                                     "exited_before_enumeration_count":  30,
+                                     "module_enumeration_failure_count":  14,
+                                     "current_session_inventory_complete":  false,
+                                     "coverage_incomplete":  false,
+                                     "exited_before_enumeration":  [
+                                                                       {
+                                                                           "process_id":  9444,
+                                                                           "process_name":  "git",
+                                                                           "targeted_by_tasklist":  false,
+                                                                           "category":  "process_exited"
+                                                                       },
+                                                                       {
+                                                                           "process_id":  21508,
+                                                                           "process_name":  "git",
+                                                                           "targeted_by_tasklist":  false,
+                                                                           "category":  "process_exited"
+                                                                       },
+                                                                       {
+                                                                           "process_id":  7704,
+                                                                           "process_name":  "git",
+                                                                           "targeted_by_tasklist":  false,
+                                                                           "category":  "process_exited"
+                                                                       },
+                                                                       {
+                                                                           "process_id":  7700,
+                                                                           "process_name":  "git",
+                                                                           "targeted_by_tasklist":  false,
+                                                                           "category":  "process_exited"
+                                                                       },
+                                                                       {
+                                                                           "process_id":  10712,
+                                                                           "process_name":  "git",
+                                                                           "targeted_by_tasklist":  false,
+                                                                           "category":  "process_exited"
+                                                                       },
+                                                                       {
+                                                                           "process_id":  14132,
+                                                                           "process_name":  "git",
+                                                                           "targeted_by_tasklist":  false,
+                                                                           "category":  "process_exited"
+                                                                       },
+                                                                       {
+                                                                           "process_id":  4208,
+                                                                           "process_name":  "git",
+                                                                           "targeted_by_tasklist":  false,
+                                                                           "category":  "process_exited"
+                                                                       },
+                                                                       {
+                                                                           "process_id":  22604,
+                                                                           "process_name":  "git",
+                                                                           "targeted_by_tasklist":  false,
+                                                                           "category":  "process_exited"
+                                                                       },
+                                                                       {
+                                                                           "process_id":  24876,
+                                                                           "process_name":  "conhost",
+                                                                           "targeted_by_tasklist":  false,
+                                                                           "category":  "process_exited"
+                                                                       },
+                                                                       {
+                                                                           "process_id":  2684,
+                                                                           "process_name":  "git",
+                                                                           "targeted_by_tasklist":  false,
+                                                                           "category":  "process_exited"
+                                                                       },
+                                                                       {
+                                                                           "process_id":  8648,
+                                                                           "process_name":  "git",
+                                                                           "targeted_by_tasklist":  false,
+                                                                           "category":  "process_exited"
+                                                                       },
+                                                                       {
+                                                                           "process_id":  20508,
+                                                                           "process_name":  "git",
+                                                                           "targeted_by_tasklist":  false,
+                                                                           "category":  "process_exited"
+                                                                       },
+                                                                       {
+                                                                           "process_id":  5852,
+                                                                           "process_name":  "git",
+                                                                           "targeted_by_tasklist":  false,
+                                                                           "category":  "process_exited"
+                                                                       },
+                                                                       {
+                                                                           "process_id":  20980,
+                                                                           "process_name":  "git",
+                                                                           "targeted_by_tasklist":  false,
+                                                                           "category":  "process_exited"
+                                                                       },
+                                                                       {
+                                                                           "process_id":  18324,
+                                                                           "process_name":  "git",
+                                                                           "targeted_by_tasklist":  false,
+                                                                           "category":  "process_exited"
+                                                                       },
+                                                                       {
+                                                                           "process_id":  4960,
+                                                                           "process_name":  "git",
+                                                                           "targeted_by_tasklist":  false,
+                                                                           "category":  "process_exited"
+                                                                       },
+                                                                       {
+                                                                           "process_id":  13132,
+                                                                           "process_name":  "git",
+                                                                           "targeted_by_tasklist":  false,
+                                                                           "category":  "process_exited"
+                                                                       },
+                                                                       {
+                                                                           "process_id":  24764,
+                                                                           "process_name":  "powershell",
+                                                                           "targeted_by_tasklist":  false,
+                                                                           "category":  "process_exited"
+                                                                       },
+                                                                       {
+                                                                           "process_id":  3620,
+                                                                           "process_name":  "git",
+                                                                           "targeted_by_tasklist":  false,
+                                                                           "category":  "process_exited"
+                                                                       },
+                                                                       {
+                                                                           "process_id":  20852,
+                                                                           "process_name":  "git",
+                                                                           "targeted_by_tasklist":  false,
+                                                                           "category":  "process_exited"
+                                                                       },
+                                                                       {
+                                                                           "process_id":  11460,
+                                                                           "process_name":  "git",
+                                                                           "targeted_by_tasklist":  false,
+                                                                           "category":  "process_exited"
+                                                                       },
+                                                                       {
+                                                                           "process_id":  7900,
+                                                                           "process_name":  "git",
+                                                                           "targeted_by_tasklist":  false,
+                                                                           "category":  "process_exited"
+                                                                       },
+                                                                       {
+                                                                           "process_id":  3128,
+                                                                           "process_name":  "git",
+                                                                           "targeted_by_tasklist":  false,
+                                                                           "category":  "process_exited"
+                                                                       },
+                                                                       {
+                                                                           "process_id":  8724,
+                                                                           "process_name":  "git",
+                                                                           "targeted_by_tasklist":  false,
+                                                                           "category":  "process_exited"
+                                                                       },
+                                                                       {
+                                                                           "process_id":  16628,
+                                                                           "process_name":  "git",
+                                                                           "targeted_by_tasklist":  false,
+                                                                           "category":  "process_exited"
+                                                                       },
+                                                                       {
+                                                                           "process_id":  11704,
+                                                                           "process_name":  "git",
+                                                                           "targeted_by_tasklist":  false,
+                                                                           "category":  "process_exited"
+                                                                       },
+                                                                       {
+                                                                           "process_id":  3116,
+                                                                           "process_name":  "git",
+                                                                           "targeted_by_tasklist":  false,
+                                                                           "category":  "process_exited"
+                                                                       },
+                                                                       {
+                                                                           "process_id":  2640,
+                                                                           "process_name":  "git",
+                                                                           "targeted_by_tasklist":  false,
+                                                                           "category":  "process_exited"
+                                                                       },
+                                                                       {
+                                                                           "process_id":  9096,
+                                                                           "process_name":  "git",
+                                                                           "targeted_by_tasklist":  false,
+                                                                           "category":  "process_exited"
+                                                                       },
+                                                                       {
+                                                                           "process_id":  7344,
+                                                                           "process_name":  "git",
+                                                                           "targeted_by_tasklist":  false,
+                                                                           "category":  "process_exited"
+                                                                       }
+                                                                   ],
+                                     "fallback_attempts":  [
+                                                               {
+                                                                   "process_id":  2992,
+                                                                   "process_name":  "CefSharp.BrowserSubprocess",
+                                                                   "targeted_by_tasklist":  false,
+                                                                   "trigger":  "suspicious_managed_module_count",
+                                                                   "managed_module_count":  1,
+                                                                   "managed_error":  "",
+                                                                   "fallback_method":  "native_psapi_fallback",
+                                                                   "fallback_succeeded":  false,
+                                                                   "fallback_module_count":  0,
+                                                                   "fallback_error_stage":  "OpenProcess",
+                                                                   "fallback_error_code":  5,
+                                                                   "fallback_error_message":  "Access is denied"
+                                                               },
+                                                               {
+                                                                   "process_id":  1544,
+                                                                   "process_name":  "winlogon",
+                                                                   "targeted_by_tasklist":  false,
+                                                                   "trigger":  "suspicious_managed_module_count",
+                                                                   "managed_module_count":  1,
+                                                                   "managed_error":  "",
+                                                                   "fallback_method":  "native_psapi_fallback",
+                                                                   "fallback_succeeded":  false,
+                                                                   "fallback_module_count":  0,
+                                                                   "fallback_error_stage":  "OpenProcess",
+                                                                   "fallback_error_code":  5,
+                                                                   "fallback_error_message":  "Access is denied"
+                                                               },
+                                                               {
+                                                                   "process_id":  7384,
+                                                                   "process_name":  "nvcontainer",
+                                                                   "targeted_by_tasklist":  false,
+                                                                   "trigger":  "suspicious_managed_module_count",
+                                                                   "managed_module_count":  1,
+                                                                   "managed_error":  "",
+                                                                   "fallback_method":  "native_psapi_fallback",
+                                                                   "fallback_succeeded":  false,
+                                                                   "fallback_module_count":  0,
+                                                                   "fallback_error_stage":  "OpenProcess",
+                                                                   "fallback_error_code":  5,
+                                                                   "fallback_error_message":  "Access is denied"
+                                                               },
+                                                               {
+                                                                   "process_id":  11904,
+                                                                   "process_name":  "ctfmon",
+                                                                   "targeted_by_tasklist":  false,
+                                                                   "trigger":  "suspicious_managed_module_count",
+                                                                   "managed_module_count":  1,
+                                                                   "managed_error":  "",
+                                                                   "fallback_method":  "native_psapi_fallback",
+                                                                   "fallback_succeeded":  false,
+                                                                   "fallback_module_count":  0,
+                                                                   "fallback_error_stage":  "OpenProcess",
+                                                                   "fallback_error_code":  5,
+                                                                   "fallback_error_message":  "Access is denied"
+                                                               },
+                                                               {
+                                                                   "process_id":  2016,
+                                                                   "process_name":  "dwm",
+                                                                   "targeted_by_tasklist":  false,
+                                                                   "trigger":  "suspicious_managed_module_count",
+                                                                   "managed_module_count":  1,
+                                                                   "managed_error":  "",
+                                                                   "fallback_method":  "native_psapi_fallback",
+                                                                   "fallback_succeeded":  false,
+                                                                   "fallback_module_count":  0,
+                                                                   "fallback_error_stage":  "OpenProcess",
+                                                                   "fallback_error_code":  5,
+                                                                   "fallback_error_message":  "Access is denied"
+                                                               },
+                                                               {
+                                                                   "process_id":  22692,
+                                                                   "process_name":  "taskhostw",
+                                                                   "targeted_by_tasklist":  false,
+                                                                   "trigger":  "suspicious_managed_module_count",
+                                                                   "managed_module_count":  1,
+                                                                   "managed_error":  "",
+                                                                   "fallback_method":  "native_psapi_fallback",
+                                                                   "fallback_succeeded":  false,
+                                                                   "fallback_module_count":  0,
+                                                                   "fallback_error_stage":  "OpenProcess",
+                                                                   "fallback_error_code":  5,
+                                                                   "fallback_error_message":  "Access is denied"
+                                                               },
+                                                               {
+                                                                   "process_id":  15332,
+                                                                   "process_name":  "nvsphelper64",
+                                                                   "targeted_by_tasklist":  false,
+                                                                   "trigger":  "suspicious_managed_module_count",
+                                                                   "managed_module_count":  1,
+                                                                   "managed_error":  "",
+                                                                   "fallback_method":  "native_psapi_fallback",
+                                                                   "fallback_succeeded":  false,
+                                                                   "fallback_module_count":  0,
+                                                                   "fallback_error_stage":  "OpenProcess",
+                                                                   "fallback_error_code":  5,
+                                                                   "fallback_error_message":  "Access is denied"
+                                                               },
+                                                               {
+                                                                   "process_id":  4256,
+                                                                   "process_name":  "NVDisplay.Container",
+                                                                   "targeted_by_tasklist":  false,
+                                                                   "trigger":  "suspicious_managed_module_count",
+                                                                   "managed_module_count":  1,
+                                                                   "managed_error":  "",
+                                                                   "fallback_method":  "native_psapi_fallback",
+                                                                   "fallback_succeeded":  false,
+                                                                   "fallback_module_count":  0,
+                                                                   "fallback_error_stage":  "OpenProcess",
+                                                                   "fallback_error_code":  5,
+                                                                   "fallback_error_message":  "Access is denied"
+                                                               },
+                                                               {
+                                                                   "process_id":  1448,
+                                                                   "process_name":  "csrss",
+                                                                   "targeted_by_tasklist":  false,
+                                                                   "trigger":  "suspicious_managed_module_count",
+                                                                   "managed_module_count":  1,
+                                                                   "managed_error":  "",
+                                                                   "fallback_method":  "native_psapi_fallback",
+                                                                   "fallback_succeeded":  false,
+                                                                   "fallback_module_count":  0,
+                                                                   "fallback_error_stage":  "OpenProcess",
+                                                                   "fallback_error_code":  5,
+                                                                   "fallback_error_message":  "Access is denied"
+                                                               },
+                                                               {
+                                                                   "process_id":  7844,
+                                                                   "process_name":  "CefSharp.BrowserSubprocess",
+                                                                   "targeted_by_tasklist":  false,
+                                                                   "trigger":  "suspicious_managed_module_count",
+                                                                   "managed_module_count":  1,
+                                                                   "managed_error":  "",
+                                                                   "fallback_method":  "native_psapi_fallback",
+                                                                   "fallback_succeeded":  false,
+                                                                   "fallback_module_count":  0,
+                                                                   "fallback_error_stage":  "OpenProcess",
+                                                                   "fallback_error_code":  5,
+                                                                   "fallback_error_message":  "Access is denied"
+                                                               },
+                                                               {
+                                                                   "process_id":  4128,
+                                                                   "process_name":  "CefSharp.BrowserSubprocess",
+                                                                   "targeted_by_tasklist":  false,
+                                                                   "trigger":  "suspicious_managed_module_count",
+                                                                   "managed_module_count":  1,
+                                                                   "managed_error":  "",
+                                                                   "fallback_method":  "native_psapi_fallback",
+                                                                   "fallback_succeeded":  false,
+                                                                   "fallback_module_count":  0,
+                                                                   "fallback_error_stage":  "OpenProcess",
+                                                                   "fallback_error_code":  5,
+                                                                   "fallback_error_message":  "Access is denied"
+                                                               },
+                                                               {
+                                                                   "process_id":  1792,
+                                                                   "process_name":  "fontdrvhost",
+                                                                   "targeted_by_tasklist":  false,
+                                                                   "trigger":  "suspicious_managed_module_count",
+                                                                   "managed_module_count":  1,
+                                                                   "managed_error":  "",
+                                                                   "fallback_method":  "native_psapi_fallback",
+                                                                   "fallback_succeeded":  false,
+                                                                   "fallback_module_count":  0,
+                                                                   "fallback_error_stage":  "OpenProcess",
+                                                                   "fallback_error_code":  5,
+                                                                   "fallback_error_message":  "Access is denied"
+                                                               },
+                                                               {
+                                                                   "process_id":  6948,
+                                                                   "process_name":  "L-Connect 3",
+                                                                   "targeted_by_tasklist":  false,
+                                                                   "trigger":  "suspicious_managed_module_count",
+                                                                   "managed_module_count":  1,
+                                                                   "managed_error":  "",
+                                                                   "fallback_method":  "native_psapi_fallback",
+                                                                   "fallback_succeeded":  false,
+                                                                   "fallback_module_count":  0,
+                                                                   "fallback_error_stage":  "OpenProcess",
+                                                                   "fallback_error_code":  5,
+                                                                   "fallback_error_message":  "Access is denied"
+                                                               },
+                                                               {
+                                                                   "process_id":  3456,
+                                                                   "process_name":  "atieclxx",
+                                                                   "targeted_by_tasklist":  false,
+                                                                   "trigger":  "suspicious_managed_module_count",
+                                                                   "managed_module_count":  1,
+                                                                   "managed_error":  "",
+                                                                   "fallback_method":  "native_psapi_fallback",
+                                                                   "fallback_succeeded":  false,
+                                                                   "fallback_module_count":  0,
+                                                                   "fallback_error_stage":  "OpenProcess",
+                                                                   "fallback_error_code":  5,
+                                                                   "fallback_error_message":  "Access is denied"
+                                                               }
+                                                           ],
+                                     "enumeration_failures":  [
+                                                                  {
+                                                                      "process_id":  2992,
+                                                                      "process_name":  "CefSharp.BrowserSubprocess",
+                                                                      "targeted_by_tasklist":  false,
+                                                                      "category":  "suspicious_partial_enumeration_native_fallback_failed",
+                                                                      "managed_module_count":  1,
+                                                                      "managed_error":  "",
+                                                                      "fallback_method":  "native_psapi_fallback",
+                                                                      "fallback_error_stage":  "OpenProcess",
+                                                                      "fallback_error_code":  5,
+                                                                      "fallback_error_message":  "Access is denied"
+                                                                  },
+                                                                  {
+                                                                      "process_id":  1544,
+                                                                      "process_name":  "winlogon",
+                                                                      "targeted_by_tasklist":  false,
+                                                                      "category":  "suspicious_partial_enumeration_native_fallback_failed",
+                                                                      "managed_module_count":  1,
+                                                                      "managed_error":  "",
+                                                                      "fallback_method":  "native_psapi_fallback",
+                                                                      "fallback_error_stage":  "OpenProcess",
+                                                                      "fallback_error_code":  5,
+                                                                      "fallback_error_message":  "Access is denied"
+                                                                  },
+                                                                  {
+                                                                      "process_id":  7384,
+                                                                      "process_name":  "nvcontainer",
+                                                                      "targeted_by_tasklist":  false,
+                                                                      "category":  "suspicious_partial_enumeration_native_fallback_failed",
+                                                                      "managed_module_count":  1,
+                                                                      "managed_error":  "",
+                                                                      "fallback_method":  "native_psapi_fallback",
+                                                                      "fallback_error_stage":  "OpenProcess",
+                                                                      "fallback_error_code":  5,
+                                                                      "fallback_error_message":  "Access is denied"
+                                                                  },
+                                                                  {
+                                                                      "process_id":  11904,
+                                                                      "process_name":  "ctfmon",
+                                                                      "targeted_by_tasklist":  false,
+                                                                      "category":  "suspicious_partial_enumeration_native_fallback_failed",
+                                                                      "managed_module_count":  1,
+                                                                      "managed_error":  "",
+                                                                      "fallback_method":  "native_psapi_fallback",
+                                                                      "fallback_error_stage":  "OpenProcess",
+                                                                      "fallback_error_code":  5,
+                                                                      "fallback_error_message":  "Access is denied"
+                                                                  },
+                                                                  {
+                                                                      "process_id":  2016,
+                                                                      "process_name":  "dwm",
+                                                                      "targeted_by_tasklist":  false,
+                                                                      "category":  "suspicious_partial_enumeration_native_fallback_failed",
+                                                                      "managed_module_count":  1,
+                                                                      "managed_error":  "",
+                                                                      "fallback_method":  "native_psapi_fallback",
+                                                                      "fallback_error_stage":  "OpenProcess",
+                                                                      "fallback_error_code":  5,
+                                                                      "fallback_error_message":  "Access is denied"
+                                                                  },
+                                                                  {
+                                                                      "process_id":  22692,
+                                                                      "process_name":  "taskhostw",
+                                                                      "targeted_by_tasklist":  false,
+                                                                      "category":  "suspicious_partial_enumeration_native_fallback_failed",
+                                                                      "managed_module_count":  1,
+                                                                      "managed_error":  "",
+                                                                      "fallback_method":  "native_psapi_fallback",
+                                                                      "fallback_error_stage":  "OpenProcess",
+                                                                      "fallback_error_code":  5,
+                                                                      "fallback_error_message":  "Access is denied"
+                                                                  },
+                                                                  {
+                                                                      "process_id":  15332,
+                                                                      "process_name":  "nvsphelper64",
+                                                                      "targeted_by_tasklist":  false,
+                                                                      "category":  "suspicious_partial_enumeration_native_fallback_failed",
+                                                                      "managed_module_count":  1,
+                                                                      "managed_error":  "",
+                                                                      "fallback_method":  "native_psapi_fallback",
+                                                                      "fallback_error_stage":  "OpenProcess",
+                                                                      "fallback_error_code":  5,
+                                                                      "fallback_error_message":  "Access is denied"
+                                                                  },
+                                                                  {
+                                                                      "process_id":  4256,
+                                                                      "process_name":  "NVDisplay.Container",
+                                                                      "targeted_by_tasklist":  false,
+                                                                      "category":  "suspicious_partial_enumeration_native_fallback_failed",
+                                                                      "managed_module_count":  1,
+                                                                      "managed_error":  "",
+                                                                      "fallback_method":  "native_psapi_fallback",
+                                                                      "fallback_error_stage":  "OpenProcess",
+                                                                      "fallback_error_code":  5,
+                                                                      "fallback_error_message":  "Access is denied"
+                                                                  },
+                                                                  {
+                                                                      "process_id":  1448,
+                                                                      "process_name":  "csrss",
+                                                                      "targeted_by_tasklist":  false,
+                                                                      "category":  "suspicious_partial_enumeration_native_fallback_failed",
+                                                                      "managed_module_count":  1,
+                                                                      "managed_error":  "",
+                                                                      "fallback_method":  "native_psapi_fallback",
+                                                                      "fallback_error_stage":  "OpenProcess",
+                                                                      "fallback_error_code":  5,
+                                                                      "fallback_error_message":  "Access is denied"
+                                                                  },
+                                                                  {
+                                                                      "process_id":  7844,
+                                                                      "process_name":  "CefSharp.BrowserSubprocess",
+                                                                      "targeted_by_tasklist":  false,
+                                                                      "category":  "suspicious_partial_enumeration_native_fallback_failed",
+                                                                      "managed_module_count":  1,
+                                                                      "managed_error":  "",
+                                                                      "fallback_method":  "native_psapi_fallback",
+                                                                      "fallback_error_stage":  "OpenProcess",
+                                                                      "fallback_error_code":  5,
+                                                                      "fallback_error_message":  "Access is denied"
+                                                                  },
+                                                                  {
+                                                                      "process_id":  4128,
+                                                                      "process_name":  "CefSharp.BrowserSubprocess",
+                                                                      "targeted_by_tasklist":  false,
+                                                                      "category":  "suspicious_partial_enumeration_native_fallback_failed",
+                                                                      "managed_module_count":  1,
+                                                                      "managed_error":  "",
+                                                                      "fallback_method":  "native_psapi_fallback",
+                                                                      "fallback_error_stage":  "OpenProcess",
+                                                                      "fallback_error_code":  5,
+                                                                      "fallback_error_message":  "Access is denied"
+                                                                  },
+                                                                  {
+                                                                      "process_id":  1792,
+                                                                      "process_name":  "fontdrvhost",
+                                                                      "targeted_by_tasklist":  false,
+                                                                      "category":  "suspicious_partial_enumeration_native_fallback_failed",
+                                                                      "managed_module_count":  1,
+                                                                      "managed_error":  "",
+                                                                      "fallback_method":  "native_psapi_fallback",
+                                                                      "fallback_error_stage":  "OpenProcess",
+                                                                      "fallback_error_code":  5,
+                                                                      "fallback_error_message":  "Access is denied"
+                                                                  },
+                                                                  {
+                                                                      "process_id":  6948,
+                                                                      "process_name":  "L-Connect 3",
+                                                                      "targeted_by_tasklist":  false,
+                                                                      "category":  "suspicious_partial_enumeration_native_fallback_failed",
+                                                                      "managed_module_count":  1,
+                                                                      "managed_error":  "",
+                                                                      "fallback_method":  "native_psapi_fallback",
+                                                                      "fallback_error_stage":  "OpenProcess",
+                                                                      "fallback_error_code":  5,
+                                                                      "fallback_error_message":  "Access is denied"
+                                                                  },
+                                                                  {
+                                                                      "process_id":  3456,
+                                                                      "process_name":  "atieclxx",
+                                                                      "targeted_by_tasklist":  false,
+                                                                      "category":  "suspicious_partial_enumeration_native_fallback_failed",
+                                                                      "managed_module_count":  1,
+                                                                      "managed_error":  "",
+                                                                      "fallback_method":  "native_psapi_fallback",
+                                                                      "fallback_error_stage":  "OpenProcess",
+                                                                      "fallback_error_code":  5,
+                                                                      "fallback_error_message":  "Access is denied"
+                                                                  }
+                                                              ]
+                                 },
+                    "count":  6,
+                    "current_installed_path_count":  6,
+                    "old_or_aside_install_root_path_count":  0,
+                    "other_path_count":  0,
+                    "expected_module_memory_size":  614400,
+                    "all_match_candidate_image_size":  true,
+                    "all_use_current_installed_path":  true,
+                    "all_start_times_known":  true,
+                    "all_started_strictly_after_deployment":  true,
+                    "entries":  [
+                                    {
+                                        "process_id":  18332,
+                                        "process_name":  "ChatGPT",
+                                        "process_path":  "C:\\Program Files\\WindowsApps\\OpenAI.Codex_26.707.3748.0_x64__2p2nqsd0c76g0\\app\\ChatGPT.exe",
+                                        "process_started_at":  "2026-07-10T17:47:20.5364673-07:00",
+                                        "start_time_known":  true,
+                                        "started_strictly_after_deployment":  true,
+                                        "enumeration_method":  "managed_process_modules",
+                                        "targeted_by_tasklist":  true,
+                                        "module_path":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Yune\\WindowsIme\\YuneWindowsTSF.dll",
+                                        "module_path_kind":  "current_installed_path",
+                                        "is_current_installed_path":  true,
+                                        "is_install_root_old_or_aside_path":  false,
+                                        "is_other_path":  false,
+                                        "module_memory_size":  614400,
+                                        "matches_candidate_image_size":  true
+                                    },
+                                    {
+                                        "process_id":  21296,
+                                        "process_name":  "msedgewebview2",
+                                        "process_path":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe",
+                                        "process_started_at":  "2026-07-10T17:47:54.3457743-07:00",
+                                        "start_time_known":  true,
+                                        "started_strictly_after_deployment":  true,
+                                        "enumeration_method":  "managed_process_modules",
+                                        "targeted_by_tasklist":  true,
+                                        "module_path":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Yune\\WindowsIme\\YuneWindowsTSF.dll",
+                                        "module_path_kind":  "current_installed_path",
+                                        "is_current_installed_path":  true,
+                                        "is_install_root_old_or_aside_path":  false,
+                                        "is_other_path":  false,
+                                        "module_memory_size":  614400,
+                                        "matches_candidate_image_size":  true
+                                    },
+                                    {
+                                        "process_id":  23832,
+                                        "process_name":  "claude",
+                                        "process_path":  "C:\\Program Files\\WindowsApps\\Claude_1.20186.1.0_x64__pzs8sxrjxfjjc\\app\\claude.exe",
+                                        "process_started_at":  "2026-07-10T17:48:24.5387182-07:00",
+                                        "start_time_known":  true,
+                                        "started_strictly_after_deployment":  true,
+                                        "enumeration_method":  "managed_process_modules",
+                                        "targeted_by_tasklist":  true,
+                                        "module_path":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Yune\\WindowsIme\\YuneWindowsTSF.dll",
+                                        "module_path_kind":  "current_installed_path",
+                                        "is_current_installed_path":  true,
+                                        "is_install_root_old_or_aside_path":  false,
+                                        "is_other_path":  false,
+                                        "module_memory_size":  614400,
+                                        "matches_candidate_image_size":  true
+                                    },
+                                    {
+                                        "process_id":  12612,
+                                        "process_name":  "Widgets",
+                                        "process_path":  "C:\\Program Files\\WindowsApps\\MicrosoftWindows.Client.WebExperience_526.15201.50.0_x64__cw5n1h2txyewy\\Dashboard\\Widgets.exe",
+                                        "process_started_at":  "2026-07-10T17:46:53.1499779-07:00",
+                                        "start_time_known":  true,
+                                        "started_strictly_after_deployment":  true,
+                                        "enumeration_method":  "managed_process_modules",
+                                        "targeted_by_tasklist":  true,
+                                        "module_path":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Yune\\WindowsIme\\YuneWindowsTSF.dll",
+                                        "module_path_kind":  "current_installed_path",
+                                        "is_current_installed_path":  true,
+                                        "is_install_root_old_or_aside_path":  false,
+                                        "is_other_path":  false,
+                                        "module_memory_size":  614400,
+                                        "matches_candidate_image_size":  true
+                                    },
+                                    {
+                                        "process_id":  2412,
+                                        "process_name":  "NVIDIA Overlay",
+                                        "process_path":  "C:\\Program Files\\NVIDIA Corporation\\NVIDIA App\\CEF\\NVIDIA Overlay.exe",
+                                        "process_started_at":  "2026-07-10T17:46:54.3442595-07:00",
+                                        "start_time_known":  true,
+                                        "started_strictly_after_deployment":  true,
+                                        "enumeration_method":  "managed_process_modules",
+                                        "targeted_by_tasklist":  true,
+                                        "module_path":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Yune\\WindowsIme\\YuneWindowsTSF.dll",
+                                        "module_path_kind":  "current_installed_path",
+                                        "is_current_installed_path":  true,
+                                        "is_install_root_old_or_aside_path":  false,
+                                        "is_other_path":  false,
+                                        "module_memory_size":  614400,
+                                        "matches_candidate_image_size":  true
+                                    },
+                                    {
+                                        "process_id":  11248,
+                                        "process_name":  "explorer",
+                                        "process_path":  "C:\\Windows\\Explorer.EXE",
+                                        "process_started_at":  "2026-07-10T17:46:52.2464489-07:00",
+                                        "start_time_known":  true,
+                                        "started_strictly_after_deployment":  true,
+                                        "enumeration_method":  "managed_process_modules",
+                                        "targeted_by_tasklist":  true,
+                                        "module_path":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Yune\\WindowsIme\\YuneWindowsTSF.dll",
+                                        "module_path_kind":  "current_installed_path",
+                                        "is_current_installed_path":  true,
+                                        "is_install_root_old_or_aside_path":  false,
+                                        "is_other_path":  false,
+                                        "module_memory_size":  614400,
+                                        "matches_candidate_image_size":  true
+                                    }
+                                ]
+                },
+    "installed_processes":  {
+                                "server":  {
+                                               "expected_path":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Yune\\WindowsIme\\YuneWindowsServer.exe",
+                                               "current_installed_path_count":  1,
+                                               "old_or_aside_install_root_path_count":  0,
+                                               "unknown_path_count":  0,
+                                               "exactly_one_running_installed_server":  true,
+                                               "no_old_or_aside_processes":  true,
+                                               "all_installed_start_times_known":  true,
+                                               "all_installed_started_strictly_after_deployment":  true,
+                                               "entries":  [
+                                                               {
+                                                                   "process_id":  13380,
+                                                                   "process_name":  "YuneWindowsServer",
+                                                                   "process_path":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Yune\\WindowsIme\\YuneWindowsServer.exe",
+                                                                   "path_known":  true,
+                                                                   "path_kind":  "current_installed_path",
+                                                                   "is_current_installed_path":  true,
+                                                                   "is_install_root_old_or_aside_path":  false,
+                                                                   "process_started_at":  "2026-07-10T17:49:28.3914440-07:00",
+                                                                   "start_time_known":  true,
+                                                                   "started_strictly_after_deployment":  true
+                                                               }
+                                                           ]
+                                           },
+                                "settings":  {
+                                                 "expected_path":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Yune\\WindowsIme\\YuneWindowsSettings.exe",
+                                                 "current_installed_path_count":  0,
+                                                 "old_or_aside_install_root_path_count":  0,
+                                                 "unknown_path_count":  0,
+                                                 "optional":  true,
+                                                 "no_old_or_aside_processes":  true,
+                                                 "all_installed_start_times_known":  true,
+                                                 "all_installed_started_strictly_after_deployment":  true,
+                                                 "entries":  [
+
+                                                             ]
+                                             }
+                            },
+    "warnings":  [
+                     "current-session module inventory contains explicitly recorded access limitations; strict OS boot proof plus complete targeted holder details supply stale-process exclusion"
+                 ],
+    "failures":  [
+
+                 ],
+    "pass":  true
+}

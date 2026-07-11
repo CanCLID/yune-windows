@@ -1,14 +1,15 @@
 # M10 Native UI Presentation Closeout
 
-> **Status:** candidate `7622305` deployed; restart and installed acceptance
+> **Status:** corrective candidate `589bc3d` deployed; restart and installed acceptance
 > pending.
 >
 > M10 is the canonical milestone for the native Cantonese UI, toolbar
 > presentation, and settings-window usability work previously planned and
 > evidenced under M11/M11C, plus only the settings DPI/resize/scroll portion of
-> M11D. Implementation last changed at `eb262fa`; the older pre-rebaseline
+> M11D. Implementation last changed at `589bc3d`; the older pre-rebaseline
 > source/evidence baseline remains `337b9bd`. The durable candidate manifest is
-> recorded, but no post-restart or installed acceptance proof exists yet.
+> recorded and its measured non-elevated preflight passes, but no post-restart
+> or installed acceptance proof exists yet for this candidate.
 
 ## Outcome
 
@@ -26,11 +27,11 @@ cross-host visibility become deterministic; those are the redefined M11.
 
 ## Frozen closeout build
 
-Implementation last changed at `eb262fa`; `337b9bd` remains historical
+Implementation last changed at `589bc3d`; `337b9bd` remains historical
 pre-rebaseline provenance. At deployment time, pin the clean source
 commit actually used to build the TSF DLL, server, settings executable, and
 default skin, then record their installed hashes before either live gate begins.
-If that source is a planning/contract-only descendant of `eb262fa`, record the
+If that source is a documentation/evidence-only descendant of `589bc3d`, record the
 diff proving no product build input changed. Verify that loaded TSF holders map
 the pinned DLL.
 
@@ -49,9 +50,14 @@ The approved 2026-07-09 PT clone/drag observation used the older source commit
 toolbar could retain one foreground-owned HWND in Notepad and Chromium without
 fresh user-observed copies or afterimages. It is useful regression evidence, but
 it is not installed acceptance for the current implementation baseline.
-Candidate `7622305` contains the current reliability and settings repairs; it is
-deployed with restart required and has not yet been post-restart verified or
-visually exercised.
+Candidate `7622305` was post-restart verified and produced a controlled,
+clone-free 20-drag Notepad capture, but ordinary Notepad/Chromium focus movement
+exposed a stale per-process toolbar position before the shared server state
+converged. That failed the position-persistence gate, so its capture remains
+regression/repro evidence only. Corrective candidate `589bc3d` keeps a hidden
+toolbar latched closed until an existing-server refresh confirms current state
+for the foreground owner. It is deployed with restart required and has not yet
+been post-restart verified or visually exercised.
 
 ## In scope
 
@@ -254,6 +260,11 @@ remain future work under their independent plans and evidence gates.
 
 ## Last Updated
 
+- 2026-07-10: Rejected candidate `7622305` after its installed focus-movement
+  check exposed a transient stale cross-host toolbar position. Published and
+  deployed corrective candidate `589bc3d`; its full measured non-elevated
+  preflight passes, while restart verification and both installed gates remain
+  pending.
 - 2026-07-10: Aligned the D-22 rerun rule with the decision record: rerun every
   affected M10 gate, including installed settings gate B when its inputs change.
 - 2026-07-10: Recorded candidate `7622305` as deployed with exact hashes and a

@@ -43,7 +43,7 @@ matching `summary.md` with the final human-readable verdict.
    ```powershell
    powershell -NoProfile -ExecutionPolicy Bypass `
      -File tools\dev\capture-m10-non-elevated-preflight.ps1 `
-     -ImplementationCommit eb262fad85320d4410365d1214ee2be9837fae53
+     -ImplementationCommit 589bc3dd4ac703a6d8654b10e15c26afeb167985
    ```
 5. In fresh Notepad, Chromium, Explorer, and one named Electron host, run one
    toolbar session per host with at least 10 grip and 10 settings-segment drags.

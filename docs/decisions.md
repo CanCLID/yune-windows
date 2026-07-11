@@ -307,6 +307,16 @@ termination, or cleanup.
 
 ## Last Updated
 
+2026-07-10 - The installed M10 run on candidate `7622305` retained one
+foreground-owned toolbar through a controlled 20-drag Notepad capture with no
+user-observed copies or afterimages, but the subsequent Notepad/Chromium focus
+check exposed a transient stale per-process toolbar position. M10 therefore did
+not accept that candidate. Corrective implementation `589bc3d` latches a hidden
+toolbar closed across foreground loss and supersession, refreshes the existing
+server before re-show, and fails closed on unacknowledged or mismatched state.
+Its measured non-elevated preflight passes and it is deployed with restart
+required; post-restart verification and both installed M10 gates must be rerun.
+
 2026-07-10 - D-22 permits the already-preflighted M10 presentation/settings
 closeout to deploy independently of M11's remaining direct-TSF pre-deployment
 matrix. Implementation last changed at `eb262fa`; its settings DPI matrix,

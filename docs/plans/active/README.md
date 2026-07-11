@@ -9,7 +9,8 @@ evidence map.
   Owns the native Cantonese surface,
   DirectComposition toolbar presentation, clone-free ownership/drag/backdrop
   behavior, and settings DPI/resize/scroll usability. The older installed
-  clone result remains regression evidence; frozen candidate `7622305` still
+  clone result remains regression evidence; corrective candidate `589bc3d` is
+  frozen at `deployed_restart_required` and still
   needs its bound post-restart verification plus hash-pinned toolbar-presentation
   and settings-usability verdicts.
 - `m11-activation-state-reliability.md` - **implementation complete; focused

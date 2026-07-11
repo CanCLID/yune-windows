@@ -3,16 +3,17 @@
     "operation":  "m10_frozen_candidate",
     "mode":  "Deploy",
     "status":  "deployed_restart_required",
-    "generated_at":  "2026-07-10T10:39:24.0715285-07:00",
+    "generated_at":  "2026-07-10T21:36:15.3208468-07:00",
     "source":  {
                    "repo_root":  "C:\\Users\\laubonghaudoi\\Documents\\GitHub\\yune-windows",
-                   "expected_commit":  "7622305322a8ec6a45e2d2e36fd8c245232f60a2",
-                   "actual_commit":  "7622305322a8ec6a45e2d2e36fd8c245232f60a2",
+                   "expected_commit":  "589bc3dd4ac703a6d8654b10e15c26afeb167985",
+                   "actual_commit":  "589bc3dd4ac703a6d8654b10e15c26afeb167985",
                    "branch":  "main",
                    "clean":  true,
                    "dirty_entries":  {
 
                                      },
+                   "ignored_generated_entry":  "docs/evidence/m10/machine-state/frozen-candidate.json",
                    "post_build_verified":  true,
                    "build_script":  {
                                         "name":  "build script",
@@ -50,103 +51,87 @@
 
                                                                     ]
                                        },
-                    "tsf_holder_count":  11,
+                    "tsf_holder_count":  9,
                     "tsf_holders":  [
                                         {
-                                            "process_id":  10456,
-                                            "process_name":  "ApplicationFrameHost",
-                                            "process_path":  "C:\\Windows\\system32\\ApplicationFrameHost.exe",
-                                            "process_started_at":  "2026-07-09T18:02:32.3123515-07:00",
-                                            "module_path":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Yune\\WindowsIme\\YuneWindowsTSF.dll",
-                                            "module_memory_size":  614400
-                                        },
-                                        {
-                                            "process_id":  25568,
+                                            "process_id":  18332,
                                             "process_name":  "ChatGPT",
                                             "process_path":  "C:\\Program Files\\WindowsApps\\OpenAI.Codex_26.707.3748.0_x64__2p2nqsd0c76g0\\app\\ChatGPT.exe",
-                                            "process_started_at":  "2026-07-09T21:08:43.6918054-07:00",
-                                            "module_path":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Yune\\WindowsIme\\YuneWindowsTSF.dll",
-                                            "module_memory_size":  569344
-                                        },
-                                        {
-                                            "process_id":  6308,
-                                            "process_name":  "chrome",
-                                            "process_path":  "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
-                                            "process_started_at":  "2026-07-09T21:31:49.2798647-07:00",
-                                            "module_path":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Yune\\WindowsIme\\YuneWindowsTSF.dll",
-                                            "module_memory_size":  569344
-                                        },
-                                        {
-                                            "process_id":  19096,
-                                            "process_name":  "claude",
-                                            "process_path":  "C:\\Program Files\\WindowsApps\\Claude_1.20186.0.0_x64__pzs8sxrjxfjjc\\app\\Claude.exe",
-                                            "process_started_at":  "2026-07-09T21:08:36.6467278-07:00",
-                                            "module_path":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Yune\\WindowsIme\\YuneWindowsTSF.dll",
-                                            "module_memory_size":  569344
-                                        },
-                                        {
-                                            "process_id":  8880,
-                                            "process_name":  "explorer",
-                                            "process_path":  "C:\\Windows\\Explorer.EXE",
-                                            "process_started_at":  "2026-07-09T21:11:58.6368642-07:00",
-                                            "module_path":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Yune\\WindowsIme\\YuneWindowsTSF.dll",
-                                            "module_memory_size":  569344
-                                        },
-                                        {
-                                            "process_id":  22644,
-                                            "process_name":  "GitHubDesktop",
-                                            "process_path":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\GitHubDesktop\\app-3.6.2\\GitHubDesktop.exe",
-                                            "process_started_at":  "2026-07-09T23:24:00.3231124-07:00",
-                                            "module_path":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Yune\\WindowsIme\\YuneWindowsTSF.dll",
-                                            "module_memory_size":  569344
-                                        },
-                                        {
-                                            "process_id":  21588,
-                                            "process_name":  "msedgewebview2",
-                                            "process_path":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.48\\msedgewebview2.exe",
-                                            "process_started_at":  "2026-07-09T17:59:58.0273125-07:00",
-                                            "module_path":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Yune\\WindowsIme\\YuneWindowsTSF.dll",
-                                            "module_memory_size":  569344
-                                        },
-                                        {
-                                            "process_id":  15228,
-                                            "process_name":  "NVIDIA Overlay",
-                                            "process_path":  "C:\\Program Files\\NVIDIA Corporation\\NVIDIA App\\CEF\\NVIDIA Overlay.exe",
-                                            "process_started_at":  "2026-07-09T17:58:56.9019484-07:00",
-                                            "module_path":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Yune\\WindowsIme\\YuneWindowsTSF.dll",
-                                            "module_memory_size":  569344
-                                        },
-                                        {
-                                            "process_id":  2368,
-                                            "process_name":  "steamwebhelper",
-                                            "process_path":  "C:\\Program Files (x86)\\Steam\\bin\\cef\\cef.win64\\steamwebhelper.exe",
-                                            "process_started_at":  "2026-07-10T08:58:29.8834937-07:00",
+                                            "process_started_at":  "2026-07-10T17:47:20.5364673-07:00",
                                             "module_path":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Yune\\WindowsIme\\YuneWindowsTSF.dll",
                                             "module_memory_size":  614400
                                         },
                                         {
-                                            "process_id":  18896,
-                                            "process_name":  "Telegram",
-                                            "process_path":  "C:\\Program Files\\WindowsApps\\TelegramMessengerLLP.TelegramDesktop_6.8.2.0_x64__t4vj0pshhgkwm\\Telegram.exe",
-                                            "process_started_at":  "2026-07-09T21:41:47.0490628-07:00",
+                                            "process_id":  14696,
+                                            "process_name":  "chrome",
+                                            "process_path":  "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+                                            "process_started_at":  "2026-07-10T17:59:48.0011139-07:00",
                                             "module_path":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Yune\\WindowsIme\\YuneWindowsTSF.dll",
-                                            "module_memory_size":  569344
+                                            "module_memory_size":  614400
                                         },
                                         {
-                                            "process_id":  12784,
+                                            "process_id":  23832,
+                                            "process_name":  "claude",
+                                            "process_path":  "C:\\Program Files\\WindowsApps\\Claude_1.20186.1.0_x64__pzs8sxrjxfjjc\\app\\claude.exe",
+                                            "process_started_at":  "2026-07-10T17:48:24.5387182-07:00",
+                                            "module_path":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Yune\\WindowsIme\\YuneWindowsTSF.dll",
+                                            "module_memory_size":  614400
+                                        },
+                                        {
+                                            "process_id":  11248,
+                                            "process_name":  "explorer",
+                                            "process_path":  "C:\\Windows\\Explorer.EXE",
+                                            "process_started_at":  "2026-07-10T17:46:52.2464489-07:00",
+                                            "module_path":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Yune\\WindowsIme\\YuneWindowsTSF.dll",
+                                            "module_memory_size":  614400
+                                        },
+                                        {
+                                            "process_id":  26428,
+                                            "process_name":  "GitHubDesktop",
+                                            "process_path":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\GitHubDesktop\\app-3.6.2\\GitHubDesktop.exe",
+                                            "process_started_at":  "2026-07-10T17:56:29.6252664-07:00",
+                                            "module_path":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Yune\\WindowsIme\\YuneWindowsTSF.dll",
+                                            "module_memory_size":  614400
+                                        },
+                                        {
+                                            "process_id":  21296,
+                                            "process_name":  "msedgewebview2",
+                                            "process_path":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe",
+                                            "process_started_at":  "2026-07-10T17:47:54.3457743-07:00",
+                                            "module_path":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Yune\\WindowsIme\\YuneWindowsTSF.dll",
+                                            "module_memory_size":  614400
+                                        },
+                                        {
+                                            "process_id":  6696,
+                                            "process_name":  "Notepad",
+                                            "process_path":  "C:\\Program Files\\WindowsApps\\Microsoft.WindowsNotepad_11.2605.29.0_x64__8wekyb3d8bbwe\\Notepad\\Notepad.exe",
+                                            "process_started_at":  "2026-07-10T17:53:07.8013501-07:00",
+                                            "module_path":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Yune\\WindowsIme\\YuneWindowsTSF.dll",
+                                            "module_memory_size":  614400
+                                        },
+                                        {
+                                            "process_id":  2412,
+                                            "process_name":  "NVIDIA Overlay",
+                                            "process_path":  "C:\\Program Files\\NVIDIA Corporation\\NVIDIA App\\CEF\\NVIDIA Overlay.exe",
+                                            "process_started_at":  "2026-07-10T17:46:54.3442595-07:00",
+                                            "module_path":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Yune\\WindowsIme\\YuneWindowsTSF.dll",
+                                            "module_memory_size":  614400
+                                        },
+                                        {
+                                            "process_id":  12612,
                                             "process_name":  "Widgets",
                                             "process_path":  "C:\\Program Files\\WindowsApps\\MicrosoftWindows.Client.WebExperience_526.15201.50.0_x64__cw5n1h2txyewy\\Dashboard\\Widgets.exe",
-                                            "process_started_at":  "2026-07-09T17:58:54.1404699-07:00",
+                                            "process_started_at":  "2026-07-10T17:46:53.1499779-07:00",
                                             "module_path":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Yune\\WindowsIme\\YuneWindowsTSF.dll",
-                                            "module_memory_size":  569344
+                                            "module_memory_size":  614400
                                         }
                                     ],
                     "installed_server_processes":  [
                                                        {
-                                                           "process_id":  26100,
+                                                           "process_id":  13380,
                                                            "process_name":  "YuneWindowsServer",
                                                            "process_path":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Yune\\WindowsIme\\YuneWindowsServer.exe",
-                                                           "process_started_at":  "2026-07-09T21:08:44.5064085-07:00"
+                                                           "process_started_at":  "2026-07-10T17:49:28.3914440-07:00"
                                                        }
                                                    ],
                     "installed_settings_processes":  [
@@ -159,42 +144,42 @@
                 },
     "build":  {
                   "performed":  true,
-                  "output_dir":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Temp\\yune-windows\\m10-frozen-candidate-34048-e4ae6b61\\build",
+                  "output_dir":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Temp\\yune-windows\\m10-deploy-9b33fa8be3444f5c8d1a390d5fcc67bd\\build",
                   "command":  "tools\\build-tsf-shell.ps1 -OutputDir \u003cbuild\u003e -YuneRoot \u003cyune\u003e",
                   "invocation_count":  1,
                   "artifacts":  [
                                     {
                                         "name":  "server",
                                         "relative_path":  "YuneWindowsServer.exe",
-                                        "path":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Temp\\yune-windows\\m10-frozen-candidate-34048-e4ae6b61\\build\\YuneWindowsServer.exe",
+                                        "path":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Temp\\yune-windows\\m10-deploy-9b33fa8be3444f5c8d1a390d5fcc67bd\\build\\YuneWindowsServer.exe",
                                         "length":  461312,
-                                        "sha256":  "8A44966E6EF5BCC0CABC7E746C48ADF2335F742653E65034A15503DB17E3678A"
+                                        "sha256":  "61C6706845F1A47423DD61A09EB4DE97C673CED9B338F83CED8BDAC2832F4259"
                                     },
                                     {
                                         "name":  "tsf",
                                         "relative_path":  "YuneWindowsTSF.dll",
-                                        "path":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Temp\\yune-windows\\m10-frozen-candidate-34048-e4ae6b61\\build\\YuneWindowsTSF.dll",
-                                        "length":  589824,
-                                        "sha256":  "1171840861AD47B01E20BEFA07B3830BA64CF6C7C7A6C54FF3CBD1F169A4D8E4"
+                                        "path":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Temp\\yune-windows\\m10-deploy-9b33fa8be3444f5c8d1a390d5fcc67bd\\build\\YuneWindowsTSF.dll",
+                                        "length":  591360,
+                                        "sha256":  "49EC47B4213836C8534A27DE03D6E1DCF09CD3668B1A91EACC2EF8483173EB80"
                                     },
                                     {
                                         "name":  "settings",
                                         "relative_path":  "YuneWindowsSettings.exe",
-                                        "path":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Temp\\yune-windows\\m10-frozen-candidate-34048-e4ae6b61\\build\\YuneWindowsSettings.exe",
+                                        "path":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Temp\\yune-windows\\m10-deploy-9b33fa8be3444f5c8d1a390d5fcc67bd\\build\\YuneWindowsSettings.exe",
                                         "length":  530432,
-                                        "sha256":  "277CE8763B2E27A64D377CE6EAEED914131FDAE9BBBAFA05EC99BF9A01920888"
+                                        "sha256":  "F7AA0E31C22B2F619F183019ACC0B4B8431539C276786DEA7970605C48164B37"
                                     },
                                     {
                                         "name":  "profile",
                                         "relative_path":  "YuneWindowsProfileTool.exe",
-                                        "path":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Temp\\yune-windows\\m10-frozen-candidate-34048-e4ae6b61\\build\\YuneWindowsProfileTool.exe",
+                                        "path":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Temp\\yune-windows\\m10-deploy-9b33fa8be3444f5c8d1a390d5fcc67bd\\build\\YuneWindowsProfileTool.exe",
                                         "length":  282112,
-                                        "sha256":  "86FE3D9BA6221B584366C69055D541CFC6DBAA574019120A242C550C0BDAA0AB"
+                                        "sha256":  "FC81EE268162EA1DA9C5CAAEC53F27CA87B7CD144C1B010712BCCC7385DD34C8"
                                     },
                                     {
                                         "name":  "default_skin",
                                         "relative_path":  "skins\\default\\theme.json",
-                                        "path":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Temp\\yune-windows\\m10-frozen-candidate-34048-e4ae6b61\\build\\skins\\default\\theme.json",
+                                        "path":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Temp\\yune-windows\\m10-deploy-9b33fa8be3444f5c8d1a390d5fcc67bd\\build\\skins\\default\\theme.json",
                                         "length":  715,
                                         "sha256":  "D7771F05AEB1F4D4DFFDA809073E2FAC75D17810F130D4D0D2AF9D6950DF6C6F"
                                     }
@@ -202,7 +187,7 @@
                   "tsf_pe_size_of_image":  614400
               },
     "manifest":  {
-                     "scratch_path":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Temp\\yune-windows\\m10-frozen-candidate-34048-e4ae6b61\\m10-frozen-candidate.json",
+                     "scratch_path":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Temp\\yune-windows\\m10-deploy-9b33fa8be3444f5c8d1a390d5fcc67bd\\m10-frozen-candidate-deploy.json",
                      "durable_path":  "C:\\Users\\laubonghaudoi\\Documents\\GitHub\\yune-windows\\docs\\evidence\\m10\\machine-state\\frozen-candidate.json",
                      "durable_outside_os_temp":  true,
                      "atomic_refresh":  true
@@ -219,18 +204,18 @@
                                               "skins"
                                           ],
                        "performed":  true,
-                       "started_at":  "2026-07-10T10:39:46.5769968-07:00",
-                       "completed_at":  "2026-07-10T10:39:46.8545101-07:00",
+                       "started_at":  "2026-07-10T21:36:32.2009921-07:00",
+                       "completed_at":  "2026-07-10T21:36:32.4509934-07:00",
                        "operations":  [
                                           {
                                               "name":  "server",
                                               "kind":  "file",
-                                              "source":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Temp\\yune-windows\\m10-frozen-candidate-34048-e4ae6b61\\build\\YuneWindowsServer.exe",
+                                              "source":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Temp\\yune-windows\\m10-deploy-9b33fa8be3444f5c8d1a390d5fcc67bd\\build\\YuneWindowsServer.exe",
                                               "destination":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Yune\\WindowsIme\\YuneWindowsServer.exe",
-                                              "aside_path":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Yune\\WindowsIme\\YuneWindowsServer.exe.m10-old-20260710-103946-764c3a7c",
+                                              "aside_path":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Yune\\WindowsIme\\YuneWindowsServer.exe.m10-old-20260710-213632-d62a7d1b",
                                               "aside_created":  true,
                                               "candidate_installed":  true,
-                                              "installed_sha256":  "8A44966E6EF5BCC0CABC7E746C48ADF2335F742653E65034A15503DB17E3678A",
+                                              "installed_sha256":  "61C6706845F1A47423DD61A09EB4DE97C673CED9B338F83CED8BDAC2832F4259",
                                               "rollback_attempted":  false,
                                               "rollback_succeeded":  false,
                                               "failed_candidate_path":  ""
@@ -238,12 +223,12 @@
                                           {
                                               "name":  "tsf",
                                               "kind":  "file",
-                                              "source":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Temp\\yune-windows\\m10-frozen-candidate-34048-e4ae6b61\\build\\YuneWindowsTSF.dll",
+                                              "source":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Temp\\yune-windows\\m10-deploy-9b33fa8be3444f5c8d1a390d5fcc67bd\\build\\YuneWindowsTSF.dll",
                                               "destination":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Yune\\WindowsIme\\YuneWindowsTSF.dll",
-                                              "aside_path":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Yune\\WindowsIme\\YuneWindowsTSF.dll.m10-old-20260710-103946-764c3a7c",
+                                              "aside_path":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Yune\\WindowsIme\\YuneWindowsTSF.dll.m10-old-20260710-213632-d62a7d1b",
                                               "aside_created":  true,
                                               "candidate_installed":  true,
-                                              "installed_sha256":  "1171840861AD47B01E20BEFA07B3830BA64CF6C7C7A6C54FF3CBD1F169A4D8E4",
+                                              "installed_sha256":  "49EC47B4213836C8534A27DE03D6E1DCF09CD3668B1A91EACC2EF8483173EB80",
                                               "rollback_attempted":  false,
                                               "rollback_succeeded":  false,
                                               "failed_candidate_path":  ""
@@ -251,12 +236,12 @@
                                           {
                                               "name":  "settings",
                                               "kind":  "file",
-                                              "source":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Temp\\yune-windows\\m10-frozen-candidate-34048-e4ae6b61\\build\\YuneWindowsSettings.exe",
+                                              "source":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Temp\\yune-windows\\m10-deploy-9b33fa8be3444f5c8d1a390d5fcc67bd\\build\\YuneWindowsSettings.exe",
                                               "destination":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Yune\\WindowsIme\\YuneWindowsSettings.exe",
-                                              "aside_path":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Yune\\WindowsIme\\YuneWindowsSettings.exe.m10-old-20260710-103946-764c3a7c",
+                                              "aside_path":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Yune\\WindowsIme\\YuneWindowsSettings.exe.m10-old-20260710-213632-d62a7d1b",
                                               "aside_created":  true,
                                               "candidate_installed":  true,
-                                              "installed_sha256":  "277CE8763B2E27A64D377CE6EAEED914131FDAE9BBBAFA05EC99BF9A01920888",
+                                              "installed_sha256":  "F7AA0E31C22B2F619F183019ACC0B4B8431539C276786DEA7970605C48164B37",
                                               "rollback_attempted":  false,
                                               "rollback_succeeded":  false,
                                               "failed_candidate_path":  ""
@@ -264,12 +249,12 @@
                                           {
                                               "name":  "profile",
                                               "kind":  "file",
-                                              "source":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Temp\\yune-windows\\m10-frozen-candidate-34048-e4ae6b61\\build\\YuneWindowsProfileTool.exe",
+                                              "source":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Temp\\yune-windows\\m10-deploy-9b33fa8be3444f5c8d1a390d5fcc67bd\\build\\YuneWindowsProfileTool.exe",
                                               "destination":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Yune\\WindowsIme\\YuneWindowsProfileTool.exe",
-                                              "aside_path":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Yune\\WindowsIme\\YuneWindowsProfileTool.exe.m10-old-20260710-103946-764c3a7c",
+                                              "aside_path":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Yune\\WindowsIme\\YuneWindowsProfileTool.exe.m10-old-20260710-213632-d62a7d1b",
                                               "aside_created":  true,
                                               "candidate_installed":  true,
-                                              "installed_sha256":  "86FE3D9BA6221B584366C69055D541CFC6DBAA574019120A242C550C0BDAA0AB",
+                                              "installed_sha256":  "FC81EE268162EA1DA9C5CAAEC53F27CA87B7CD144C1B010712BCCC7385DD34C8",
                                               "rollback_attempted":  false,
                                               "rollback_succeeded":  false,
                                               "failed_candidate_path":  ""
@@ -277,9 +262,9 @@
                                           {
                                               "name":  "skins",
                                               "kind":  "directory",
-                                              "source":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Temp\\yune-windows\\m10-frozen-candidate-34048-e4ae6b61\\build\\skins",
+                                              "source":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Temp\\yune-windows\\m10-deploy-9b33fa8be3444f5c8d1a390d5fcc67bd\\build\\skins",
                                               "destination":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Yune\\WindowsIme\\skins",
-                                              "aside_path":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Yune\\WindowsIme\\skins.m10-old-20260710-103946-764c3a7c",
+                                              "aside_path":  "C:\\Users\\laubonghaudoi\\AppData\\Local\\Yune\\WindowsIme\\skins.m10-old-20260710-213632-d62a7d1b",
                                               "aside_created":  true,
                                               "candidate_installed":  true,
                                               "installed_sha256":  "D7771F05AEB1F4D4DFFDA809073E2FAC75D17810F130D4D0D2AF9D6950DF6C6F",
